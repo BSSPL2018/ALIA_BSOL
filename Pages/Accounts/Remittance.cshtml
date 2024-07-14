@@ -1,0 +1,527 @@
+﻿@page
+@using BSOL.Core.Models.Accounts
+@using BSOL.Core.Models.General
+@using BSOL.Helpers
+@using Kendo.Mvc.UI
+@model Remittance
+@{
+    ViewData["Title"] = "Remittance";
+    Layout = "~/Pages/Shared/_Layout.cshtml";
+}
+@if (!await Html.HasAccess(Forms.Accounts.Remittance))
+{
+    return;
+}
+
+<form id="app" v-on:submit.prevent="submitForm">
+    <div class="g-title v-edit">
+        <div class="g-left">
+            <table>
+                <tr>
+                    <td>
+                        @*  @Html.ToggleButton(Orientation.Vertical) *@
+                        @if (await Html.HasAccess(Forms.Accounts.Remittance, Rights.Add))
+                        {
+                            <button type="button" style="padding: 4px 10px;border-radius: 0;background: #0F9D58;" onclick="app.addRemittance()" class="btn btn-primary">
+                                <i class="fa fa-plus-circle"></i>Create
+                            </button>
+                        }
+                    </td>
+                    <td>
+                        <kendo-datepicker v-model="params.FromDate" :max="maxDate" :format="'dd-MMM-yyyy'" @@change="function(e){setModel(e,params,'FromDate',onDateChange)}" style="width:130px"></kendo-datepicker>
+                    </td>
+                    <td>
+                        <kendo-datepicker v-model="params.ToDate" :max="maxDate" :format="'dd-MMM-yyyy'" @@change=" function(e){setModel(e,params,'ToDate',onDateChange)}" style="width:130px"></kendo-datepicker>
+                    </td>
+                    <td>
+                       @*  <ul class="tg-btn tg-fixed" style="display: inline-flex;">
+                            <li :class="{'tg-active': TabIndex == 0}">
+                                <a href="javascript:app.tabChange(0)">Pending</a>
+                            </li>
+                            <li :class="{'tg-active': TabIndex == 1}">
+                                <a href="javascript:app.tabChange(1)">Outlet Approved</a>
+                            </li>
+                            <li :class="{'tg-active': TabIndex == 2}">
+                                <a href="javascript:app.tabChange(2)">Acc. Verified</a>
+                            </li>
+                            <li :class="{'tg-active': TabIndex == 3}">
+                                <a href="javascript:app.tabChange(3)">Acc. Reconciliation</a>
+                            </li>
+                        </ul> *@
+                    </td>
+                </tr>
+            </table>
+        </div>
+        <div class="g-center">
+            <ul class="tg-btn tg-fixed" style="display: inline-flex;">
+                <li :class="{'tg-active': TabIndex == 0}">
+                    <a href="javascript:app.tabChange(0)">Pending</a>
+                </li>
+                <li :class="{'tg-active': TabIndex == 1}">
+                    <a href="javascript:app.tabChange(1)">Outlet Approved</a>
+                </li>
+                <li :class="{'tg-active': TabIndex == 2}">
+                    <a href="javascript:app.tabChange(2)">Acc. Verified</a>
+                </li>
+                <li :class="{'tg-active': TabIndex == 3}">
+                    <a href="javascript:app.tabChange(3)">Acc. Reconciliation</a>
+                </li>
+            </ul>
+        </div>
+        @*                <span class="g-text">Remittance</span>*@
+        <div class="g-right">
+            <div class="cntrl-inline">
+                @*  @Html.SaveButton() *@
+            </div>
+            @Html.ExcelButton()
+        </div>
+    </div>
+    <div id="Remittance" class="modal fade right" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered ">
+            <div class="modal-content" style="border-radius:0px;">
+                <div class="header-modal">
+                    <h5 class="modal-title title-modal">Remittance</h5>
+                    <button type="button" onclick="hideModal('Remittance')" class="btn-close close-btn close-modal-btn" data-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="form-group col-md-12">
+                            @Html.LabelFor(x => x.ShopGroupID, "Outlet")
+                            <kendo-datasource ref="dsShopGroupID" :transport-read-url="'@Url.Action("ReadShopGroup", "Accounts")'" :transport-read-type="'POST'"></kendo-datasource>
+                            <kendo-combobox ref="ddShopGroupID" v-model="input.ShopGroupID" :data-source-ref="'dsShopGroupID'" :data-text-field="'Text'" :data-value-field="'Id'" :filter="'contains'" style="width:100%" :disabled="this.input.ID>0"></kendo-combobox>
+                        </div>
+                        <div class="form-group col-md-12" style="margin-top:5px;">
+                            <div>
+                                @Html.LabelFor(x => x.CustomerID, "Customer Name")
+                                <input type="checkbox" id="chkRegisteredCustomer" v-model="RegisteredCustomer" class="k-checkbox">
+                                <label for="chkRegisteredCustomer" class="k-checkbox-label">Registered Customer</label>
+                                <a href="javascript:app.pickCustomer()" style="padding-left: 83px;color:#1B264F;text-decoration:underline !important;">Pick Customer</a>
+                                <div v-show="RegisteredCustomer" style="margin-top:4px;">
+                                    <kendo-datasource ref="dsCustomerID" :transport-read-url="'@Url.Action("ReadSearchCustomer", "Common")'" :server-filtering="true" :transport-read-data="onData" :transport-read-type="'POST'"></kendo-datasource>
+                                    <kendo-autocomplete id="ddCustomerID" ref="ddCustomerID" v-model="input.CustomerName" :data-source-ref="'dsCustomerID'" :data-text-field="'Text'" :data-value-field="'Id'" :min-length="5" @@change="onCustomerChange" placeholder="Enter Customer Name" :filter="'contains'" style="width:100%"></kendo-autocomplete>
+                                </div>
+                                <div v-show="!RegisteredCustomer" style="margin-top:4px;">
+                                    <input type="text" v-model="input.CustomerName" />
+                                </div>
+                            </div>
+                        </div>
+                        <div class="form-group col-md-6">
+                            @Html.LabelFor(x => x.ContactNo, "Contact No")
+                            <kendo-combobox v-model="input.ContactNo" :data-source="['Received by mail']" style="width:100%"></kendo-combobox>
+                        </div>
+
+                        <div class="form-group col-md-6">
+                            @Html.LabelFor(x => x.NicNo, "Nic No")
+                            <input type="text" v-model="input.NicNo" />
+                        </div>
+
+                        <div class="form-group col-md-6">
+                            @Html.LabelFor(x => x.ToBankID, "To Bank")
+                            <kendo-datasource ref="dsToBankID" :transport-read-url="'@Url.Action("ReadToBank", "Accounts")'" :transport-read-type="'POST'"></kendo-datasource>
+                            <kendo-combobox ref="ddToBankID" v-model="input.ToBankID" :data-source-ref="'dsToBankID'" :filter="'contains'" style="width:100%" :data-text-field="'Text'" :data-value-field="'Id'" @@change="function(e){setModel(e,input,'ToBankID',onToBankChange)}"></kendo-combobox>
+                        </div>
+
+                        <div class="form-group col-md-6">
+                            @Html.LabelFor(x => x.ToAccountId, "To Account No")
+                            <kendo-datasource ref="dsToAccountId" :transport-read-url="'@Url.Action("ReadToAccountNo", "Accounts")'" :transport-read-type="'POST'"></kendo-datasource>
+                            <kendo-combobox ref="ddToAccountId" v-model="input.ToAccountId" :data-source-ref="'dsToAccountId'" :filter="'contains'" style="width:100%" :data-text-field="'Text'" :auto-bind="'false'" :data-value-field="'Id'" @@change="function(e){setModel(e,input,'ToAccountId',onToAccountChange)}"></kendo-combobox>
+                        </div>
+
+                        <div class="form-group col-md-6">
+                            @Html.LabelFor(x => x.FromBankID, "From Bank")
+                            <kendo-datasource ref="dsFromBankID" :transport-read-url="'@Url.Action("ReadBank", "Accounts")'" :transport-read-type="'POST'"></kendo-datasource>
+                            <kendo-combobox ref="ddFromBankID" v-model="input.FromBankID" :data-source-ref="'dsFromBankID'" :filter="'contains'" :data-text-field="'Text'" :data-value-field="'Id'" style="width:100%" @@change="function(e){setModel(e,input,'FromBankId',onFromBankChange)}"></kendo-combobox>
+                        </div>
+                        <div class="form-group col-md-6">
+                            @Html.LabelFor(x => x.FromAccountName, "From Account Name")
+                            <input type="text" v-model.trim="input.FromAccountName" class="k-textbox" />
+                        </div>
+                        <div class="form-group col-md-6">
+                            @Html.LabelFor(x => x.FromAccountNo, "From Account No")
+                            <input type="text" v-model.trim="input.FromAccountNo" class="k-textbox" />
+                        </div>
+
+                        <div class="form-group col-md-6">
+                            @Html.LabelFor(x => x.Currency, "Currency")
+                            <kendo-datasource ref="dsCurrency" :transport-read-url="'@Url.Action("ReadCurrency", "Accounts")'" :transport-read-type="'POST'"></kendo-datasource>
+                            <kendo-dropdownlist ref="ddCurrency" v-model="input.Currency" :data-source-ref="'dsCurrency'" :data-text-field="'Currency'" :data-value-field="'Currency'" :filter="'contains'" style="width:100%"></kendo-dropdownlist>
+                        </div>
+                        <div class="form-group col-md-6">
+                            @Html.LabelFor(x => x.Amount, "Amount")<br />
+                            <kendo-numerictextbox v-model="input.Amount" :min="0" :spinners="false" :format="'n2'" style="width:100%;"></kendo-numerictextbox>
+                        </div>
+                        <div class="form-group col-md-6" >
+                            @Html.LabelFor(x => x.ShopGroupViberNo, "Outlet Viber No")
+                            <kendo-combobox v-model="input.ShopGroupViberNo" :data-source="['Received by mail']" style="width:100%"></kendo-combobox>
+                        </div>
+                        <div class="form-group col-md-6">
+                            @Html.LabelFor(x => x.TransactionID, "TransactionID")
+                            <input type="text" v-model="input.TransactionID" />
+                        </div>
+                        <div class="form-group col-md-6">
+                            @Html.LabelFor(x => x.TransactionOn, "Transaction on")
+                            <kendo-datetimepicker :value="input.TransactionOn" :max="maxDate" :format="'dd-MMM-yyyy HH:mm'" time-format="HH:mm" @@change="function(e){setModel(e,input,'TransactionOn')}" style="width:100%"></kendo-datetimepicker>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="row">
+                                <div class="form-group col-md-12">
+                                    @Html.LabelFor(x => x.Remarks)
+                                    <textarea class="k-textbox" v-model="input.Remarks" rows="2"></textarea>
+                                </div>
+                                <div class="form-group col-md-12">
+                                    @Html.LabelFor(x => x.AccountsRemarks, "Accounts Remarks")
+                                    <textarea class="k-textbox" v-model="input.AccountsRemarks" rows="2"></textarea>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-group col-md-12" style="  margin-top: 3px;">
+                                <div class="wt-sub-title"><span>Attachments</span></div>
+                                @await Html.PartialAsync("Documents")
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    @if (await Html.HasAccess(Forms.Accounts.Remittance, Rights.Modify))
+                    {
+                        <button type="submit" title="Save" class="btn btn-save btn-cntrls"><i class="fa fa-check-circle"></i>Save</button>
+                    }
+                    <button type="button" class="btn btn-danger" onclick="hideModal('Remittance')" data-dismiss="modal"><i class="fa fa-times"></i>Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    @*  <div id="editor" class="components" style="display: none;">
+
+    </div> *@
+</form>
+@(Html.Kendo().Grid<RemittanceModel>()
+        .Name("grid")
+        .Columns(c =>
+        {
+            c.Bound("").ClientTemplate("<a class='btn-grid c-lnk fa fa-paperclip' title='View Doc' href=\"javascript:app.viewDocument('#:uid#')\"></a>")
+            .Title("<i class='fa fa-paperclip' title='View Doc'></i>").HtmlAttributes(new { style = "text-align:center;" }).HeaderHtmlAttributes(new { style = "text-align:center;" }).Width(45).Sortable(false).Filterable(false);
+            c.EditButtonColumn("app.editItem('#:uid#')");
+            c.DeleteColumn("app.deleteItem('#:uid#')");
+
+            c.Bound("").ClientTemplate("#if(CanApprove){#<a class='btn-grid btn-approve fa fa-check' title='Approve' href=\"javascript:app.approveItem('#:uid#')\"></a>#}#")
+                        .Title("<i class='fa fa-check' title='Approve'></i>").HtmlAttributes(new { style = "text-align:center;" }).HeaderHtmlAttributes(new { style = "text-align:center;" }).Width(45).Sortable(false).Filterable(false).Visible(c.Container.ViewContext.HasAccess(Rights.Approve));
+
+            c.Bound("").ClientTemplate("#if(CanUndo){#<a class='btn-grid btn-save fa fa-undo' title='Undo' href=\"javascript:app.undoItem('#:uid#')\"></a>#}#")
+                        .Title("<i class='fa fa-undo' title='Undo'></i>").HtmlAttributes(new { style = "text-align:center;" }).HeaderHtmlAttributes(new { style = "text-align:center;" }).Width(45).Sortable(false).Filterable(false).Visible(c.Container.ViewContext.HasAccess(Rights.Approve)); ;
+
+            c.Bound(p => p.ShopGroupName).Width(170);
+            c.Bound(p => p.TransactionID).Width(150);
+            c.DateColumn(p => p.TransactionOn).Width(150);
+            c.Bound(p => p.Currency).Width(110);
+            c.MoneyColumn(p => p.Amount).Width(110);
+            c.MoneyColumn(p => p.Balance).Width(110);
+            c.Bound(p => p.CustomerName).Width(300);
+            c.TelColumn(p => p.ContactNo).Width(120);
+            c.Bound(p => p.NicNo).Width(120);
+            c.Bound(p => p.FromBank).Width(120).Width(150);
+            c.Bound(p => p.FromAccountName).Width(180);
+            c.Bound(p => p.FromAccountNo).Width(170);
+            c.Bound(p => p.ToBankName).Width(180);
+            c.Bound(p => p.ToAccountNo).Width(160);
+            c.Bound(p => p.EntryBy).Width(150);
+            c.DateColumn(p => p.EntryDate).Width(130);
+            c.Bound(p => p.OutletApprovedBy).Width(180);
+            c.DateColumn(p => p.OutletApprovedOn).Width(170);
+            c.Bound(p => p.ApprovedBy).Title("Acc. Verified By").Width(180);
+            c.DateColumn(p => p.ApprovedOn).Title("Acc. Verified On").Width(150);
+            c.Bound(p => p.ReconciliationBy).Width(180);
+            c.DateColumn(p => p.ReconciliationOn).Width(150);
+            c.Bound(p => p.Remarks).Width(180);
+            c.Bound(p => p.AccountsRemarks).Width(180);
+        })
+            .HtmlAttributes(new { @class = "h-grid v-grid" })
+            .Scrollable()
+            .Sortable()
+            .Selectable()
+            .EnableFilter()
+            .Resizable(x => x.Columns(true))
+            .Pageable(x => x.Refresh(true))
+            .Excel(x => x.AllPages(true))
+            .DataSource(dataSource => dataSource
+            .Ajax().ServerOperation(true).PageSize(50)
+            .Read(read => read.Action("ReadRemittance", "Accounts").Data("app.grid_Data"))
+            .Sort(s => s.Add(x => x.ID).Descending())
+            )
+        )
+
+
+
+@{
+    var jsonData = Vue.Encode(new Remittance() { TransactionOn = DateTime.Now, Currency = "MVR" });
+}
+@section Scripts {
+    @await Html.PartialAsync("DocumentsDialog", "")
+    @await Html.PartialAsync("../Pages/Shared/PickCustomer")
+    <script type="text/javascript">
+        var dt = new Date();
+        var year = dt.getFullYear();
+        var month = dt.getMonth();
+        var date = dt.getDate();
+
+        var app = new Vue({
+            el: "#app",
+            data: {
+                input: @(jsonData),
+                params: {
+                    FromDate: new Date(year, month - 6, date),
+                    ToDate: new Date(),
+                },
+                TabIndex: 0,
+                RegisteredCustomer: true,
+                maxDate: new Date(),
+                Doc: @(Vue.Encode(new DocumentModel())),
+            },
+            created: function () {
+                appDoc.init("@DocumentReference.Remittance.ToString()", this.onSuccess);
+                appCustomer.onSelectCallBack = this.onCustomerSelected;
+            },
+            methods: {
+                validateForm: function () {
+                    var numeric = /^[0-9]+$/;
+                    var reg = /^[a-z0-9]+$/i;
+                    var character = /^[A-Za-z\s]*$/;
+
+                    removeError();
+                    var isValid = true;
+                    var setError = function (cntrl, msg) {
+                        isValid = false;
+                        showError(cntrl, msg);
+                    };
+                    var item = this.input;
+                    if (this.$refs.ddShopGroupID && this.$refs.ddShopGroupID.kendoWidget().selectedIndex == -1) {
+                        setError('ShopGroupID');
+                    }
+                    if (!this.input.CustomerName) {
+                        setError('CustomerID');
+                    }
+                    if (this.$refs.ddFromBankID && this.$refs.ddFromBankID.kendoWidget().selectedIndex == -1) {
+                        setError('FromBankID');
+                    }
+                    if (this.$refs.ddToBankID && this.$refs.ddToBankID.kendoWidget().selectedIndex == -1) {
+                        setError('ToBankID');
+                    }
+                    if (this.$refs.ddToAccountId && this.$refs.ddToAccountId.kendoWidget().selectedIndex == -1) {
+                        setError('ToAccountId');
+                    }
+
+                    if (!item.FromAccountName)
+                        setError('FromAccountName');
+
+                    //if (item.FromAccountName && !character.test(item.FromAccountName))
+                    //    setError('FromAccountName', "From Account Name should not be Special Characters.");
+
+                    if (item.FromAccountNo && !validateNumeric(item.FromAccountNo))
+                        setError('FromAccountNo');
+
+                    if (!item.Currency)
+                        setError('Currency');
+
+                    if (!item.TransactionID)
+                        setError('TransactionID');
+
+                    //if (item.NicNo && !validateNicNo(item.NicNo))
+                    //    setError('NicNo', "NIC No should not be Special Characters.");
+
+                    if (item.ContactNo && item.ContactNo != 'Received by mail' && !validateMobileNo(item.ContactNo))
+                        setError('ContactNo', 'Format should be 1234567/+9601234567');
+
+                    if (item.ShopGroupViberNo && item.ShopGroupViberNo != 'Received by mail' && !validateMobileNo(item.ShopGroupViberNo))
+                        setError('ShopGroupViberNo', 'Format should be 1234567/+9601234567');
+
+                    if (!item.ShopGroupViberNo)
+                        setError('ShopGroupViberNo');
+
+                    if (!item.CustomerName && !this.RegisteredCustomer)
+                        setError('CustomerID');
+
+                    if (!item.ID && app.Doc.Items.length <= 0) {
+                        kendoAlert("Please upload the remittance slip", true);
+                        isValid = false;
+                    }
+
+                    if (item.Amount <= 0) {
+                        setError('Amount');
+                    }
+
+                    if (!isValid)
+                        return false;
+
+                    return isValid;
+                },
+                submitForm: function () {
+                    if (!this.validateForm())
+                        return;
+                    $.postData("@Url.Action("SaveRemittance", "Accounts")", {
+                        data: this.input,
+                        StatusFilter: this.TabIndex
+                    },
+                        function (res) {
+                            if (res.HasError) {
+                                app.onSuccess(res);
+                                return;
+                            }
+                            if (!app.Doc.save(res.Id))
+                                app.onSuccess(res);
+                        });
+                },
+                addRemittance: function () {
+                    showModal('Remittance');
+                    this.input = @(jsonData);
+                    this.Doc.reset();
+                },
+                approveItem: function (uid) {
+                    var data = $('#grid').getKendoGrid().dataSource.getByUid(uid);
+                    $.postData("@Url.Action("ApproveRemittance", "Accounts")", { ID: data.ID, RefNo: data.TransactionID, StatusFilter: app.TabIndex }, function (res) { app.onSuccess(res); });
+                },
+                undoItem: function (uid) {
+                    var data = $('#grid').getKendoGrid().dataSource.getByUid(uid);
+                    var msg = this.TabIndex == 3 ? "Accounts Reconciliation?" : this.TabIndex == 2 ? "Accounts Verification?" : "Outlet Verification?";
+                    kendoConfirm("Do you want to Un-do " + msg, function () {
+                        $.postData("@Url.Action("RevertRemittance", "Accounts")", { ID: data.ID, RefNo: data.TransactionID, StatusFilter: app.TabIndex }, function (res) {
+                            app.onSuccess(res);
+                        });
+                    });
+                },
+                selectItem: function (uid) {
+                    var dataItem = $('#grid').getKendoGrid().dataSource.getByUid(uid);
+                    this.input = cloneAndDecode(dataItem);
+                    this.$refs.dsToAccountId.kendoWidget().read({ ToBankId: this.input.ToBankID });
+
+                    if (this.input.CustomerID > 0)
+                        this.RegisteredCustomer = true;
+                    else
+                        this.RegisteredCustomer = false;
+
+
+                },
+                editItem: function (uid) {
+                    // $('.toggle-btn.btn-minus').open();
+                    showModal('Remittance');
+                    if (uid)
+                        this.selectItem(uid);
+
+                    appDoc.load(this.input.ID);
+                    app.Doc.load(this.input.ID);
+                },
+                deleteItem: function (uid) {
+                    var dataItem = $('#grid').getKendoGrid().dataSource.getByUid(uid);
+                    kendoConfirm("Do you want to delete this Remittance?", function () {
+                        $.postData("@Url.Action("DeleteRemittance", "Accounts")", { ID: dataItem.ID, RefNo: dataItem.TransactionID },
+                            function (data) {
+                                kendoAlert(data.Message, data.HasError);
+                                if (data.HasError)
+                                    return;
+                                $('#grid').getKendoGrid().dataSource.read();
+                            });
+                    });
+                },
+                onSuccess: function (res) {
+                    kendoAlert(res.Message, res.HasError);
+                    if (res.HasError)
+                        return;
+                    $('#grid').getKendoGrid().dataSource.read();
+                    // $('.toggle-btn.btn-minus').close();
+                    hideModal('Remittance');
+                    appDoc.reset();
+                },
+                onCustomerChange: function (e) {
+                    var item = e.sender.dataItem(e.sender.selectedIndex);
+
+                    if (!item) {
+                        this.input.CustomerID = 0;
+                        this.input.ContactNo = "";
+                        this.input.NicNo = "";
+                    }
+                    else {
+                        this.input.CustomerName = item.Text;
+                        this.input.CustomerID = item.Id;
+                        $.getData("@Url.Action("ReadCustomerDetails", "Accounts")", { CustomerId: this.input.CustomerID }, function (res) {
+                            app.input.ContactNo = res.Value1 != null ? res.Value1 : '-'
+                            app.input.NicNo = res.Value != null ? res.Value : '-'
+                        });
+                    }
+                },
+                onToBankChange: function (e) {
+                    if (e.sender.selectedIndex != -1) {
+                        this.$refs.dsToAccountId.kendoWidget().read({ ToBankId: e.sender.value() });
+                        this.input.ToBankName = e.sender.text();
+                    }
+                    else {
+                        this.$refs.dsToAccountId.kendoWidget().data([]);
+                        this.input.ToBankName = "";
+                    }
+                },
+                onToAccountChange: function (e) {
+                    if (e.sender.selectedIndex != -1)
+                        this.input.ToAccountNo = e.sender.text();
+                    else
+                        this.input.ToAccountNo = "";
+                },
+                onFromBankChange: function (e) {
+                    if (e.sender.selectedIndex != -1)
+                        this.input.FromBank = e.sender.text();
+                    else
+                        this.input.FromBank = "";
+                },
+                addDoc: function () {
+                    var Id = this.input.ID
+                    appDoc.open(Id);
+                },
+                grid_Data: function () {
+                    return { StatusFilter: this.TabIndex, FromDate: StdDate(this.params.FromDate), ToDate: StdDate(this.params.ToDate) };
+                },
+                tabChange: function (index) {
+                    this.TabIndex = index;
+                    $('#grid').getKendoGrid().dataSource.read();
+                    //$('.toggle-btn.btn-minus').close();
+                },
+                viewDocument: function (uid) {
+                    var dataItem = $('#grid').getKendoGrid().dataSource.getByUid(uid);
+                    this.input.ID = dataItem.ID;
+                    this.addDoc();
+                },
+                viewRemittanceTransaction: function (uid) {
+                    window.open('/Accounts/RemittanceDetails');
+                },
+                onDateChange: function () {
+                    $('#grid').getKendoGrid().dataSource.read();
+                },
+                onData: function () {
+                    return { SearchText: $("#ddCustomerID").val() };
+                },
+                pickCustomer: function () {
+                    appCustomer.open();
+                },
+                onCustomerSelected: function (item) {
+                    var data = $("#gridPickCustomer").getKendoGrid().dataSource.data();
+
+                    this.input.CustomerID = item.tbl_ID;
+                    this.input.ContactNo = item.Cust_ContactNo;
+                    this.input.NicNo = item.Cust_Ref;
+                    this.input.CustomerName = item.Cust_Name_EN + ' - ' + item.Cust_Ref;
+                }
+            }
+        });
+    </script>
+
+    @await Html.PartialAsync("DocumentScripts")
+
+    <script type="text/javascript">
+        $(function () {
+            app.Doc.init("@DocumentReference.Remittance", app.onSuccess);
+        });
+        function toggle_Change() {
+            app.Doc.reset();
+            app.input = @(jsonData);
+        }
+    </script>
+}

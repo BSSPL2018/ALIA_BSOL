@@ -1,0 +1,814 @@
+﻿@page
+@using Core.Entities
+@model Item
+@{
+    ViewData["Title"] = "Item Registration";
+    Layout = "~/Pages/Shared/_Layout.cshtml";
+    ViewBag.IsFolded = true;
+}
+@if (!await Html.HasAccess(Forms.Procurement.Items))
+{
+    return;
+}
+
+<style type="text/css">
+    .i-inactive, .i-inactive:hover {
+        color: red;
+        text-decoration: underline;
+    }
+
+    .i-active, .i-active:hover {
+        color: green;
+        text-decoration: underline;
+    }
+
+    .itemchk-cls input {
+        margin-left: 5px;
+    }
+</style>
+<form id="app" v-on:submit.prevent="submitForm">
+    <div class="g-title v-edit">
+        @*  <div class="g-left">
+        @Html.ToggleButton(Orientation.Vertical)
+        </div> *@
+        <div class="g-left" style="display:flex">
+            <div style="margin:12px 15px 14px 3px">
+                @Html.ToggleButton(Orientation.Vertical)
+                @*  <button type="button" class="btn btn-violet" onclick="javascript:app.addNew()">
+                <i class='fa fa-plus-circle'></i>Add New
+                </button> *@
+            </div>
+
+            <ul class="rdc-tab">
+                <li :class="{'active': TabIndex == 0}">
+                    <a id="lnkPending" href="javascript:app.changeStatus(0)">Pending</a>
+                </li>
+                <li :class="{'active': TabIndex == 1}">
+                    <a id="lnkVerified" href="javascript:app.changeStatus(1)">Verified</a>
+                </li>
+                <li :class="{'active': TabIndex == 2}">
+                    <a id="lnkVerified" href="javascript:app.changeStatus(2)">In-Active</a>
+                </li>
+            </ul>
+        </div>
+        <span class="g-text">Item Registration</span>
+        <div class="g-right">
+            @Html.SaveButton()
+            <div v-if="input.Id" class="cntrl-inline">
+                @Html.DeleteButton()
+            </div>
+            @Html.DownloadTemplate(ExcelTemplate.ItemRegistration)
+            <div class="btn-group">
+                <button type="button" class="btn btn-primary dropdown-toggle" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                    <i class="fa fa-file-excel-o" style="font-size: 15px;"></i> Import <span class="caret"></span>
+                </button>
+                <ul id="lstPrint" class="dropdown-menu">
+                    <li style="cursor:pointer;"><a id="btnImport" onclick="javascript:app.importFromExcel()" data-ignore="1"><i class="fa fa-file-excel-o"></i><span>Import Items</span></a></li>
+                    <li style="cursor:pointer;"><a id="btnUpdate" onclick="javascript:app.importFromExcelUpdate()" data-ignore="1"><i class="fa fa-file-excel-o"></i><span>Import Opening Stock</span></a></li>
+                </ul>
+            </div>
+
+            <div class="btn-group">
+                <button type="button" class="btn btn-primary dropdown-toggle" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                    <i class="fa fa-file-excel-o" style="font-size: 15px;"></i> Export <span class="caret"></span>
+                </button>
+                <ul id="lstPrint" class="dropdown-menu">
+                    <li><a href="javascript:app.ExportItem()"><i class="fa fa-file-excel-o"></i>Export Items</a></li>
+                    <li><a href="javascript:app.ExportStock()"><i class="fa fa-file-excel-o"></i>Export Opening Stock</a></li>
+                </ul>
+            </div>
+        </div>
+    </div>
+    <div id="editor" class="components" style="display:none;">
+        <div class="row">
+            <div class="col-md-8">
+                <div class="row">
+                    <div class="form-group col-md-3">
+                        <div id="itemImage" class="img-profile" accept=".jpg,.png" :style="'background-image:url(@Url.Action("ItemImage", "Common")?isItem=true&img=' + input.ImagePath + ')'">
+                            <a class="fa fa-camera edit-img" title="Change Image" href="javascript:app.changeImage()"></a>
+                            <a class="fa fa-times remove-img" title="Remove Image" href="javascript:app.removeImage()"></a>
+                        </div>
+                    </div>
+
+                    <div class="col-md-9">
+                        <div class="row">
+                            <div class="form-group col-md-3">
+                                @Html.LabelFor(x => x.ItemType, "Item Type")
+                                <kendo-dropdownlist v-model="input.ItemType" :data-source='@Vue.Encode(Utilities.EnumToString<ItemType>())' @@change="function(e){setModel(e,input,'ItemType',itemTypeChange)}" style="width:100%"></kendo-dropdownlist>
+                            </div>
+                            <div class="form-group col-md-4">
+                                @Html.LabelFor(x => x.ItemCategoryId, "Category")<a class="lnk" style=" color: #1cc09f; margin-left: 10px; font-size: 11px;" href="javascript:addCategory()">Add Category</a>
+                                <kendo-datasource ref="dsCategory" :transport-read-url="'@Url.Action("ReadItemCategory", "Common")'" :transport-read-type="'POST'"></kendo-datasource>
+                                <kendo-combobox ref="ddCategory" v-model="input.ItemCategoryId" :data-source-ref="'dsCategory'" :data-text-field="'Text'" :data-value-field="'Id'" :filter="'contains'" style="width:100%" @@change="function(e){setModel(e,input,'ItemCategoryId',changeItemCategory)}"></kendo-combobox>
+                            </div>
+                            <div class="form-group col-md-4" style="display:none">
+                                @Html.LabelFor(x => x.SalesCategoryId, "Sales Category")<a class="lnk" style=" color: #1cc09f; margin-left: 10px; font-size: 11px;" href="javascript:addSalesCategory()">Add Category</a>
+                                <kendo-datasource ref="dsSalesCategory" :transport-read-url="'@Url.Action("ReadSalesCategory", "Common")'" :transport-read-type="'POST'"></kendo-datasource>
+                                <kendo-combobox ref="ddSalesCategory" v-model="input.SalesCategoryId" :data-source-ref="'dsSalesCategory'" :data-text-field="'Text'" :data-value-field="'Id'" :filter="'contains'" style="width:100%"></kendo-combobox>
+                            </div>
+
+                            <div class="form-group col-md-5">
+                                @Html.LabelFor(x => x.ItemCode, "Item Code")
+                                <kendo-datasource ref="dsItemCode" :transport-read-url="'@Url.Action("ReadItemCode", "Procurements")'" :transport-read-type="'POST'"></kendo-datasource>
+                                <kendo-combobox ref="ddItemCode" v-model="input.ItemCode" :data-source-ref="'dsItemCode'" :filter="'contains'" style="width:100%" :auto-bind="false"></kendo-combobox>
+                            </div>
+                            <div class="form-group col-md-6">
+                                @Html.LabelFor(x => x.Description, "Item Description")
+                                <input type="text" v-model.trim="input.Description" class="k-textbox" style="text-transform:uppercase" />
+                            </div>
+
+                            <div class="form-group col-md-3">
+                                @Html.LabelFor(x => x.ModelCode, "Model Code")
+                                <input type="text" v-model.trim="input.ModelCode" class="k-textbox" />
+                            </div>
+                            <div class="form-group col-md-3">
+                                @Html.LabelFor(x => x.Color, "Color")
+                                <input type="text" v-model.trim="input.Color" class="k-textbox" />
+                            </div>
+
+                            <div class="form-group col-md-3">
+                                @Html.LabelFor(x => x.SKU, "SKU")
+                                <kendo-numerictextbox v-model="input.SKU" :spinners="false" :format="'#'" :max="@(int.MaxValue)" style="width:100%"></kendo-numerictextbox>
+                            </div>
+                            <div class="form-group col-md-3" style="display:none">
+                                @Html.LabelFor(x => x.UPC, "UPC")
+                                <kendo-numerictextbox v-model="input.UPC" :spinners="false" :format="'#'" :max="@(long.MaxValue)" style="width:100%"></kendo-numerictextbox>
+                            </div>
+
+                            <div class="form-group col-md-3">
+                                @Html.LabelFor(x => x.Unit, "Unit Scale")
+                                <kendo-datasource ref="dsUnits" :transport-read-url="'@Url.Action("GetUnits", "Procurements")'" :transport-read-type="'POST'"></kendo-datasource>
+                                <kendo-combobox ref="ddUnits" v-model="input.Unit" :data-source-ref="'dsUnits'" :filter="'contains'" style="width:100%"></kendo-combobox>
+                            </div>
+                            <div class="form-group col-md-3" style="display:none">
+                                @Html.LabelFor(x => x.Size, "Size")
+                                <input type="text" v-model.trim="input.Size" class="k-textbox" />
+                            </div>
+                            <div class="form-group col-md-3">
+                                @Html.LabelFor(x => x.PurchasedRate, "Cost Of Goods")
+                                <kendo-numerictextbox id="PurchasedRate" v-model="input.PurchasedRate" :min="0" :spinners="false" :format="'n2'" style="text-align:right;width:100%"></kendo-numerictextbox>
+                            </div>
+                            <div class="form-group col-md-3">
+                                @Html.LabelFor(x => x.SellingRate, "Selling Price")
+                                <kendo-numerictextbox v-model="input.SellingRate" :min="0" :spinners="false" :format="'n2'" style="text-align:right;width:100%"></kendo-numerictextbox>
+                            </div>
+
+                            <div class="form-group col-md-3">
+                                @Html.LabelFor(x => x.Surcharge, "Surcharge")
+                                <kendo-numerictextbox v-model="input.Surcharge" :min="0" :spinners="false" :format="'n2'" style="text-align:right;width:100%"></kendo-numerictextbox>
+                            </div>
+                            <div class="form-group col-md-3">
+                                @Html.LabelFor(x => x.OpeningStock, "Opening Stock")
+                                <kendo-numerictextbox v-model="input.OpeningStock" :min="0" :spinners="false" :format="'n2'" @@change="function(e){setModel(e,input,'OpeningStock')}" :disabled="!input.IsInventory" style="text-align:center;width:100%"></kendo-numerictextbox>
+                            </div>
+                            <div class="form-group col-md-3">
+                                @Html.LabelFor(x => x.OpeningStockDate, "Opening Stock Date")
+                                <kendo-datepicker :value="input.OpeningStockDate" :format="'dd-MMM-yyyy'" @@change="function(e){setModel(e,input,'OpeningStockDate')}" :disabled="!input.IsInventory" style="width:100%;"></kendo-datepicker>
+                            </div>
+                            <div class="form-group col-md-3">
+                                @Html.LabelFor(x => x.LowStockAlertQty, "Low Stock Alert Qty")
+                                <kendo-numerictextbox v-model="input.LowStockAlertQty" :min="0" :spinners="false" :format="'n0'" :disabled="!input.IsInventory" style="text-align:center;width:100%"></kendo-numerictextbox>
+                            </div>
+
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="form-group col-md-4">
+                        @Html.LabelFor(x => x.HSNId, "HSN Code")
+                        <kendo-datasource ref="dsHSNCode" :transport-read-url="'@Url.Action("ReadHSNSettings", "Common")'" :transport-read-type="'POST'"></kendo-datasource>
+                        <kendo-combobox ref="ddHSNCode" v-model="input.HSNId" :data-source-ref="'dsHSNCode'" :data-text-field="'HSNCode'" :data-value-field="'Id'" :filter="'contains'" style="width:100%"></kendo-combobox>
+                    </div>
+                    <div class="form-group col-md-4">
+                        @Html.LabelFor(x => x.OriginName, "Origin")
+                        <kendo-datasource ref="dsOriginName" :transport-read-url="'@Url.Action("ReadOriginName", "Common")'" :transport-read-type="'POST'"></kendo-datasource>
+                        <kendo-combobox ref="ddOriginName" v-model="input.OriginName" :data-source-ref="'dsOriginName'" :data-text-field="'Text'" :data-value-field="'Text'" :filter="'contains'" style="width:100%"></kendo-combobox>
+                    </div>
+                    <div class="form-group col-md-4">
+                        @Html.LabelFor(x => x.Brand, "Brand")
+                        <kendo-datasource ref="dsBrand" :transport-read-url="'@Url.Action("ReadBrand", "Common")'" :transport-read-type="'POST'"></kendo-datasource>
+                        <kendo-combobox ref="ddBrand" v-model="input.Brand" :data-source-ref="'dsBrand'" :data-text-field="'Text'" :data-value-field="'Text'" :filter="'contains'" style="width:100%"></kendo-combobox>
+                    </div>
+                    <div class="form-group col-md-4">
+                        @Html.LabelFor(x => x.SupplierId, "Supplier")
+                        <kendo-datasource ref="dsSupplier" :transport-read-url="'@Url.Action("ReadSuppliers", "Common")'" :transport-read-type="'POST'"></kendo-datasource>
+                        <kendo-combobox ref="ddSupplier" v-model="input.SupplierId" :data-source-ref="'dsSupplier'" :data-text-field="'Text'" :data-value-field="'Id'" :filter="'contains'" style="width:100%"></kendo-combobox>
+                    </div>
+                    <div class="form-group col-md-4">
+                        @Html.LabelFor(x => x.VendorName, "Vendor")
+                        <kendo-datasource ref="dsVendorName" :transport-read-url="'@Url.Action("ReadVendorName", "Common")'" :transport-read-type="'POST'"></kendo-datasource>
+                        <kendo-combobox ref="ddVendorName" v-model="input.VendorName" :data-source-ref="'dsVendorName'" :data-text-field="'Text'" :data-value-field="'Text'" :filter="'contains'" style="width:100%"></kendo-combobox>
+                    </div>
+                    <div class="form-group col-md-4">
+                        <label for="GenericName">Generic Name:</label>
+                        <input type="text" id="genericName" v-model="input.GenericName" name="genericName">
+                    </div>
+                    <div class="form-group col-md-4">
+                        @Html.LabelFor(x => x.Import, "Import")
+                        <kendo-dropdownlist v-model="input.Import" :data-source="['Open','Controlled']" style="width:100%"></kendo-dropdownlist>
+                    </div>
+
+                    <div class="form-group col-md-8">
+                        @Html.LabelFor(x => x.Notes)
+                        <textarea v-model.trim="input.Notes" class="k-textbox" rows="1"></textarea>
+                    </div>
+                    <div class="form-group col-md-3" v-show="input.ItemType=='Goods'|| input.ItemType=='Service'">
+                        @Html.LabelFor(x => x.Height, "Height")
+                        <kendo-numerictextbox id="Height" v-model="input.Height" :min="0" :spinners="false" :format="'n2'" @@change="function(e){setModel(e,input,'Height',calCBM)}" style="text-align:right;width:100%"></kendo-numerictextbox>
+                    </div>
+                    <div class="form-group col-md-3" v-show="input.ItemType=='Goods'|| input.ItemType=='Service'">
+                        @Html.LabelFor(x => x.Length, "Length")
+                        <kendo-numerictextbox v-model="input.Length" :min="0" :spinners="false" :format="'n2'" @@change="function(e){setModel(e,input,'Length',calCBM)}" style="text-align:right;width:100%"></kendo-numerictextbox>
+                    </div>
+
+                    <div class="form-group col-md-3" v-show="input.ItemType=='Goods'|| input.ItemType=='Service'">
+                        @Html.LabelFor(x => x.Width, "Width")
+                        <kendo-numerictextbox v-model="input.Width" :min="0" :spinners="false" :format="'n2'" @@change="function(e){setModel(e,input,'Width',calCBM)}" style="text-align:right;width:100%"></kendo-numerictextbox>
+                    </div>
+                    <div class="form-group col-md-3" v-show="input.ItemType=='Goods'|| input.ItemType=='Service'">
+                        @Html.LabelFor(x => x.CBM, "CBM")
+                        <kendo-numerictextbox v-model="input.CBM" :min="0" disabled="true" :spinners="false" :format="'n2'" style="text-align:right;width:100%"></kendo-numerictextbox>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="form-group col-md-12">
+                        <div style="margin-top:10px;display:flex" class="itemchk-cls">
+                            <input type="checkbox" v-model="input.IsSalable" id="IsSalable" class="k-checkbox" />
+                            <label class="k-checkbox-label" for="IsSalable">Salable</label>
+                            <input type="checkbox" v-model="input.IsInventory" id="IsInventory" class="k-checkbox" @@change="inventoryChange" :disabled="input.ItemType == '@ItemType.Service'" />
+                            <label class="k-checkbox-label" for="IsInventory">Inventory</label>
+                            <input type="checkbox" v-model="input.IsPerishable" id="IsPerishable" class="k-checkbox" :disabled="!input.IsInventory" />
+                            <label class="k-checkbox-label" for="IsPerishable">Expirable</label>
+                            <input type="checkbox" v-model="input.IsSerialized" id="IsSerialized" class="k-checkbox" :disabled="!input.IsInventory" />
+                            <label class="k-checkbox-label" for="IsSerialized">Serialized</label><br />
+                            <input type="checkbox" v-model="input.GSTApplicable" id="GSTApplicable" class="k-checkbox">
+                            <label class="k-checkbox-label" for="GSTApplicable">GST Applicable</label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                @(Html.Kendo().Grid<SellingItemUnit>()
+                    .Name("gridSellingItemUints")
+                    .Editable(Html, "Additional Selling Unit", true, false)
+                    .Columns(c =>
+                    {
+                        c.DeleteColumn(x => x.Id, "app.deleteSellingItemUnits('#:uid#')");
+                        c.Bound(p => p.SellingUnitId).ClientTemplate("#: SellingUnit #").EditorTemplateName("ComboBoxEditor").EditorViewData(new { Data = new EditorData(Url.Action("ReadUnitOfMeasureData", "Procurements"), "SellingUnit") }).Title("Selling Unit").Width(150);
+                        c.Bound(p => p.UPC).Width(160);
+                        c.MoneyColumn(p => p.SellingUnitRate).Title("Rate").Width(150);
+                        c.Bound(p => p.Conversion).Title("Conversion Qty").Width(160);
+                    })
+                    .Sortable()
+                    .Resizable(x => x.Columns(true))
+                    .HtmlAttributes(new { @class = "inl-grid" })
+                    .AutoBind(false)
+                    .NoRecords()
+                    .Navigatable()
+                    .DataSource(d => d
+                    .Ajax().Batch(true)
+                    .ServerOperation(false)
+                    .Read(read => read.Action("ReadSellingItemUnits", "Procurements").Data("app.gridSellingItemUints_Data"))
+                    .Create(create => create.Action("UpdateSellingItemUnits", "Procurements"))
+                    .Update(update => update.Action("UpdateSellingItemUnits", "Procurements"))
+                    .Model(model =>
+                    {
+                        model.Id(p => p.Id);
+                        model.Field(p => p.Id).Editable(false);
+                        model.Field(p => p.Conversion).Editable(true);
+                    })
+                    .Events(x => x.RequestEnd("app.gridSellingUnit_RequestEnd").Error("grid_ErrorHandler")))
+                    )
+            </div>
+        </div>
+        <div id="uploadControl" style="display:none;">
+            <kendo-upload id="File" name="File"
+                          :async-auto-upload="false"
+                          :multiple="false"
+                          async-save-url="@Url.Action("UploadItemImage", "Procurements")"
+                          @@upload="fileUpload"
+                          @@success="fileUploadSuccess"
+                          @@select="fileSelect">
+            </kendo-upload>
+        </div>
+        <div id="uploadControl" style="display:none;">
+            <kendo-upload id="Item" name="Item"
+                          :async-auto-upload="true"
+                          :multiple="false"
+                          async-save-url="@Url.Action("ImportItems", "Procurements")"
+                          @@upload="itemUpload"
+                          @@success="itemUploadSuccess">
+            </kendo-upload>
+        </div>
+        <div id="uploadControl" style="display:none;">
+            <kendo-upload id="UpdateItem" name="UpdateItem"
+                          :async-auto-upload="true"
+                          :multiple="false"
+                          async-save-url="@Url.Action("UpdateOpeningStockItems", "Procurements")"
+                          @@upload="stockItemUpload"
+                          @@success="stockItemUploadSuccess">
+            </kendo-upload>
+        </div>
+    </div>
+</form>
+
+@(Html.Kendo().Grid<Item>()
+                .Name("grid")
+                .Columns(c =>
+                {
+                    c.EditButtonColumn();
+                    c.DeleteColumn(x => x.Id);
+                    c.Bound("").ClientTemplate(@"#if(Active){# <a class='btn-grid btn-circle fa fa-minus-circle' title='Mark As In-Active' href=""javascript:app.markAsInActive('#:uid#')""></a>
+                                            #} else if(!Active) {# <a class='btn-grid btn-save fa fa-undo' title='Mark As Active' href=""javascript:app.markAsActive('#:uid#')""></a>
+                                            #}#").Title("<i  title='Item Status'></i>").Width(50).Filterable(false).Sortable(false).HtmlAttributes(new { style = "text-align:center;" }).HeaderHtmlAttributes(new { style = "text-align:center;" });
+
+                    c.VerifyColumn(c => c.VerifiedOn).Width(60);
+                    c.Bound(p => p.ItemType).Width(130);
+                    c.Bound(p => p.Category).Title("Category").Width(150);
+                    c.Bound(p => p.ItemCode).Width(130).Title("Item Code");
+                    c.DescriptionColumn(p => p.Description).Width(300);
+                    c.Bound(p => p.ModelCode).Width(130).Title("Model Code");
+                    c.Bound(p => p.Color).Width(120).Title("Color");
+
+                    c.NumberColumn(p => p.Stock).Width(100);
+                    c.MoneyColumn(p => p.PurchasedRate).Width(120).Title("Cost Of Good");
+                    c.MoneyColumn(p => p.SellingRate).Width(120).Title("Selling Price");
+                    c.MoneyColumn(p => p.Surcharge).Width(120).Title("Surcharge");
+
+                    c.Bound(p => p.GenericName).Width(150).Title("Generic Name");
+                    c.Bound(p => p.Import).Width(100).Title("Import");
+                    c.Bound(p => p.SupplierName).Width(150).Title("Supplier");
+                    c.Bound(p => p.SKUFormatted).Width(100).Title("SKU");
+                    @*c.Bound(p => p.Size).Width(100);*@
+
+                    @*c.Bound(p => p.UPC).Width(100).Title("UPC");*@
+                    c.NumberColumn(p => p.OpeningStock).Width(150);
+                    c.DateColumn(p => p.OpeningStockDate).Width(160);
+
+                    c.MoneyColumn(p => p.Height).Width(120);
+                    c.MoneyColumn(p => p.Length).Width(120);
+                    c.MoneyColumn(p => p.Width).Width(120);
+                    c.MoneyColumn(p => p.CBM).Width(120);
+
+                    c.CheckedColumn(p => p.IsSalable).Title("Salable").Width(110);
+                    c.CheckedColumn(p => p.IsInventory).Title("Inventory").Width(110);
+                    c.CheckedColumn(p => p.IsSerialized).Title("Serialized").Width(110);
+                    c.CheckedColumn(p => p.IsPerishable).Title("Expirable").Width(110);
+                    c.CheckedColumn(p => p.GSTApplicable).Title("GST").Width(80);
+                    c.Bound(p => p.VendorName).Width(150).Title("Vendor");
+                    c.Bound(p => p.OriginName).Width(150).Title("Origin");
+                    c.Bound(p => p.Brand).Width(150).Title("Brand");
+                    c.Bound(p => p.CreatedBy).Width(150);
+                    c.DateColumn(p => p.CreatedOn).Width(160);
+                    c.Bound(c => c.VerifiedOn).ClientTemplate("#: VerifiedOn ? 1 : 0 #").Hidden();
+                })
+            .HtmlAttributes(new { @class = "h-grid v-grid" })
+            .Sortable()
+            .Filterable()
+            .Pageable(x => x.Refresh(true))
+            .Excel(x => x.AllPages(true))
+            .Scrollable()
+            .EnableFilter()
+            .Resizable(c => c.Columns(true))
+            .EnableEdit(Html)
+            .Events(x => x.DataBound("grid_DataBound"))
+            .DataSource(dataSource => dataSource
+            .Ajax().ServerOperation(true).PageSize(50)
+            .Read(read => read.Action("GetItems", "Procurements").Data("app.grid_Data"))))
+
+
+@{
+    var jsonData = Vue.Encode(new Item() { ItemType = ItemType.Goods.ToString(), IsInventory = true, IsSalable = true, Import = "Open" });
+}
+
+@section Scripts {
+    @await Html.PartialAsync("MessageDialog")
+
+    @Html.Kendo().Window().Name("wndSupplierCode").Content(@<text>
+        <div id="appSupCode">
+            @(Html.Kendo().Grid<SupplierCode>()
+        .Name("gridSupplierCode")
+        .Columns(x =>
+        {
+        x.Bound(c => c.SupplierItemCode).Width(150).Title("Supplier Item Code");
+        x.Bound(c => c.SupplierName).Width(150).Title("Supplier Name");
+        })
+        .Sortable()
+        .Scrollable()
+        .Pageable(x => x.Refresh(true))
+        .Resizable(x => x.Columns(true))
+        .EnableFilter()
+        .HtmlAttributes(new { @class = "h-grid v-grid" })
+        .Events(x => x.DataBound("appSupCode.gridDataBound"))
+        .DataSource(d => d
+        .Ajax().ServerOperation(true).PageSize(50)
+        .Read(read => read.Action("ReadSupplierCode", "Procurements").Data("appSupCode.gridItems_Data"))))
+        </div>
+    </text>).Visible(false).Title("Supplier Item Code").Draggable(true).Resizable().MaxWidth(750)
+
+    @await Html.PartialAsync("AddItemCategory")
+    @await Html.PartialAsync("AddSalesCategory")
+
+    <script type="text/javascript">
+        var app = new Vue({
+            el: '#app',
+            data: {
+                input: @(jsonData),
+                TabIndex: 0,
+            },
+            methods: {
+                loadCategory: function () {
+                    this.input.ItemCategoryId = null;
+                    app.$refs.dsCategory.kendoWidget().read();
+                },
+                loadSalesCategory: function () {
+                    this.input.SalesCategoryId = null;
+                    app.$refs.dsSalesCategory.kendoWidget().read();
+                },
+                validateForm: function () {
+                    removeError();
+                    var isValid = true;
+                    var setError = function (cntrl, msg) {
+                        isValid = false;
+                        showError(cntrl, msg);
+                    };
+                    // if (!this.input.SKU)
+                    //     setError('SKU');
+                    if (!this.input.ItemCode)
+                        setError('ItemCode');
+                    if (!this.input.Description)
+                        setError('Description');
+                    if (this.input.ItemType == "Unit") {
+                        if (!this.input.ModelCode)
+                            setError('ModelCode');
+                        if (!this.input.Color)
+                            setError('Color');
+                    }
+                    if (!this.input.PurchasedRate)
+                        setError('PurchasedRate');
+                    if (!this.input.SellingRate)
+                        setError('SellingRate');
+                    if (!this.input.ItemCategoryId)
+                        setError('ItemCategoryId');
+                    else if (this.$refs.ddCategory && this.$refs.ddCategory.kendoWidget().selectedIndex == -1)
+                        setError('ItemCategoryId', 'Invalid');
+                    if (!this.input.Unit)
+                        setError('Unit');
+                    //if (this.input.SalesCategoryId && this.$refs.ddSalesCategory && this.$refs.ddSalesCategory.kendoWidget().selectedIndex == -1)
+                    //    setError('SalesCategoryId', 'Invalid');
+                    if (!this.input.ItemType)
+                        setError('ItemType');
+                    //if (this.input.ItemType != "Service") {
+                    //    if (!this.input.HSNId && this.$refs.ddHSNCode.kendoWidget().selectedIndex == -1)
+                    //        setError('HSNId', 'Invalid');
+                    //}
+
+                    if (this.input.OpeningStock > 0 && !this.input.OpeningStockDate)
+                        setError('OpeningStockDate');
+
+                    var emptySellingUnit = 0, emptyRate = 0, emptyConversion = 0, duplicateSellingUnit = 0;
+                    $('#gridSellingItemUints').find(".rw-err").removeClass("rw-err");
+                    var data = $('#gridSellingItemUints').getKendoGrid().dataSource.data();
+
+                    $.each(data, function (i, x) {
+                        var setRowError = function () {
+                            $('#gridSellingItemUints').find("[data-uid=" + x.uid + "]:not('.rw-err')").addClass("rw-err");
+                        };
+
+                        if (x.SellingUnit == app.input.Unit) {
+                            duplicateSellingUnit++;
+                            setRowError();
+                        }
+
+                        if (!x.SellingUnitId) {
+                            emptySellingUnit++;
+                            setRowError();
+                        }
+
+                        if (!x.SellingUnitRate) {
+                            emptyRate++;
+                            setRowError();
+                        }
+
+                        if (!x.Conversion) {
+                            emptyConversion++;
+                            setRowError();
+                        }
+                    });
+
+                    var errors = [];
+                    if (duplicateSellingUnit > 0)
+                        errors.push("Base unit should not be added in selling unit");
+
+                    if (emptySellingUnit > 0)
+                        errors.push("Selling Unit should not be empty");
+
+                    if (emptyRate > 0)
+                        errors.push("Rate should not be empty");
+
+                    if (emptyConversion > 0)
+                        errors.push("Conversion should not be empty");
+
+                    if (errors.length) {
+                        isValid = false;
+                        kendoAlert(errors.join("\n"), true);
+                    }
+
+                    return isValid;
+                },
+                onSuccess: function (res) {
+                    kendoAlert(res.Message, res.HasError);
+                    if (res.HasError)
+                        return;
+                    $('#grid').getKendoGrid().dataSource.read();
+                    $('#gridSellingItemUints').getKendoGrid().dataSource.data([]);
+                    $('.toggle-btn.btn-minus').close();
+                },
+                submitForm: function () {
+                    if (!this.validateForm())
+                        return;
+
+                    var data = $('#gridSellingItemUints').getKendoGrid().dataSource.data();
+                    var sellingUnits = [];
+                    $.each(data, function (i, item) {
+                        sellingUnits.push({
+                            Id: item.Id, ItemId: app.input.Id, SellingUnitId: item.SellingUnitId, SellingUnitRate: item.SellingUnitRate,
+                            UPC: item.UPC, Conversion: item.Conversion
+                        });
+                    });
+
+                    this.input.SellingItemUnits = sellingUnits;
+                    $.postData("@Url.Action("SaveItems", "Procurements")", this.input, function (res) {
+                        if (!res.HasError)
+                            app.input.Id = res.Id;
+
+                        if ($("#uploadControl .k-upload-selected").length)
+                            $("#uploadControl .k-upload-selected").trigger('click');
+                        else
+                            app.onSuccess(res);
+                        if (app.input.Mode == "add")
+                            lapp.refreshNotification();
+                    });
+                },
+                editItem: function editItem(uid) {
+                    $('.toggle-btn.btn-minus').open();
+                    var dataItem = $('#grid').getKendoGrid().dataSource.getByUid(uid);
+                    this.input = cloneAndDecode(dataItem);
+                    this.input.SupplierId = cloneAndDecode(dataItem.SupplierId);
+                    this.input.Mode = "edit";
+
+                    if (this.input.ImagePath == null) {
+                        $("#itemImage").css('background-image', '/Common/ItemImage?img=');
+                    }
+                    $('#gridSellingItemUints').getKendoGrid().dataSource.read({ ItemId: this.input.Id });
+                },
+                selectItem: function (uid) {
+                    var dataItem = $('#grid').getKendoGrid().dataSource.getByUid(uid);
+                    this.input = cloneAndDecode(dataItem);
+                },
+                addNew: function () {
+                    $("#editor").show();
+                },
+                deleteItem: function (uid) {
+                    if (uid)
+                        this.selectItem(uid);
+                    kendoConfirm("Do you want to delete this Item?", function () {
+                        $.postData("@Url.Action("DeleteItem", "Procurements")", app.input, function (res) { app.onSuccess(res); lapp.refreshNotification(); });
+                    });
+                },
+                verifyItem: function (uid) {
+                    if (uid)
+                        this.selectItem(uid);
+
+                    $.postData("@Url.Action("VerifyItem", "Procurements")", this.input, function (res) { app.onSuccess(res); lapp.refreshNotification(); });
+                },
+                revertItem: function (uid) {
+                    if (uid)
+                        this.selectItem(uid);
+                    kendoConfirm("Do you want to revert the verified Item?", function () {
+                        $.postData("@Url.Action("RevertItem", "Procurements")", app.input, function (res) { app.onSuccess(res); lapp.refreshNotification(); });
+                    });
+                },
+                inventoryChange: function () {
+                    if (!this.input.IsInventory) {
+                        this.input.IsPerishable = false;
+                        this.input.IsSerialized = false;
+                        this.input.OpeningStock = 0;
+                        this.input.OpeningStockDate = null;
+                        this.input.LowStockAlertQty = 0;
+                    }
+                },
+                itemTypeChange: function (e) {
+                    if (e.sender.text() == "@ItemType.Goods")
+                        this.input.IsInventory = true;
+                    else if (e.sender.text() == "@ItemType.Service") {
+                        this.input.IsInventory = false;
+                        this.input.IsPerishable = false;
+                        this.input.IsSerialized = false;
+                    }
+                    this.changeItemCategory();
+                },
+                fileSelect: function (arg) {
+                    var reader = new FileReader();
+
+                    var files = arg.files;
+                    var acceptedFiles = [".jpg", ".jpeg", ".png", ".gif"]
+                    var isAcceptedImageFormat = ($.inArray(files[0].extension, acceptedFiles)) != -1
+                    if (!isAcceptedImageFormat) {
+                        arg.preventDefault();
+                        kendoAlert("Image must be jpeg, png or gif", true);
+                    }
+
+                    reader.onload = function (e) {
+                        $('#itemImage').css('background-image', "url('" + e.target.result + "')");
+                    };
+                    reader.readAsDataURL(arg.files[0].rawFile);
+                },
+                fileUpload: function (e) {
+                    e.data = { Id: this.input.Id };
+                },
+                fileUploadSuccess: function (e) {
+                    this.onSuccess(e.response);
+                },
+                changeImage: function () {
+                    $('#File').click();
+                },
+                removeImage: function () {
+                    $('#itemImage').css('background-image', "");
+                    this.input.ImagePath = null;
+                },
+                fileValidate: function (e) {
+                },
+                importFromExcel: function () {
+                    $('#Item').click();
+                },
+                importFromExcelUpdate: function () {
+                    $('#UpdateItem').click();
+                },
+                itemUpload: function (e) {
+                    $('#btnImport').prop('disabled', true).find('span').text('Please wait...');
+                },
+                itemUploadSuccess: function (e) {
+                    $('#btnImport').prop('disabled', false).find('span').text('Import Items');
+                    var res = e.response;
+                    if (res.HasWarning) {
+                        appMsg.open(res.GridData, "Invalid Request!");
+                        return;
+                    }
+                    kendoAlert(res.Message, res.HasError);
+                    if (res.HasError)
+                        return;
+
+                    $('#grid').getKendoGrid().dataSource.read();
+                },
+                stockItemUpload: function (e) {
+                    $('#btnUpdate').prop('disabled', true).find('span').text('Please wait...');
+                },
+                stockItemUploadSuccess: function (e) {
+                    $('#btnUpdate').prop('disabled', false).find('span').text('Import Opening Stock');
+                    var res = e.response;
+                    if (res.HasWarning) {
+                        appMsg.open(res.GridData, "Invalid Request!");
+                        return;
+                    }
+                    kendoAlert(res.Message, res.HasError);
+                    if (res.HasError)
+                        return;
+
+                    $('#grid').getKendoGrid().dataSource.read();
+                },
+                addSellingItemUnit: function () {
+                    appSellingUnits.open(this.input.Id);
+                },
+                markAsInActive: function (uid) {
+                    if (uid)
+                        this.selectItem(uid);
+                    kendoConfirm("Do you want to In Active the Item?", function () {
+                        $.postData("@Url.Action("UpdateInActiveItem", "Procurements")", app.input, function (res) { app.onSuccess(res); });
+                    });
+                },
+                markAsActive: function (uid) {
+                    if (uid)
+                        this.selectItem(uid);
+                    $.postData("@Url.Action("RevertInActiveItem", "Procurements")", this.input, function (res) { app.onSuccess(res); });
+                },
+                getItemCode: function () {
+                    $.getData("@Url.Action("GetItemCode", "Procurements")", null, function (res) {
+                        app.input.ItemCode = res;
+                        app.input.SKU = res;
+                    });
+                },
+                deleteSellingItemUnits: function (uid) {
+                    var dataItem = $('#gridSellingItemUints').getKendoGrid().dataSource.getByUid(uid);
+                    if (dataItem.Id == 0) {
+                        $('#gridSellingItemUints').getKendoGrid().dataSource.cancelChanges(dataItem);
+                        return;
+                    }
+                    kendoConfirm("Do you want to Delete this Item Selling Units?", function () {
+                        $.postData("@Url.Action("DeleteItemSellingUnits", "Procurements")", { Id: dataItem.Id, SellingUnit: dataItem.SellingUnit, SellingUnitRate: dataItem.SellingUnitRate },
+                            function (data) {
+                                kendoAlert(data.Message, data.HasError);
+                                if (!data.HasError)
+                                    $('#gridSellingItemUints').getKendoGrid().dataSource.read();
+                            });
+                    });
+                },
+                gridSellingItemUints_Data: function () {
+                    return { ItemId: this.input.Id };
+                },
+                gridSellingUnit_RequestEnd: function (e) {
+                    if ((e.type == "create" || e.type == "update") && !e.response.Errors)
+                        kendoAlert("Category Saved.");
+                },
+                changeStatus: function (value) {
+                    this.TabIndex = value;
+                    $("#grid").getKendoGrid().dataSource.read();
+                },
+                grid_Data: function () {
+                    return { statusFilter: this.TabIndex };
+                },
+                ExportItem: function () {
+                    window.open("@Url.Action("ExportItems", "Procurements")?statusFilter=" + this.TabIndex);
+                },
+                ExportStock: function () {
+                    window.open("@Url.Action("ExportStock", "Procurements")?statusFilter=" + this.TabIndex);
+                },
+                changeItemCategory: function () {
+                    console.log(this.input.ItemCategoryId, this.input.ItemType)
+                    if (this.input.ItemCategoryId && this.input.ItemType == 'Unit') {
+                        this.$refs.dsItemCode.kendoWidget().read({ ItemCategoryId: this.input.ItemCategoryId });
+                    }
+                    else {
+                        this.$refs.dsItemCode.kendoWidget().data([]);
+                        this.input.ItemCode = null;
+                    }
+                },
+                calCBM: function () {
+                    this.input.CBM = parseFloat(this.input.Height * this.input.Length * this.input.Width);
+                }
+            }
+        });
+
+    </script>
+    <script type="text/javascript">
+        $(function () {
+            $("#grid").on("dblclick", ".k-grid-content tr", function () {
+                var dataItem = $("#grid").getKendoGrid().dataItem($(this));
+                app.editItem(dataItem.uid);
+            });
+        });
+
+        function toggle_Change() {
+            app.input = @(jsonData);
+            app.input.ItemCategoryId = null;
+            app.input.SalesCategoryId = null;
+            $('#gridSellingItemUints').getKendoGrid().dataSource.data([]);
+
+            var data = app.$refs.ddHSNCode.kendoWidget().dataSource._view;
+            $.each(data, function (i, item) {
+                if (item.IsDefault) {
+                    app.input.HSNId = item.Id;
+                }
+            });
+            if (app.input.Id > 0)
+                app.input.Mode = "edit";
+            else
+                app.input.Mode = "add";
+        }
+
+        function grid_DataBound() {
+            var $tr = $("#grid .k-grid-content tr");
+            $tr.find("td:last-child:contains(0)").parent().addClass('r-red');
+        }
+
+        function loadSupplierWnd(sender) {
+            var item = $('#grid').getKendoGrid().dataItem($(sender).parent());
+            app.input.Id = item.Id;
+            $('#gridSupplierCode').getKendoGrid().dataSource.read();
+            $('#wndSupplierCode').getKendoWindow().open();
+            $('#wndSupplierCode').getKendoWindow().center();
+        }
+    </script>
+    <script type="text/javascript">
+        var appSupCode = new Vue({
+            el: "#appSupCode",
+            data: {
+                input: @(jsonData),
+            },
+            methods: {
+                wndSupplierCode_Close: function () {
+                    $('#wndSupplierCode').getKendoWindow().close();
+                },
+                gridItems_Data: function () {
+                    return {
+                        itemId: app.input.Id
+                    };
+                },
+                gridDataBound: function () {
+                    $('#wndSupplierCode').getKendoWindow().center();
+                },
+            }
+        })
+    </script>
+
+}

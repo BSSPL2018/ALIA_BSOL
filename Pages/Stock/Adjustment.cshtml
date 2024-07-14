@@ -1,0 +1,581 @@
+﻿@page
+@inject AppUser _appUser
+@using BSOL.Core.Entities
+@model StockAdjustment
+@{
+    ViewData["Title"] = "Stock Adjustment";
+    Layout = "~/Pages/Shared/_Layout.cshtml";
+}
+@if (!await Html.HasAccess(Forms.Procurement.StockAdjustment))
+{
+    return;
+}
+@section BreadCrumb{
+    @await Html.PartialAsync("BreadCrumb", "Procurement")
+    @await Html.PartialAsync("Tabs", "Procurement/Stock")
+}
+@{
+    string statusFilter = Request.Query["q"] == "1" ? "Verified" : "Pending";
+}
+<div id="app">
+    <div class="g-title v-edit">
+        <div class="g-left">
+            <div class="form-inline" style="display: inline-flex;">
+                @Html.ToggleButton(Orientation.Vertical)
+
+                <div style="padding-left:6px;">
+                    <kendo-datasource ref="dsShops" :transport-read-url="'@Url.Action("ReadShopCodes", "Common")'" :transport-read-type="'POST'" style="width:100%"></kendo-datasource>
+                    <kendo-combobox v-model="input.ShopId" :data-source-ref="'dsShops'" :data-text-field="'ShopName'" :data-value-field="'Id'" :filter="'contains'" placeholder="Select Shops" @@change="shopChange" style="width:100%"></kendo-combobox>
+                </div>
+                <ul class="tg-btn tg-fixed" style="float: right; margin-left: 15px; margin-top: 1px;">
+                    <li @(statusFilter == "Pending" ? "class=tg-active" : "")>
+                        <a id="lnkPending" href="/Stock/Adjustment?q=0">Pending</a>
+                    </li>
+                    <li @(statusFilter == "Verified" ? "class=tg-active" : "")>
+                        <a id="lnkVerified" href="/Stock/Adjustment?q=1">Verified</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+        <span class="g-text">Stock Adjustment</span>
+        <div class="g-right">
+            <div class="t-search-wrapper">
+                <input type="text" v-model.trim="SKU" v-on:keyup.enter="searchBySKU" placeholder="Search by SKU" class="t-search" />
+            </div>
+            <template v-if="!input.VerifiedDate">
+                <button type='submit' class='btn btn-save btn-cntrls' id='btnSave' @@click='submitForm' title='Save'><i class='fa fa-check'></i>Save</button>
+                <div v-if="input.Id" class="cntrl-inline">
+                    @Html.DeleteButton("app.deleteAdjustment()")
+                </div>
+            </template>
+
+            @Html.ExcelButton()
+        </div>
+    </div>
+    <div id="editor" class="components" style="display: none;">
+        <div class="pos-search" style="margin-top:15px;padding-left:3px;">
+            <table>
+                <tr>
+                    <td style="border: 1px antiquewhite solid;">
+                        @*<input type="text" id="search" v-model.trim="SearchText" placeholder="Enter sku or item name or Description or UPC or scan barcode" v-on:keyup.enter="onSearch" style="margin-right:60px;" />*@
+                        <kendo-datasource ref="dsSearch" :transport-read-url="'@Url.Action("SearchItem", "stock")'" :server-filtering="true" :transport-read-data="onData" :transport-read-type="'POST'"></kendo-datasource>
+                        <kendo-autocomplete id="ddSearch" v-model="SearchText" ref="ddSearch" :delay="500" :data-source-ref="'dsSearch'" :min-length="2" :data-text-field="'Text'" :data-value-field="'Id'" :filter="'contains'" style="width:100%;background-color:white;" @@change="onSearchChange" placeholder="Enter sku or UPC or or Item Name or Description or scan barcode "></kendo-autocomplete>
+                    </td>
+                    <td class="pos-icon" @@click="onSearch">
+                        <i class="fa fa-search" aria-hidden="true"></i>
+                    </td>
+                    <td style="width:5px">&nbsp;</td>
+                    <td @@click="pickItem" class="pos-btn">
+                        <i class="fa fa-cart-arrow-down" aria-hidden="true"></i>
+                        Pick Items
+                    </td>
+                    <td style="width:5px">&nbsp;</td>
+                    <td style="width:40px" @@click="importFromExcel" class="pos-btn" title="Import from Excel">
+                        <i id="import" class='fa fa-download'></i>
+                    </td>
+                    <td style="width:5px">&nbsp;</td>
+                    <td style="width:25px">@Html.DownloadTemplate(ExcelTemplate.StockAdjustment)</td>
+                </tr>
+            </table>
+        </div>
+        <div class="form-group">
+            @(Html.Kendo().Grid<StockAdjustmentDetail>()
+                .Name("gridStock")
+                .Editable(Html, "", false, false)
+                .AutoBind(false)
+                .Columns(c =>
+                {
+                    c.DeleteColumn(x => x.StockAdjustmentId, childEdit: true).Width(40);
+                    c.Bound(p => p.SKUFormatted).Title("SKU").Width(80);
+                    c.Bound(p => p.UPC).Title("UPC").Width(100);
+                    c.Bound(p => p.ItemCode).Width(100).Title("Item Code");
+                    c.Bound(p => p.Size).Width(100).Title("Size");
+                    c.Bound(p => p.AdjustmentUnit).ClientTemplate("#: AdjustmentUnit #").Title("Unit").Width(100).EditorTemplateName("UnitComboBoxEditor").Editable("app.adjustmentUnit");
+                    c.DescriptionColumn(p => p.Description).Width(200);
+                    c.Bound(p => p.PrevQty).Center().Title("Prev.Qty").Width(90);
+                    c.Bound(p => p.Qty).Center().Title("Adj.Qty").EditorTemplateName("NumberEditor").Width(80);
+                    c.Bound(p => p.Reason).ClientTemplate("#: Reason #").EditorTemplateName("ComboBoxEditor").EditorViewData(new { Data = new EditorData(Url.Action("ReadStockAdjustmentReason", "Stock"), "Reason", "", "") }).Title("Reason").Width(100);
+                })
+                .EnableFilter()
+                .Scrollable()
+                .Sortable()
+                .Resizable(x => x.Columns(true))
+                .HtmlAttributes(new { @class = "h-grid inl-grid", @style = "height:250px;" })
+                .Events(x => x.CellClose("app.grid_CellClose").BeforeEdit("app.onGridBeforeEdit"))
+                .NoRecords()
+                .Navigatable()
+                .DataSource(dataSource => dataSource
+                .Ajax().ServerOperation(false).PageSize(100)
+                .Read(read => read.Action("ReadStockAdjustmentDetails", "Stock").Data("app.gridStock_Data")).Model(model =>
+                {
+                    model.Id(p => p.StockAdjustmentId);
+                    model.Field(p => p.SKUFormatted).Editable(false);
+                    model.Field(p => p.UPC).Editable(false);
+                    model.Field(p => p.ItemCode).Editable(false);
+                    model.Field(p => p.Description).Editable(false);
+                    model.Field(p => p.PrevQty).Editable(false);
+                    model.Field("StockAdjustmentId", typeof(long)).Editable(false);
+                }))
+                )
+        </div>
+        <div class="row">
+            <div class="form-group col-md-10">
+                @Html.LabelFor(x => x.Notes)
+                <textarea v-model.trim="input.Notes" class="k-textbox" rows="1" style="margin-right:20px;"></textarea>
+            </div>
+            <div class="form-group col-md-2" style="margin-top: 22px;">
+                <a href="javascript:app.addDoc()" class="c-lnk"><i class="fa fa-paperclip"></i> Attachments</a>
+            </div>
+        </div>
+    </div>
+    <div id="uploadControl" style="display:none;">
+        <kendo-upload id="Item" name="Item"
+                      :async-auto-upload="true"
+                      :multiple="false"
+                      async-save-url="@Url.Action("ImportItems", "Stock")"
+                      @@upload="itemUpload"
+                      @@success="itemUploadSuccess">
+        </kendo-upload>
+    </div>
+</div>
+
+
+@(Html.Kendo().Grid<StockAdjustment>()
+      .Name("grid")
+        .Columns(x =>
+        {
+            x.EditButtonColumn();
+            if (statusFilter == "Pending")
+                x.DeleteColumn(x => x.Id, "app.deleteAdjustment('#:uid#')");
+            x.VerifyColumn(x => x.VerifiedDate);
+            x.Bound(c => c.RefNoFormatted).Title("Ref No").Width(140);
+            x.DescriptionColumn(x => x.Notes).Width(160);
+            x.Bound(c => c.CreatedBy).Width(160);
+            x.DateColumn(c => c.CreatedOn).Width(150);
+            x.Bound(c => c.VerifiedBy).Width(160);
+            x.DateColumn(c => c.VerifiedDate).Width(150);
+        })
+      .Sortable()
+      .Scrollable()
+      .Pageable(x => x.Refresh(true))
+      .Resizable(x => x.Columns(true))
+      .EnableFilter()
+      .EnableEdit(Html)
+      .DataSource(d => d
+      .Ajax().ServerOperation(true).PageSize(50)
+      .Read(read => read.Action("ReadStockAdjustment", "Stock").Data("app.grid_Data"))
+      .Sort(s => s.Add(x => x.Id).Descending())))
+@{
+    var jsonData = Vue.Encode(new StockAdjustment() { ShopId = _appUser.ShopId, ShopCode = _appUser.ShopCode, CreatedOn = DateTime.Now });
+}
+@section Scripts{
+    @await Html.PartialAsync("PickItems")
+    @await Html.PartialAsync("MessageDialog")
+    @await Html.PartialAsync("DocumentsDialog")
+<script type="text/javascript">
+    var app = new Vue({
+            el: '#app',
+            data: {
+                input:@(jsonData),
+                SearchText: "",
+                ShopId: 0,
+                ShopCode: "",
+                AdjustmentId: 0,
+                BulkUpload: false,
+                TempData: [],
+                SKU: null,
+                ItemId: null
+            },
+            created: function () {
+               // appItem.onSelect = this.onItemSelect;
+                appItem.addItemCallBack = this.addItem;
+                appDoc.init("@DocumentReference.StockAdjustments.ToString()", this.onSuccess);
+            },
+            methods: {
+                validateForm: function () {
+                    removeError();
+                    var isValid = true;
+                    var setError = function (cntrl, msg) {
+                        isValid = false;
+                        showError(cntrl, msg);
+                    };
+
+                    var emptyQty = 0, emptyReason = 0, serialedItemQty = 0;
+                    $('#gridStock').find(".rw-err").removeClass("rw-err");
+                    var items = $('#gridStock').getKendoGrid().dataSource.data();
+                    var editedRows = $.grep(items, function (item) {
+                        return item.Qty !== 0 || item.Reason !== '' ;
+                    });
+                    if (editedRows.length == 0) {
+                        kendoAlert('Please enter Stock Adjustment details.', true);
+                        return;
+                    }
+                    $.each(editedRows, function (i, x) {
+                        var setRowError = function () {
+                            $('#gridStock').find("[data-uid=" + x.uid + "]:not('.rw-err')").addClass("rw-err");
+                        };
+                        if (!x.Qty) {
+                            emptyQty++;
+                            setRowError();
+                        }
+                        if (!x.Reason || !x.Reason.trim().length) {
+                            emptyReason++;
+                            setRowError();
+                        }
+                        if (x.SerialedItemId && x.Qty > 0) {
+                            serialedItemQty++;
+                            setRowError();
+                        }
+                    });
+                    var errors = [];
+
+                    if (emptyQty > 0)
+                        errors.push("Adjusted Qty should not be empty");
+
+                    if (emptyReason > 0)
+                        errors.push("Reason should not be empty");
+
+                    if (serialedItemQty > 0)
+                        errors.push("Adjusted Qty should be negative for perishable item(s)");
+
+                    if (errors.length) {
+                        kendoAlert(errors.join("\n"), true);
+                        return;
+                    }
+
+                    return isValid;
+                },
+                submitForm: function () {
+                    if (!this.validateForm())
+                        return;
+
+                    var items = $('#gridStock').getKendoGrid().dataSource.data();
+                    var stockDetails = [];
+                    $.each(items, function (i, x) {
+                        stockDetails.push({
+                            ItemId: x.ItemId,
+                            PrevQty: x.PrevQty,
+                            Qty: x.Qty,
+                            PurchasedRate: x.PurchasedRate,
+                            Reason: x.Reason,
+                            Conversion: x.Conversion,
+                            AdjustmentUnit: x.AdjustmentUnit
+                        })
+                    });
+                    var obj = this.input;
+                    obj.StockAdjustmentDetails = stockDetails;
+                    $.postJson("@Url.Action("SaveStockAdjustment", "Stock")", obj,
+                        function (res) {
+                            if (!appDoc.save(res.Id))
+                                app.onSuccess(res);
+                        });
+                },
+                addDoc: function () {
+                    appDoc.open(this.input.Id);
+                },
+                selectItem: function (uid) {
+                    var dataItem = $('#grid').getKendoGrid().dataSource.getByUid(uid);
+                    this.input = cloneAndDecode(dataItem);
+                    $('#gridStock').getKendoGrid().dataSource.read();
+                },
+                editItem: function editItem(uid) {
+                    $('.toggle-btn.btn-minus').open();
+                    this.selectItem(uid);
+                    app.input.status = "edit";
+                },
+                deleteItem: function (uid) {
+                    var dataSource = $('#gridStock').getKendoGrid().dataSource;
+                    var dataItem = dataSource.getByUid(uid);
+                    if (!dataItem.StockAdjustmentId)
+                        dataSource.cancelChanges(dataItem);
+                    else
+                        dataSource.remove(dataItem);
+                },
+                appendItem: function (newItem) {
+                    var dataSource = $('#gridStock').getKendoGrid().dataSource;
+                    var datas = this.BulkUpload ? this.TempData : dataSource.data();
+                    var extItem = $.grep(datas, function (x) {
+                        return x.SKU == newItem.SKU
+                    });
+                    if (extItem.length) {
+                        $.each(extItem, function (i, x) {
+                            if (extItem[i].SKU == newItem.SKU) {
+                                kendoAlert("Already " + newItem.SKU + " SKU requested for adjustment", true);
+                                return;
+                            }
+                        });
+                    }
+                    else {
+                        if (this.BulkUpload) {
+                            this.TempData.push(newItem);
+                            //this.calculateItem(this.TempData[this.TempData.length - 1]);
+                        }
+                        else
+                            dataSource.add(newItem);
+                    }
+                },
+
+                addItem: function (item) {
+                    var newItem = @(Vue.Encode(new StockAdjustmentDetail()));
+                    newItem.StockAdjustmentId = item.StockAdjustmentId;
+                    newItem.ItemId = item.Id;
+                    newItem.SKU = item.SKU;
+                    newItem.UPC = item.UPC;
+                    newItem.ItemCode = item.ItemCode;
+                    newItem.Description = item.Description;
+                    newItem.PrevQty = item.Stock;
+                    newItem.Qty = (item.Qty != 0 ? item.Qty : (newItem.Qty == null ? 0 : newItem.Qty));
+                    newItem.PurchasedRate = item.PurchasedRate;
+                    newItem.Reason = (item.Reason != null ? item.Reason : (newItem.Reason == null ? "" : newItem.Reason));
+                    newItem.SKUFormatted = item.SKUFormatted;
+                    newItem.Unit = item.Unit != null ? item.Unit : "";
+                    newItem.Size = item.Size;
+
+                    newItem.AdjustmentUnits = item.AdjustmentUnits;
+                    newItem.AdjustmentUnit = item.Unit != null ? item.Unit : "";
+                    newItem.Conversion = item.Conversion;
+                    this.appendItem(newItem);
+                },
+                deleteAdjustment: function (uid) {
+                    if (uid)
+                        this.selectItem(uid);
+                    kendoConfirm("Do you want to delete this Stock Adjustment?", function () {
+                        $.postData("@Url.Action("DeleteStockAdjustment", "Stock")", { Id: app.input.Id, RefNoFormatted: app.input.RefNoFormatted },
+                            function (res) {
+                                app.onSuccess(res);
+                                lapp.refreshNotification();
+                            });
+                    });
+                },
+                verifyItem: function (uid) {
+                    if (uid)
+                        this.selectItem(uid);
+                    $.postData("@Url.Action("VerifyStockAdjustment", "Stock")", { Id: app.input.Id, ShopId: app.input.ShopId, RefNoFormatted: app.input.RefNoFormatted },
+                        function (res) {
+                            app.onSuccess(res);
+                            lapp.refreshNotification();
+                        });
+
+                },
+                revertItem: function (uid) {
+                    if (uid)
+                        this.selectItem(uid);
+                    kendoConfirm("Do you want to Un-Verify this Stock Adjustment?", function () {
+                        $.postData("@Url.Action("RevertStockAdjustment", "Stock")", { Id: app.input.Id, ShopId: app.input.ShopId, RefNoFormatted: app.input.RefNoFormatted },
+                            function (res) {
+                                app.onSuccess(res);
+                                lapp.refreshNotification();
+                            });
+                    });
+                },
+                onSuccess: function (res) {
+                    $('#grid').getKendoGrid().dataSource.read();
+                    if (app.input.Id == 0 || app.input.Id == null)
+                        lapp.refreshNotification();
+
+                    if (res.HasWarning) {
+                        appMsg.open(res.GridData, "Invalid Request!");
+                        return;
+                    }
+
+                    if (res.HasError) {
+                        kendoAlert(res.Message, res.HasError);
+                        return;
+                    }
+
+                    $('.toggle-btn.btn-minus').close();
+                },
+                pickItem: function () {
+                    if (!this.input.ShopId) {
+                        kendoAlert("Please Select Shop", true);
+                        return;
+                    }
+                    appItem.open();
+                },
+                onItemSelect: function (item) {
+                    if (item.IsSerialized) {
+                        kendoAlert("Serialed Item (" + item.SKU + ") is not applicable for Stock Adjustment", true);
+                        return;
+                    }
+                    if (item.IsPerishable) {
+                        kendoAlert("Perishable Item (" + item.SKU + ") is not applicable for Stock Adjustment", true);
+                        return;
+                    }
+                    this.input.SKU = item.SKU;
+                    this.input.Stock = item.Stock;
+                },
+                shopChange: function (e) {
+                    if (!e.sender.value())
+                        return;
+                    var data = e.sender.dataItem(e.sender.selectedIndex);
+                    app.input.ShopId = e.sender.value();
+                    app.ShopId = e.sender.value();
+                    if (data) {
+                        app.input.ShopCode = data.ShopCode;
+                        app.ShopCode = data.ShopCode;
+                    }
+                    $('#grid').getKendoGrid().dataSource.read();
+                },
+                grid_Data: function () {
+                    return { StatusFilter: '@statusFilter' == "Pending" ? 0 : 1, ShopId: app.input.ShopId, SKU: this.SKU };
+                },
+                gridStock_Data: function () {
+                    return { StockAdjustmentId: app.input.Id };
+                },
+                onData: function () {
+                    return { SearchText: $("#ddSearch").val() };
+                },
+                onSearchChange: function (e) {
+                    var item = e.sender.dataItem(e.sender.selectedIndex);
+                    if (item)
+                        this.ItemId = item.Id;
+                    this.onSearch(e.sender.value());
+
+                    if (!item)
+                        this.ItemId = "";
+                },
+                onSearch: function (txt) {
+                    if (!this.SearchText)
+                        return;
+                  
+                    $.postData("@Url.Action("ReadItems", "Stock")", { ShopId: app.input.ShopId, SearchText: app.SearchText, ItemId: app.ItemId }, function (res) {
+                        if (!res.Data[0]) {
+                            kendoAlert("Item not found", true);
+                            return;
+                        }
+                        app.addItem(res.Data[0]);
+                    });
+                },
+                grid_CellClose: function (e) {
+                    var fieldName = e.sender.columns[e.container.index()].field;
+                    var item = e.model;
+
+                    if (fieldName == "Qty"){
+                        if (!item.Qty) {
+                            kendoAlert('Please enter Adjusted Qty', true);
+                            return;
+                        }
+                        if (item.PrevQty + item.Qty < 0) {
+                            kendoAlert('Invalid Stock. Please adjust with valid qty', true);
+                            return;
+                        }
+                        if (item.SerialedItemId && item.Qty > 0) {
+                            kendoAlert('Adjusted Qty should be negative for perishable item(s)', true);
+                            return;
+                        }
+                    }
+                },
+                searchBySKU: function () {
+                    var $grid = $('#grid').getKendoGrid();
+                    if ($grid.dataSource.page() != 1) {
+                        $grid.dataSource.page(1);
+                    }
+                    $grid.dataSource.read();
+                },
+                importFromExcel: function () {
+                    $('#Item').click();
+                },
+                itemUpload: function (e) {
+                    $('#import').removeClass("fa-download").addClass("fa-spin fa-spinner");
+                    kendo.ui.progress($("#gridStock"), true);
+                    e.data = {
+                        ShopId: (this.input.ShopId > 0) ? this.input.ShopId : 0
+                    };
+
+                },
+                itemUploadSuccess: function (e) {
+                    $('#import').removeClass("fa-spin fa-spinner").addClass("fa-download");
+                    kendo.ui.progress($("#gridStock"), false);
+                    var res = e.response;
+                    if (res.HasError) {
+                        kendoAlert(res.Message, res.HasError);
+                        return;
+                    }
+                    if (res.HasWarning) {
+                        appMsg.open(res.GridData, "Invalid Request!");
+                        return;
+                    }
+                    app.BulkUpload = true;
+                    app.TempData = [];
+                    $.each(res, function (i, item) {
+                        app.addItem(item);
+                    });
+                    app.BulkUpload = false;
+                    $("#gridStock").getKendoGrid().dataSource.data(app.TempData);
+                    $("#gridStock").getKendoGrid().refresh();
+                    app.TempData = [];
+                },
+                onGridBeforeEdit(e) {
+                    var AdjustmentUnits = e.model.AdjustmentUnits ? e.model.AdjustmentUnits : [];
+
+                    setTimeout(function () {
+                        var $cntrl = e.sender._current.find("[name=AdjustmentUnit]");
+                        if (!$cntrl.length)
+                            return;
+
+                        var $cb = $cntrl.getKendoComboBox();
+                        if (AdjustmentUnits && AdjustmentUnits.length) {
+
+                            var chkBaseUnit = $.grep(AdjustmentUnits, function (item) {
+                                return item.SellingUnit == e.model.Unit;
+                            });
+                            if (!chkBaseUnit.length)
+                                AdjustmentUnits.push({ Id: 0, SellingUnitId: 0, SellingUnitRate: 0.0, SellingUnit: e.model.Unit, Conversion: 1.0 });
+
+                            $cb.dataSource.data(AdjustmentUnits);
+                        }
+                        else
+                            $cb.dataSource.data([]);
+                    }, 300);
+                },
+                changeSellingUnit: function (e) {
+                    var selectedItem = e.sender.dataItem(e.sender.selectedIndex);
+                    var gridItem = $(".k-edit-cell").closest(".k-grid").data("kendoGrid").dataItem($(".k-edit-cell").closest("tr"));
+
+                    this.setProp(gridItem, "Conversion", selectedItem.Conversion);
+                },
+                adjustmentUnit: function (dataItem) {
+                    if (dataItem.AdjustmentUnits.length)
+                        return true;
+                    else
+                        return false;
+                },
+                setProp: function (item, prop, value) {
+                    if (this.BulkUpload)
+                        item[prop] = value;
+                    else
+                        item.set(prop, value);
+                }
+            }
+    });
+</script>
+
+    <script type="text/javascript">
+        $(function () {
+            $('#grid.grid-edit').on('dblclick', 'tbody tr', function () {
+                app.editItem($(this).attr('data-uid'));
+            });
+        });
+
+        function toggle_Change() {
+            app.input = @(jsonData);
+            $('#gridStock').getKendoGrid().dataSource.data([]);
+            if (app.ShopId > 0) {
+                app.input.ShopId = app.ShopId;
+                app.input.ShopCode = app.ShopCode;
+            }
+            app.SearchText = "";
+            if (app.input.Id > 0)
+                app.input.status = "edit";
+            else
+                app.input.status = "add";
+
+        }
+
+        $("#ddSearch").keypress(function (event) {
+            if (event.keyCode == 13) {
+                app.onSearch(app.$refs.ddSearch.kendoWidget().value());
+            }
+        });
+    </script>
+}

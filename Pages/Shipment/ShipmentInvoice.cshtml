@@ -1,0 +1,252 @@
+﻿@page
+@using BSOL.Core.Entities
+@model ShipmentInvoice
+@{
+    ViewData["Title"] = "Shipment Invoice";
+    Layout = "~/Pages/Shared/_Layout.cshtml";
+    ViewBag.IsFolded = true;
+}
+@if (!await Html.HasAccess(Forms.Procurement.Shipments))
+{
+    return;
+}
+@section BreadCrumb{
+    @await Html.PartialAsync("BreadCrumb", "Procurement")
+    @await Html.PartialAsync("Tabs", "Procurement/Shipments")
+}
+@{
+    string statusFilter = Request.Query["q"] == "1" ? "Cleared" : "Pending";
+}
+<form id="app" v-on:submit.prevent="submitForm">
+    <div class="g-title v-edit">
+        <div class="g-left">
+            @Html.ToggleButton(Orientation.Vertical)
+            <ul class="tg-btn tg-fixed" style="float: right; margin-left: 15px; margin-top: 1px;">
+                <li @(statusFilter == "Pending" ? "class=tg-active" : "")>
+                    <a href="@Url.Page("/Shipment/ShipmentInvoice")?q=0">Pending</a>
+                </li>
+                <li @(statusFilter == "Cleared" ? "class=tg-active" : "")>
+                    <a href="@Url.Page("/Shipment/ShipmentInvoice")?q=1">Cleared</a>
+                </li>
+            </ul>
+        </div>
+        <span class="g-text">Shipment Invoices</span>
+        <div class="g-right">
+                @Html.SaveButton()
+            <div v-if="input.ID" class="cntrl-inline">
+                @Html.DeleteButton()
+            </div>
+            @Html.ExcelButton()
+        </div>
+    </div>
+    <div id="editor" class="components" style="display: none;">
+        <div class="row">
+            <div class="form-group col-md-2">
+                @Html.LabelFor(x => x.ShipmentId, "Shipment")
+                <div v-if="!input.Id">
+                    <kendo-datasource ref="dsShipment" :transport-read-url="'@Url.Action("ReadSIShipments", "Shipment")'" :transport-read-type="'POST'"></kendo-datasource>
+                    <kendo-combobox ref="ddShipment" v-model="input.ShipmentId" :data-source-ref="'dsShipment'" :data-text-field="'Text'" :data-value-field="'Id'" :filter="'contains'" @@change="onShipmentChange" style="width:100%"></kendo-combobox>
+                </div>
+                <input v-if="input.Id" type="text" v-model="input.ShipmentRefNo" readonly />
+            </div>
+            <div class="form-group col-md-2">
+                @Html.LabelFor(x => x.PurchaseOrderId, "Purchase Order")
+                <div v-if="!input.Id">
+                    <kendo-datasource ref="dsPurchaseOrder" :transport-read-url="'@Url.Action("ReadSIPurchaseOrders", "Shipment")'" :transport-read-type="'POST'"></kendo-datasource>
+                    <kendo-combobox ref="ddPurchaseOrder" v-model="input.PurchaseOrderId" :data-source-ref="'dsPurchaseOrder'" :data-text-field="'Text'" :data-value-field="'Id'" :auto-bind="false" :filter="'contains'" style="width:100%"></kendo-combobox>
+                </div>
+                <input v-if="input.Id" type="text" v-model="input.PurchaseOrderRefNo" readonly />
+            </div>
+            <div class="form-group col-md-2">
+                @Html.LabelFor(x => x.BLNo, "Bill of Lading No")
+                <input type="text" v-model.trim="input.BLNo" class="k-textbox" />
+            </div>
+            <div class="form-group col-md-2">
+                @Html.LabelFor(x => x.BLCBM, "BL CBM")
+                <kendo-numerictextbox v-model="input.BLCBM" :min="0" :spinners="false" :format="'d'" style="text-align:right;width:100%"></kendo-numerictextbox>
+            </div>
+            <div class="form-group col-md-2">
+                @Html.LabelFor(x => x.SupplierInvoiceNo, "Supplier Invoice No")
+                <input type="text" v-model.trim="input.SupplierInvoiceNo" class="k-textbox" />
+            </div>
+            <div class="form-group col-md-2">
+                @Html.LabelFor(x => x.InvoiceDate, "Invoice Date")
+                <kendo-datepicker :value="input.InvoiceDate" :format="'dd-MMM-yyyy'" @@change="function(e){setModel(e,input,'InvoiceDate')}" style="width:100%;"></kendo-datepicker>
+            </div>
+            <div class="form-group col-md-2">
+                @Html.LabelFor(x => x.InvoiceCBM, "Invoice CBM")
+                <kendo-numerictextbox v-model="input.InvoiceCBM" :min="0" :spinners="false" :format="'d'" style="text-align:right;width:100%"></kendo-numerictextbox>
+            </div>
+            <div class="form-group col-md-2">
+                @Html.LabelFor(x => x.CostOfGoods, "Cost of Goods")
+                <kendo-numerictextbox :value="input.CostOfGoods" :min="0" :spinners="false" :format="'n2'" @@change="function(e){setModel(e,input,'CostOfGoods', calculateTotal)}" style="text-align:right;width:100%"></kendo-numerictextbox>
+            </div>
+            <div class="form-group col-md-2">
+                @Html.LabelFor(x => x.Freight)
+                <kendo-numerictextbox :value="input.Freight" :min="0" :spinners="false" :format="'n2'" @@change="function(e){setModel(e,input,'Freight', calculateTotal)}" style="text-align:right;width:100%"></kendo-numerictextbox>
+            </div>
+            <div class="form-group col-md-2">
+                @Html.LabelFor(x => x.Insurance,"Other Charges")
+                <kendo-numerictextbox :value="input.Insurance" :min="0" :spinners="false" :format="'n2'" @@change="function(e){setModel(e,input,'Insurance', calculateTotal)}" style="text-align:right;width:100%"></kendo-numerictextbox>
+            </div>
+            <div class="form-group col-md-2">
+                @Html.LabelFor(x => x.CustomDutyFee, "Custom Duty Fee")
+                <kendo-numerictextbox :value="input.CustomDutyFee" :min="0" :spinners="false" :format="'n2'" @@change="function(e){setModel(e,input,'CustomDutyFee', calculateTotal)}" style="text-align:right;width:100%"></kendo-numerictextbox>
+            </div>
+            <div class="form-group col-md-2">
+                @Html.LabelFor(x => x.TotalAmount, "Total")
+                <input type="text" class="k-textbox" :value="input.TotalAmount" readonly />
+            </div>
+        </div>
+    </div>
+</form>
+<div>
+    @(Html.Kendo().Grid<ShipmentInvoice>()
+            .Name("grid")
+            .Columns(x =>
+            {
+                x.EditButtonColumn();
+                if(statusFilter== "Pending")
+                    x.DeleteColumn();
+                x.Bound(c => c.RefNoFormatted).Title("Ref No.").Width(130);
+                x.Bound(c => c.ShipmentRefNo).Title("Shipment").Width(130);
+                x.Bound(c => c.PurchaseOrderRefNo).Title("Purchase Order").Width(140);
+                x.Bound(c => c.BLNo).Width(100);
+                x.Bound(c => c.SupplierInvoiceNo).Width(170);
+                x.DateColumn(c => c.InvoiceDate).Width(120);
+                x.Bound(c => c.InvoiceCBM).Width(120);
+                x.Bound(c => c.BLCBM).Title("BL CBM").Width(120);
+                x.MoneyColumn(c => c.CostOfGoods).Width(140);
+                x.MoneyColumn(c => c.Freight).Width(100);
+                x.MoneyColumn(c => c.Insurance).Width(140).Title("Other Charges");
+                x.MoneyColumn(c => c.CustomDutyFee).Width(140);
+                x.MoneyColumn(c => c.TotalAmount).Width(130);
+                x.Bound(c => c.CreatedBy).Width(160);
+                x.DateColumn(c => c.CreatedOn).Width(160);
+            })
+                .Scrollable()
+                .Sortable()
+                .EnableEdit(Html)
+                .EnableFilter()
+                .Resizable(x => x.Columns(true))
+                .Pageable(x => x.Refresh(true))
+                .Excel(x => x.AllPages(true))
+                .DataSource(dataSource => dataSource
+                .Ajax().ServerOperation(true).PageSize(50)
+                    .Read(read => read.Action("ReadShipmentInvoices", "Shipment", new { StatusFilter = statusFilter == "Pending" ? 0 : 1 }))
+            )
+    )
+</div>
+@{
+    var jsonData = Vue.Encode(new ShipmentInvoice());
+}
+@section Scripts{
+    <script type="text/javascript">
+        var app = new Vue({
+            el: '#app',
+            data: {
+                input:@(jsonData)
+            },
+            methods: {
+                validateForm: function () {
+                    removeError();
+                    var isValid = true;
+                    var setError = function (cntrl, msg) {
+                        isValid = false;
+                        showError(cntrl, msg);
+                    };
+                    var item = this.input;
+                    if (this.$refs.ddShipment && this.$refs.ddShipment.kendoWidget().selectedIndex == -1)
+                        setError('ShipmentId');
+                    if (this.$refs.ddPurchaseOrder && this.$refs.ddPurchaseOrder.kendoWidget().selectedIndex == -1)
+                        setError('PurchaseOrderId');
+                    if (!item.BLNo)
+                        setError('BLNo');
+                    if (item.CostOfGoods <= 0)
+                        setError('CostOfGoods');
+
+                    return isValid;
+                },
+                submitForm: function () {
+                    if (!this.validateForm())
+                        return;
+
+                    $.postData("@Url.Action("SaveShipmentInvoice", "Shipment")", this.input, this.onSuccess);
+                },
+                selectItem: function (uid) {
+                    var dataItem = $('#grid').getKendoGrid().dataSource.getByUid(uid);
+                    this.input = cloneAndDecode(dataItem);
+                },
+                editItem: function editItem(uid) {
+                    $('.toggle-btn.btn-minus').open();
+                    this.selectItem(uid);
+                    if (this.input.ShipmentId)
+                        this.$refs.dsPurchaseOrder.kendoWidget().read({ShipmentId: this.input.ShipmentId});
+                },
+                deleteItem: function (uid) {
+                    if (uid)
+                        this.selectItem(uid);
+                    kendoConfirm("Do you want to delete this Shipment Invoice?", function () {
+                        $.postData("@Url.Action("DeleteShipmentInvoice", "Shipment")", app.input, app.onSuccess);
+                    });
+                },
+                onSuccess: function (res) {
+                    kendoAlert(res.Message, res.HasError);
+                    if (res.HasError)
+                        return;
+                    $('.toggle-btn.btn-minus').close();
+                    $('#grid').getKendoGrid().dataSource.read();
+                    this.$refs.dsShipment.kendoWidget().read();
+                },
+                onShipmentChange: function (e) {
+                    this.input.PurchaseOrderId = "";
+                    this.$refs.dsPurchaseOrder.kendoWidget().data([]);
+                    if (e.sender.value())
+                        this.$refs.dsPurchaseOrder.kendoWidget().read({ShipmentId: e.sender.value()});
+                },
+                calculateTotal: function () {
+                    this.input.TotalAmount = this.input.CostOfGoods + this.input.Freight + this.input.Insurance + this.input.CustomDutyFee;
+                }
+            }
+        });
+    </script>
+
+    <script type="text/javascript">
+        $(function () {
+            $('#grid.grid-edit').on('dblclick', 'tbody tr', function () {
+                app.editItem($(this).attr('data-uid'));
+            });
+        });
+
+        function toggle_Change()
+        {
+            app.input = @(jsonData);
+        }
+
+        function gridContacts_Data() {
+            return { CustomerId: app.input.Id };
+        }
+
+        function gridContacts_RequestEnd(e) {
+            if ((e.type == "create" || e.type == "update") && !e.response.Errors) {
+                app.onSuccess({ Message: "Customer details saved." });
+            }
+        }
+
+        function gridContacts_CellClose(e) {
+            var fieldName = this.columns[e.container.index()].field;
+            var item = e.model;
+            if (fieldName != "IsPrimaryContact" || !item.IsPrimaryContact)
+                return;
+
+            var data = $("#gridContacts").getKendoGrid().dataSource.data();
+            var primaryContacts = $.grep(data, function (x) {
+                return x.IsPrimaryContact && x.uid != item.uid;
+            });
+            $.each(primaryContacts, function () {
+                this.set("IsPrimaryContact", false);
+            });
+            $("#gridContacts").getKendoGrid().refresh();
+        }
+    </script>
+}

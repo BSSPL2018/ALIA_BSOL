@@ -1,0 +1,294 @@
+@page
+@using BSOL.Core.Entities;
+@using Core.Models.Accounts
+@inject AppUser _appUser
+@inject ICommonHelper _commonHelper
+@model PaymentMaster
+
+@{
+    ViewBag.Title = "Payment Request";
+    Layout = "~/Pages/Shared/_Layout.cshtml";
+    ViewBag.IsFolded = true;
+}
+@if (!await Html.HasAccess(Forms.Accounts.PaymentRequest))
+{
+    return;
+}
+
+<style type="text/css">
+    #gridPO .k-grid-content {
+        height: 80px !important;
+    }
+
+    .na-border {
+        border: 1px solid #ccc;
+    }
+
+    .grp-btn .dropdown-btn-content .fa {
+        margin-right: 10px;
+        font-size: 15px;
+    }
+
+    .grp-btn .fa-cloud-download {
+        color: #45459f;
+    }
+
+    .grp-btn .fa-cloud-upload {
+        color: #2bd5e2;
+    }
+
+    .grp-btn .fa-trash-o {
+        color: #d9534f;
+    }
+
+    .dropbtn {
+        /*background-color: #4CAF50;*/
+        color: white;
+        padding: 16px;
+        font-size: 16px;
+        border: none;
+        cursor: pointer;
+    }
+
+    .dropdown-btn {
+        /*position: relative;*/
+        display: inline-block;
+        /*background-color: #c01c79;*/
+        padding: 3px 5px;
+        color: white;
+        cursor: pointer;
+    }
+
+    .dropdown-btn-content {
+        display: none;
+        position: absolute;
+        background-color: #f9f9f9;
+        min-width: 160px;
+        box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2);
+        z-index: 1;
+        text-align: left;
+    }
+
+        .dropdown-btn-content a {
+            color: #5A738E;
+            padding: 8px 16px;
+            text-decoration: none;
+            display: block;
+            border: 1px solid #ececec;
+        }
+
+            .dropdown-btn-content a:hover {
+                background-color: #f1f1f1
+            }
+
+    .dropdown-btn:hover .dropdown-btn-content {
+        display: block;
+    }
+
+    /* Change the background color of the dropdown-btn button when the dropdown-btn content is shown */
+    .dropdown-btn:hover .dropbtn {
+        background-color: #3e8e41;
+    }
+
+    .dropdown-btn .fa-caret-down {
+        margin-left: 5px;
+        font-size: 10px;
+    }
+
+    #ddTag_listbox .k-selected {
+        display: none;
+</style>
+
+<div class="g-title" id="app">
+    <div class="g-left">
+        <ul class="rdc-tab">
+            <li :class='{"active": status == 0 }'>
+                <a href="javascript:app.changeStatus(0)">Pending </a>
+            </li>
+            <li :class='{"active": status == 1}'>
+                <a href="javascript:app.changeStatus(1)">Approved </a>
+            </li>
+            <li :class='{"active": status == 2}'>
+                <a href="javascript:app.changeStatus(2)">Completed </a>
+            </li>
+            <li :class='{"active": status == 3 }'>
+                <a href="javascript:app.changeStatus(3)">Cancelled </a>
+            </li>
+        </ul>
+    </div>
+    <span class="g-text">Supplier Invoice</span>
+    <div class="g-right">
+        <button type="button" class="btn btn-violet" onclick="javascript:app.addNew()">
+            <i class='fa fa-plus-circle'></i>Add New
+        </button>
+        @Html.ExcelButton()
+    </div>
+</div>
+
+<div>
+    @(Html.Kendo().Grid<PaymentMasterModel>()
+        .Name("grid")
+        .Columns(c =>
+        {
+            c.Bound("").ClientTemplate(@"<div class='grp-btn dropdown-btn'>"
+            + "<i style='color:black;' class='fa fa-ellipsis-v'></i>"
+            + "<div class='dropdown-btn-content'>"
+            + @"#if(Active && !ApprovedOn ){#<a href='javascript:app.editItem(""#:uid#"")'> Edit</a>" + "#}#"
+            + @"#if(ApprovedOn){#<a href='javascript:app.viewItem(""#:uid#"")'> View</a>" + "#}#"
+            + @"#if(Active && !ApprovedOn ){#<a href='javascript:app.deleteItem(""#:uid#"")'> Delete</a>" + "#}#"
+            + @"#if(!ApprovedOn && Active){#<a href='javascript:app.verifyItem(""#:uid#"")'> Approve</a>" + "#}#"
+            + @"#if(ApprovedOn){#<a <a href='javascript:app.revertItem(""#:uid#"")'> Revert</a>" + "#}#"
+            + @"#if(!Active){#<a href='javascript:app.Undo(""#:uid#"")'>Undo</a>" + "#}#"
+            + @"<a href='javascript:printItem(""#:uid#"")'> Print</a>"
+            + "</div>"
+            + "</div>").Title("Actions").Editable("disableEditor").Width(80);
+
+            c.Bound(x => x.RefNoFormatted).Title("Payment Ref. No").Width(150);
+            c.Bound(x => x.SupplierName).Title("Supplier Name").Width(150);
+            c.Bound(x => x.PayeeName).Title("Payee Name").Width(150);
+            c.Bound(x => x.Category).Title("Category").Width(230);
+            c.Bound(x => x.InvoiceNo).Width(160);
+            c.DateColumn(x => x.InvoiceDate).Width(130);
+
+            c.Bound(x => x.Currency).Width(120);
+            c.MoneyColumn(x => x.Amount).Width(120);
+            c.MoneyColumn(x => x.GST).Width(120);
+            c.MoneyColumn(x => x.TotalAmount).Width(150);
+
+            c.Bound(x => x.ReferenceNo).Title("Ref No").Width(150);
+            /*   c.Bound(x => x.ParentRefNo).Title("Parent Ref. No").Width(150); */
+
+            c.Bound(x => x.PaymentType).Width(150);
+            c.Bound(x => x.BankName).Width(150);
+            c.Bound(x => x.AccountName).Width(120);
+            c.Bound(x => x.AccountNo).Width(120);
+
+            c.Bound(x => x.EntryBy).Width(120);
+            c.DateColumn(x => x.EntryDate).Width(120);
+
+            c.Bound(x => x.ApprovedBy).Width(180);
+            c.DateColumn(x => x.ApprovedOn).Width(150);
+        })
+
+        .Scrollable()
+        .Sortable()
+        .EnableEdit(Html)
+        .EnableFilter()
+        .Resizable(x => x.Columns(true))
+        .Pageable(x => x.Refresh(true))
+        .Excel(x => x.AllPages(true))
+        .DataSource(dataSource => dataSource
+        .Ajax().ServerOperation(true).PageSize(50)
+        .Read(read => read.Action("ReadSupplierInvoices", "PaymentMaster").Data("app.grid_Data"))
+        .Sort(s => s.Add(x => x.ID).Descending())
+        )
+
+        )
+</div>
+<form asp-page="@Url.Page("/General/DocumentViewer")" method="POST" target="_blank" id="frmDoc" style="display:none;">
+    <input type="hidden" name="RPT_R" value="Purchase/SupplierInvoice" />
+    <input type="hidden" name="RPT_ReportTitle" value="SupplierInvoice" />
+    <input type="hidden" name="RPT_Id" />
+    <input type="submit" value="Submit">
+</form>
+<form asp-page="@Url.Page("/General/DocumentViewer")" method="POST" target="_blank" id="frmTicket" style="display:none;">
+    <input type="hidden" name="RPT_R" value="TicketPaymentRequest" />
+    <input type="hidden" name="RPT_Id" />
+    <input type="hidden" name="RPT_UserName" value="@_appUser.AppUserName" />
+    <input type="hidden" name="RPT_IsVerified" />
+    <input type="hidden" name="RPT_Active" />
+
+    <input type="submit" value="Submit">
+</form>
+
+@section Scripts
+{
+    @await Html.PartialAsync("EditPaymentRequest")
+    <script type="text/javascript">
+        var app = new Vue({
+            el: '#app',
+            data: {
+                status: 0
+            },
+            methods: {
+                deleteItem: function (uid) {
+                    var dataItem = $('#grid').getKendoGrid().dataSource.getByUid(uid);
+                    kendoConfirm("Do you want to delete this supplier payment?", function () {
+                        $.postData("@Url.Action("DeletePaymentMaster", "PaymentMaster")", { ID: dataItem.ID, InvoiceNo: dataItem.InvoiceNo }, app.onSuccess);
+                    });
+                },
+                editItem: function (uid) {
+                    var dataItem = $('#grid').getKendoGrid().dataSource.getByUid(uid);
+                    window.open("@Url.Page("/Accounts/EditPaymentRequest")?id=" + dataItem.ID);
+                },
+                viewItem: function (uid) {
+                    var dataItem = $('#grid').getKendoGrid().dataSource.getByUid(uid);
+                    window.open("@Url.Page("/Accounts/EditPaymentRequest")?id=" + dataItem.ID +"&Option="+"View");
+                },
+                verifyItem: function (uid) {
+                    var dataItem = $('#grid').getKendoGrid().dataSource.getByUid(uid);
+                    $.postData("@Url.Action("ApproveSupplierInvoice", "PaymentMaster")", { ID: dataItem.ID, InvoiceNo: dataItem.InvoiceNo }, app.onSuccess);
+                },
+                revertItem: function (uid) {
+                    var dataItem = $('#grid').getKendoGrid().dataSource.getByUid(uid);
+                    kendoConfirm("Do you want to revert the cancellation of the supplier invoice ?", function () {
+                        $.postData("@Url.Action("UndoSupplierInvoice", "PaymentMaster")", { ID: dataItem.ID, InvoiceNo: dataItem.InvoiceNo }, app.onSuccess);
+                    });
+                },
+                Undo: function (uid) {
+                    var dataItem = $('#grid').getKendoGrid().dataSource.getByUid(uid);
+                    kendoConfirm(" Do you want to undo the Canceled Supplier Invoice?", function () {
+                        $.postData("@Url.Action("UndoTheCanceledSupplierInvoice", "PaymentMaster")", { ID: dataItem.ID, InvoiceNo: dataItem.InvoiceNo }, app.onSuccess);
+                    });
+                },
+                onSuccess: function (res) {
+                    kendoAlert(res.Message, res.HasError);
+                    if (res.HasError)
+                        return;
+                    $('#grid').getKendoGrid().dataSource.read();
+                },
+                changeStatus: function (status) {
+                    this.status = status;
+                    $('#grid').getKendoGrid().dataSource.read();
+                },
+                grid_Data: function () {
+                    return { statusFilter: this.status };
+                },
+                addNew: function () {
+                    appEdit.open(0);
+                },
+                editItem: function (uid) {
+                    var dataItem = $('#grid').getKendoGrid().dataSource.getByUid(uid);
+                    appEdit.open(dataItem.ID)
+                },
+                viewItem: function (uid) {
+                    var dataItem = $('#grid').getKendoGrid().dataSource.getByUid(uid);
+                    appEdit.open(dataItem.ID)
+                }
+            }
+        });
+    </script>
+    <script type="text/javascript">
+    /*     $(function () {
+            $("#grid").on("dblclick", ".k-grid-content tr", function () {
+                app.editItem($(this).attr('data-uid'));
+            });
+        }); */
+
+      
+
+
+        function printItem(uid) {
+            var dataItem = $('#grid').getKendoGrid().dataSource.getByUid(uid);
+            $('#frmDoc [name=RPT_Id]').val(dataItem.ID);
+            $('#frmTicket [name=RPT_Id]').val(dataItem.ID);
+            $('#frmTicket [name=RPT_IsVerified]').val(dataItem.ApprovedBy != null ? true : false);
+            $('#frmTicket [name=RPT_Active]').val(dataItem.Active);
+            if (dataItem.PaymentDoneFor != null)
+                $('#frmTicket').submit();
+            else
+                $('#frmDoc').submit();
+        }
+    </script>
+}
+

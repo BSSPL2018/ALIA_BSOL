@@ -1,0 +1,436 @@
+﻿@page
+@using BSOL.Core.Entities
+@model Shipment
+@{
+    ViewData["Title"] = "Edit Shipment";
+    Layout = "~/Pages/Shared/_Layout.cshtml";
+    ViewBag.IsFolded = true;
+}
+@if (!await Html.HasAccess(Forms.Procurement.Shipments, Rights.Modify))
+{
+    return;
+}
+
+<form id="app" v-on:submit.prevent="submitForm">
+    <div class="g-title">
+        <div class="g-left">
+            @Url.BackButton("/Shipment/Shipments")
+            <a class='btn btn-reset' href="@Url.Page("/Shipment/EditShipment")" v-if="input.ClearedDate==null"><i class='fa fa-undo'></i>Reset</a>
+        </div>
+        <div class="g-left" style="margin: 5px 0px 0px 10px;">
+            <a href="javascript:app.addDoc()" class="c-lnk"><i class="fa fa-paperclip"></i> Attachments</a>
+        </div>
+        <span class="g-text">{{input.RefNoFormatted}}</span>
+        <div class="g-right" v-if="input.ClearedDate==null">
+            @Html.SaveButton()
+        </div>
+    </div>
+    <div class="components">
+        <div class="row">
+            <div class="col-md-7">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="wt-box">
+                            <div class="wt-box-header">Shipment Details</div>
+                            <table class="tbl-frm-cntrls">
+                                <tr>
+                                    <td class="tbl-label" style="width:60%;">@Html.LabelFor(x => x.ShipmentMode, "Shipment Mode")</td>
+                                    <td class="tbl-value">
+                                        <kendo-dropdownlist v-model="input.ShipmentMode" :data-source='@Vue.Encode(Utilities.EnumToString<ShipmentMode>())' style="width:100%"></kendo-dropdownlist>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class="tbl-label">@Html.LabelFor(x => x.TradeTerm, "Trade Term")</td>
+                                    <td class="tbl-value">
+                                        <kendo-combobox ref="ddTradeTerm" v-model="input.TradeTerm" :data-source="['EXW - Ex Works','FCA - Free Carrier','CPT - Carriage Paid To','CIP - Carriage and Insurance Paid To','DAT - Delivered At Terminal','AP - Delivered At Place','DDP - Delivered Duty Paid','FAS - Free Alongside Ship','FOB - Free on Board','CFR - Cost and Freight','CIF - Cost, Insurance & Freight']" style="width:100%"></kendo-combobox>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class="tbl-label">@Html.LabelFor(x => x.Location)</td>
+                                    <td class="tbl-value">
+                                        <input type="text" class="k-textbox" v-model="input.Location" />
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class="tbl-label">@Html.LabelFor(x => x.ContainerLoadType, "Container Load Type")</td>
+                                    <td class="tbl-value">
+                                        <kendo-dropdownlist v-model="input.ContainerLoadType" :data-source='@Vue.Encode(Utilities.EnumToString<ContainerLoadType>())' style="width:100%"></kendo-dropdownlist>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class="tbl-label">@Html.LabelFor(x => x.CustomsRefNo, "Customs Ref No")</td>
+                                    <td class="tbl-value"><input type="text" class="k-textbox" v-model="input.CustomsRefNo" /></td>
+                                </tr>
+                                <tr>
+                                    <td class="tbl-label">@Html.LabelFor(x => x.LCNo, "LC No")</td>
+                                    <td class="tbl-value"><input type="text" class="k-textbox" v-model="input.LCNo" /></td>
+                                </tr>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="wt-box">
+                            <div class="wt-box-header">Durations</div>
+                            <table class="tbl-frm-cntrls">
+                                <tr>
+                                    <td class="tbl-label" style="width:60%;">@Html.LabelFor(x => x.ETD, "Estimated Time of Departure")</td>
+                                    <td class="tbl-value"><kendo-datepicker :value="input.ETD" :format="'dd-MMM-yyyy'" @@change="function(e){setModel(e,input,'ETD')}" style="width:100%;"></kendo-datepicker></td>
+                                </tr>
+                                <tr>
+                                    <td class="tbl-label">@Html.LabelFor(x => x.ETA, "Estimated Time of Arrival")</td>
+                                    <td class="tbl-value"><kendo-datepicker :value="input.ETA" :format="'dd-MMM-yyyy'" @@change="function(e){setModel(e,input,'ETA')}" style="width:100%;"></kendo-datepicker></td>
+                                </tr>
+                                <tr>
+                                    <td class="tbl-label">@Html.LabelFor(x => x.ActualArrivalDate, "Actual Arrival Date")</td>
+                                    <td class="tbl-value"><kendo-datepicker :value="input.ActualArrivalDate" :format="'dd-MMM-yyyy'" @@change="function(e){setModel(e,input,'ActualArrivalDate')}" style="width:100%;"></kendo-datepicker></td>
+                                </tr>
+                                <tr>
+                                    <td class="tbl-label">@Html.LabelFor(x => x.OffLoadedToPortDate, "Off Loaded To Port Date")</td>
+                                    <td class="tbl-value"><kendo-datepicker :value="input.OffLoadedToPortDate" :format="'dd-MMM-yyyy'" @@change="function(e){setModel(e,input,'OffLoadedToPortDate')}" style="width:100%;"></kendo-datepicker></td>
+                                </tr>
+                                <tr>
+                                    <td class="tbl-label">@Html.LabelFor(x => x.DemurrageDate, "Demurrage Date")</td>
+                                    <td class="tbl-value"><kendo-datepicker :value="input.DemurrageDate" :format="'dd-MMM-yyyy'" @@change="function(e){setModel(e,input,'DemurrageDate')}" style="width:100%;"></kendo-datepicker></td>
+                                </tr>
+                                <tr>
+                                    <td class="tbl-label">@Html.LabelFor(x => x.ClearanceType, "Clearance Type")</td>
+                                    <td class="tbl-value"><kendo-dropdownlist v-model="input.ClearanceType" :data-source='@Vue.Encode(Utilities.EnumToString<ClearanceType>())' style="width:100%"></kendo-dropdownlist></td>
+                                </tr>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="wt-box">
+                            <div class="wt-box-header">Port Details</div>
+                            <table class="tbl-frm-cntrls">
+                                <tr>
+                                    <td class="tbl-label">@Html.LabelFor(x => x.PortOfOrigin, "Port of Origin")</td>
+                                    <td class="tbl-value">
+                                        <kendo-datasource ref="dsPortOfOrigin" :transport-read-url="'@Url.Action("ReadOrigins", "Shipment")'" :transport-read-type="'POST'"></kendo-datasource>
+                                        <kendo-combobox ref="ddPortOfOrigin" :data-source-ref="'dsPortOfOrigin'" v-model="input.PortOfOrigin" :filter="'contains'" @@change="originChange" style="width:100%"></kendo-combobox>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class="tbl-label">@Html.LabelFor(x => x.PortOfLoading, "Port of Loading")</td>
+                                    <td class="tbl-value">
+                                        <kendo-datasource ref="dsPortOfLoading" :transport-read-url="'@Url.Action("ReadOriginPorts", "Shipment")'" :transport-read-type="'POST'"></kendo-datasource>
+                                        <kendo-combobox ref="ddPortOfLoading" :data-source-ref="'dsPortOfLoading'" :auto-bind="false" v-model="input.PortOfLoading" :filter="'contains'" style="width:100%"></kendo-combobox>
+                                    </td>
+                                </tr>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="wt-box">
+                            <div class="wt-box-header">Vessel Details</div>
+                            <table class="tbl-frm-cntrls">
+                                <tr>
+                                    <td class="tbl-label">@Html.LabelFor(x => x.FirstCarrierVessel, "First Carrier Vessel")</td>
+                                    <td class="tbl-value"><input type="text" class="k-textbox" v-model="input.FirstCarrierVessel" /></td>
+                                </tr>
+                                <tr>
+                                    <td class="tbl-label">@Html.LabelFor(x => x.SecondCarrierVessel, "Second Carrier Vessel")</td>
+                                    <td class="tbl-value"><input type="text" class="k-textbox" v-model="input.SecondCarrierVessel" /></td>
+                                </tr>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="wt-box">
+                            <div class="wt-box-header">Reference</div>
+                            <table class="tbl-frm-cntrls">
+                                <tr>
+                                    <td class="tbl-label" style="width:50%;">@Html.LabelFor(x => x.Feet20, "20 Ft.")</td>
+                                    <td class="tbl-value"><kendo-numerictextbox :value="input.Feet20" :min="0" :spinners="false" :format="'n0'" @@change="function(e){setModel(e,input,'Feet20')}" style="text-align:center;width:100%"></kendo-numerictextbox></td>
+                                </tr>
+                                <tr>
+                                    <td class="tbl-label">@Html.LabelFor(x => x.Feet40, "40 Ft.")</td>
+                                    <td class="tbl-value"><kendo-numerictextbox :value="input.Feet40" :min="0" :spinners="false" :format="'n0'" @@change="function(e){setModel(e,input,'Feet20')}" style="text-align:center;width:100%"></kendo-numerictextbox></td>
+                                </tr>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="wt-box">
+                            <div class="wt-box-header">Container Details</div>
+                            <table class="tbl-frm-cntrls">
+                                <tr>
+                                    <td class="tbl-label">@Html.LabelFor(x => x.ContainerNo, "Container No")</td>
+                                    <td class="tbl-value"><input type="text" class="k-textbox" v-model="input.ContainerNo" /></td>
+                                </tr>
+                                <tr>
+                                    <td class="tbl-label">@Html.LabelFor(x => x.Notes)</td>
+                                    <td class="tbl-value"><input type="text" class="k-textbox" v-model="input.Notes" /></td>
+                                </tr>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-5">
+                <div class="wt-box">
+                    <div class="wt-box-header">
+                        Purchase Orders
+                        <a href="javascript:app.pickPO()" class="c-lnk" >Select Purchase Order</a>
+                    </div>
+                    @(Html.Kendo().Grid<ShipmentPurchaseOrderDetail>()
+           .Name("grid")
+           .Editable(Html, "", false, false)
+           .Columns(c =>
+           {
+               c.Bound(p => p.PurchaseOrderDetailId).ClientTemplate("<i class='fa fa-times'></i>").HtmlAttributes(new { @style = "color:red;text-align:center;padding:0", onclick = "app.deleteDetailItem(this)" }).ClearTitle().Filterable(false).Sortable(false).Width(20);
+               c.Bound(p => p.RefNoFormatted).ClientGroupHeaderTemplate(@"#: value # <a href='javascript:app.deleteItem(""#: value #"")' class='grid-inl-delete'><i class='fa fa-times'></i> Remove</a>").Hidden();
+               c.Bound(p => p.SKU).Width(120);
+               c.Bound(p => p.UPC).Width(120);
+               c.Bound(p => p.Description).HtmlAttributes(new { @class = "grid-desc", style="font-size:11px;" });
+               c.Group(g =>
+                {
+                    g.Columns(y =>
+                    {
+                        y.NumberColumn(p => p.ConfirmedQty).Title("Confirmed").Center().EditorTemplateName("DecimalEditor").Width(90);
+                        y.NumberColumn(p => p.RequestedQty).Title("Requested").Center().Width(90);
+                    }).Title("Quantity").HeaderHtmlAttributes(new { style = "text-align:center" });
+                });
+           })
+           .Scrollable()
+           .Sortable()
+           .Resizable(x => x.Columns(true))
+           .HtmlAttributes(new { @class = "h-grid v-grid inl-grid sm-grid" })
+           .AutoBind(false)
+           .NoRecords()
+           .Navigatable()
+           .Events(x => x.CellClose("app.gridCellClose"))
+           .DataSource(dataSource => dataSource
+           .Ajax()
+           .Batch(true)
+           .ServerOperation(false)
+           .Model(model =>
+           {
+               model.Id(p => p.PurchaseOrderDetailId);
+               model.Field(p => p.PurchaseOrderDetailId).Editable(false);
+               model.Field(p => p.RefNoFormatted).Editable(false);
+               model.Field(p => p.SKU).Editable(false);
+               model.Field(p => p.UPC).Editable(false);
+               model.Field(p => p.Description).Editable(false);
+               model.Field(p => p.RequestedQty).Editable(false);
+           })
+               .Read(read => read.Action("ReadShipmentPurchaseOrders", "Shipment").Data("app.gridData"))
+               .Group(g =>
+               {
+                   g.Add(f => f.RefNoFormatted);
+               })
+           ))
+                </div>
+            </div>
+        </div>
+    </div>
+</form>
+
+@{
+    var jsonData = Vue.Encode(new Shipment()
+    {
+        ContainerLoadType = ContainerLoadType.FCL.ToString(),
+        ShipmentMode = ShipmentMode.Sea.ToString(),
+        ClearanceType = ClearanceType.Normal.ToString()
+    });
+}
+@section Scripts{
+    @(Html.Kendo().Window()
+    .Name("wndPO")
+    .Title("Items")
+    .Content(@<text>
+            <div id="appPO">
+                @(Html.Kendo().Grid<PurchaseOrder>()
+         .Name("gridPO")
+         .AutoBind(false)
+         .Columns(x =>
+         {
+             x.Bound(c => c.Id).ClientTemplate("<i class='btn-grid btn-grid-plus fa fa-plus' title='Select Item'></i>").Center().HtmlAttributes(new { onclick = "appPO.addItem(this)" }).Width(40).Filterable(false).Sortable(false).ClearTitle();
+             x.Bound(c => c.RefNoFormatted).Title("Ref No").Width(120);
+             x.Bound(c => c.SupplierName).Width(250);
+             x.MoneyColumn(c => c.TotalAmount).Width(100);
+             x.DateColumn(c => c.PurchaseOrderDate).Width(250);
+             x.Bound(c => c.CreatedBy).Width(250);
+             x.DateColumn(c => c.CreatedOn).Width(250);
+         })
+         .Sortable()
+         .Scrollable()
+         .Pageable(x => x.Refresh(true))
+         .Resizable(x => x.Columns(true))
+                     .EnableFilter()
+                     .HtmlAttributes(new { @class = "h-grid v-grid" })
+                     .Events(x => x.DataBound("appPO.gridPODataBound"))
+                     .DataSource(d => d
+                     .Ajax().ServerOperation(true).PageSize(50)
+                     .Read(read => read.Action("ReadPurchaseOrders", "Shipment"))
+                     
+                     ))
+            </div>
+    </text>)
+.Draggable()
+.Resizable()
+.Visible(false)
+    .MaxWidth(1000).Events(events => events.Close("onWindowClose"))
+    )
+    @await Html.PartialAsync("DocumentsDialog", "")
+    <script type="text/javascript">
+        var appPO = new Vue({
+            el: '#appPO',
+            data: {
+                addItemCallBack: null
+            },
+            methods: {
+                addItem: function (sender) {
+                    var $grid = $('#gridPO').getKendoGrid();
+                    var item = $grid.dataItem($(sender).parent());
+                    $(sender).find('i').removeClass("fa-plus").addClass("fa-spinner fa-spin");
+                    $.postData("@Url.Action("GetPurchaseOrderDetails", "Shipment")", { PurcharseOrderId: item.Id }, function (res) {
+                        $grid.dataSource.remove(item);
+                       if (appPO.addItemCallBack)
+                            appPO.addItemCallBack(res);
+                    });
+                },
+                open: function () {
+                    onWindowOpen(); //For Opacity
+                    if (!$('#gridPO').getKendoGrid().dataSource.data().length)
+                        $('#gridPO').getKendoGrid().dataSource.read();
+                    $('#wndPO').getKendoWindow().open().center();
+                },
+                gridPODataBound: function () {
+                    $('#wndPO').getKendoWindow().center();
+                }
+            }
+        });
+    </script>
+    <script type="text/javascript">
+        var app = new Vue({
+            el: '#app',
+            data: {
+                input: @(jsonData)
+            },
+            created: function () {
+                appPO.addItemCallBack = this.addItem;
+                this.input.Id = '@(Request.Query["id"])';
+                appDoc.init("@DocumentReference.Shipments.ToString()", this.onSuccess);
+                if (this.input.Id) {
+                    $.getData("@Url.Action("GetShipment", "Shipment")", { Id: this.input.Id }, function (res) {
+                        if (res)
+                            app.input = res;
+                    });
+                }
+            },
+            methods: {
+                validateForm: function () {
+                    removeError();
+                    var isValid = true;
+                    var setError = function (cntrl, msg) {
+                        isValid = false;
+                        showError(cntrl, msg);
+                    };
+                    var item = this.input;
+                    if (!item.ShipmentMode)
+                        setError('ShipmentMode');
+                    if (!item.ETD)
+                        setError('ETD');
+                    if (!item.TradeTerm)
+                        setError('TradeTerm');
+
+                    if (!isValid)
+                        return false;
+
+                    var items = $('#grid').getKendoGrid().dataSource.data();
+                    if (!items.length) {
+                        kendoAlert("Please select some Purchase Orders", true);
+                        return false;
+                    }
+                    return isValid;
+                },
+                submitForm: function () {
+                    if (!this.validateForm())
+                        return;
+
+                    var items = $('#grid').getKendoGrid().dataSource.data();
+
+                    var purchaseOrderDetails = [];
+                    $.each(items, function (i, x) {
+                        purchaseOrderDetails.push({
+                            PurchaseOrderDetailId: x.PurchaseOrderDetailId,
+                            ConfirmedQty: x.ConfirmedQty
+                        })
+                    });
+
+                    $.postData("@Url.Action("SaveShipment", "Shipment")",
+                        {
+                            Shipment: this.input,
+                            PurchaseOrderDetails: purchaseOrderDetails
+                        }, function (res) {
+                            if (!appDoc.save(res.Id))
+                                app.onSuccess(res);
+                        });
+                },
+                onSuccess: function (res) {
+                    if (res.HasError) {
+                        kendoAlert(res.Message, res.HasError);
+                        return;
+                    }
+                    //if (app.input.Id == 0 || app.input.Id == null)
+                    //    lapp.refreshNotification();
+
+                    kendoAlert(res.Message, false, "BSOL", function () {
+                        location.href = "@Url.Page("/Shipment/Shipments")";
+                    });
+                },
+                addDoc: function () {
+                    appDoc.open(this.input.Id);
+                },
+                addItem: function (items) {
+                    var dataSource = $('#grid').getKendoGrid().dataSource;
+                    var existingItems = dataSource.data();
+                    $.each(items, function (i, item){
+                        var extItem = $.grep(existingItems, function (x) { return x.PurchaseOrderDetailId == item.PurchaseOrderDetailId });
+                        if (!extItem.length)
+                            dataSource.add(item);
+                    });
+                },
+                deleteItem: function (poRefNo) {
+                    var dataSource = $('#grid').getKendoGrid().dataSource;
+                    var items = dataSource.data();
+                    var itemsToRemove = $.grep(items, function (x) { return x.RefNoFormatted == poRefNo });
+                    $.each(itemsToRemove, function (i, item) {
+                        dataSource.remove(item);
+                    });
+                },
+                deleteDetailItem: function (sender) {
+                    var dataItem = $('#grid').getKendoGrid().dataItem($(sender).parent());
+                    $('#grid').getKendoGrid().dataSource.remove(dataItem);
+                },
+                pickPO: function () {
+                    appPO.open();
+                },
+                originChange: function (e) {
+                    if (e.sender.value())
+                        this.$refs.ddPortOfLoading.kendoWidget().dataSource.read({ Origin: e.sender.value() });
+                },
+                gridData: function () {
+                    return { ShipmentId: this.input.Id };
+                },
+                gridCellClose: function (e) {
+                    var item = e.model;
+                    if (item.ConfirmedQty > item.RequestedQty) {
+                        kendoAlert("Confirmed Qty should not be greater than " + item.RequestedQty, true);
+                        item.set("ConfirmedQty", item.RequestedQty);
+                    }
+                }
+            }
+        });
+
+        $(function () {
+            $('.tab a[href="/Shipment/Shipments"]').parent().addClass('selected');
+            $('#grid').getKendoGrid().dataSource.read();
+        });
+    </script>
+}

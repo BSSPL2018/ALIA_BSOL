@@ -1,0 +1,649 @@
+﻿@page
+@inject AppUser appUser
+@using BSOL.Core.Entities
+@model Quotation
+@{
+    ViewData["Title"] = "Edit Quotation";
+    Layout = "~/Pages/Shared/_Layout.cshtml";
+    ViewBag.IsFolded = true;
+}
+@if (!await Html.HasAccess(Forms.Procurement.Quotations, Rights.Modify))
+{
+    return;
+}
+@section BreadCrumb {
+    @await Html.PartialAsync("BreadCrumb", "Procurement")
+}
+<form id="app">
+    <div class="g-title">
+        <div class="g-left">
+            @Url.BackButton("/Quotation/Quotations")
+            <a class='btn btn-reset' href="@Url.Page("/Quotation/EditQuotation")"><i class='fa fa-undo'></i>Reset</a>
+        </div>
+        <span class="g-text">{{input.RefNoFormatted}}</span>
+        <div class="g-right">
+            @Html.SaveButton("app.submitForm()", "Save", "Save", "button")
+        </div>
+    </div>
+    <div class="components pos">
+        <div class="row">
+            <div class="col-md-9">
+                <div class="wt-box">
+                    <div style="margin-bottom: 15px;">
+                        <label for="CustomerId" style="display: none;"></label>
+                        <div class="pos-customer" v-show="!input.CustomerId">
+                            <table>
+                                <tr>
+                                    <td class="pos-icon">
+                                        <i class="fa fa-user" aria-hidden="true"></i>
+                                    </td>
+                                    <td>
+                                        <div v-if="!input.Id">
+                                            <kendo-datasource ref="dsCustomers" :transport-read-url="'@Url.Action("ReadCustomers", "Common")'" :transport-read-type="'POST'" style="width:100%"></kendo-datasource>
+                                            <kendo-combobox :value="input.CustomerId" :data-source-ref="'dsCustomers'" :data-text-field="'Text'" :data-value-field="'Id'" :filter="'contains'" style="width:100%;" placeholder="Type customer name" @@change="customerChange"></kendo-combobox>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </table>
+                        </div>
+                        <div v-if="input.CustomerId" style="margin-bottom: 10px;">
+                            <table>
+                                <tr>
+                                    <td colspan="2">
+                                        @Html.LabelFor(x => x.CustomerId, "Customer")
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td style="color: #002680;">{{input.CustomerName}}</td>
+                                    <td v-show="!input.Id"><a href="javascript:app.clearCustomer()" style="color: #489ee7;text-decoration: underline;font-size: 8pt;margin-left: 10px;">Change</a></td>
+                                </tr>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="form-group col-md-3">
+                            @Html.LabelFor(x => x.ContactName, "Contact Name")
+                            <input type="text" v-model.trim="input.ContactName" class="k-textbox" />
+                        </div>
+                        <div class="form-group col-md-3">
+                            @Html.LabelFor(x => x.ContactNo, "Contact No")
+                            <input type="text" v-model.trim="input.ContactNo" class="k-textbox" />
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="form-group col-md-2">
+                            @Html.LabelFor(x => x.QuotationDate, "Quotation Date")
+                            <kendo-datepicker :value="input.QuotationDate" :format="'dd-MMM-yyyy'" :max="new Date()" @@change="function(e){setModel(e,input,'QuotationDate')}" style="width:100%;"></kendo-datepicker>
+                        </div>
+                        <div class="form-group col-md-2">
+                            @Html.LabelFor(x => x.Currency)
+                            <kendo-datasource ref="dsCurrency" :transport-read-url="'@Url.Action("ReadCurrencies", "Common")'" :transport-read-type="'POST'"></kendo-datasource>
+                            <kendo-dropdownlist v-model="input.Currency" :data-source-ref="'dsCurrency'" :data-text-field="'Currency'" :data-value-field="'Currency'" :filter="'contains'" @@change="currencyChange" style="width:100%"></kendo-dropdownlist>
+                        </div>
+                        @*<div class="form-group col-md-2">
+                        @Html.LabelFor(x => x.QuotationType, "Quotation Type")
+                        <kendo-dropdownlist v-model="input.QuotationType" :data-source='@Vue.Encode(Utilities.EnumToString<QuotationType>())' style="width:100%"></kendo-dropdownlist>
+                        </div>*@
+                        <div class="form-group col-md-2">
+                            @Html.LabelFor(x => x.DiscountAmount, "Discount")
+                            <table style="width: 100%;">
+                                <tr>
+                                    <td style="width: 48px;">
+                                        <div class="dropdown show wt-dropdown">
+                                            <a class="btn btn-secondary dropdown-toggle" href="#" role="button" id="dropdownMenuLink" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                                                <i :class="{'fa':true,'fa-percent': this.DiscountByPercent,'fa-usd': !this.DiscountByPercent}"></i>
+                                            </a>
+
+                                            <div class="dropdown-menu" aria-labelledby="dropdownMenuLink" style="min-width: 48px;max-width:48px;">
+                                                <a class="dropdown-item" href="javascript:app.changeDiscountMode(1)"><i class="fa fa-percent"></i></a>
+                                                <a class="dropdown-item" href="javascript:app.changeDiscountMode(0)"><i class="fa fa-usd"></i></a>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div v-show="!DiscountByPercent">
+                                            <kendo-numerictextbox :value="input.DiscountAmount" :min="0" :spinners="false" :format="'n2'" @@change="function(e){setModel(e,input,'DiscountAmount', calculateQuotation)}" style="text-align:right;width:100%"></kendo-numerictextbox>
+                                        </div>
+                                        <div v-show="DiscountByPercent">
+                                            <kendo-numerictextbox :value="input.DiscountPercent" :min="0" :max="100" :spinners="false" :format="'n1'" @@change="function(e){setModel(e,input,'DiscountPercent', calculateQuotation)}" style="text-align:right;width:100%"></kendo-numerictextbox>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </table>
+                        </div>
+                        <div class="form-group col-md-4">
+                            @Html.LabelFor(x => x.Notes)
+                            <textarea v-model.trim="input.Notes" class="k-textbox" rows="1"></textarea>
+                        </div>
+                        <div style="margin-top:22px;">
+                            <a href="javascript:app.addDocument()" class="c-lnk"><i class="fa fa-paperclip"></i> Attachments</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="wt-box">
+                    <table class="pos-tbl">
+                        <tr>
+                            <td class="pos-label">Net Amount</td>
+                            <td class="pos-value">{{toCurrency(input.NetAmount)}}</td>
+                        </tr>
+                        <tr>
+                            <td class="pos-label">
+                                Discount <span style="color:#09A277">{{input.DiscountPercent > 0 ? ("(" + input.DiscountPercent + "%)") : ""}}</span>
+                            </td>
+                            <td class="pos-value">
+                                {{toCurrency(input.DiscountAmount)}}
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="pos-label">Taxable Amount</td>
+                            <td class="pos-value">{{toCurrency(input.TaxableAmount)}}</td>
+                        </tr>
+                        <tr>
+                            <td class="pos-label">GST <span style="color:#DD1144">({{input.GSTPercent}} %)</span></td>
+                            <td class="pos-value" style="color:#DD1144">{{toCurrency(input.GSTAmount)}}</td>
+                        </tr>
+                    </table>
+                    <div class="pos-total">
+                        <div class="pos-label">Total Amount</div>
+                        <div class="pos-value">{{toCurrency(input.TotalAmount)}}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div>
+            <div class="pos-search">
+                <table>
+                    <tr>
+                        <td style="border: 1px solid #797777;">
+                            <kendo-datasource ref="dsSearch" :transport-read-url="'@Url.Action("SearchItems", "Procurements")'" :server-filtering="true" :transport-read-data="onData" :transport-read-type="'POST'"></kendo-datasource>
+                            <kendo-autocomplete id="ddSearch" v-model="SearchText" ref="ddSearch" :delay="2000" :data-source-ref="'dsSearch'" :min-length="2" :data-text-field="'Text'" :data-value-field="'Id'" :filter="'contains'" style="width:100%;background-color:white;" @@change="onSearchChange" placeholder="Enter sku or UPC or or Item Name or Description or scan barcode "></kendo-autocomplete>
+                        </td>
+                        <td class="pos-icon" style="border: 1px solid #797777;">
+                            <i class="fa fa-search" aria-hidden="true"></i>
+                        </td>
+                        <td>&nbsp;</td>
+                        <td @@click="pickItems" class="pos-btn">
+                            <i class="fa fa-cart-arrow-down" aria-hidden="true"></i>
+                            Pick Items
+                        </td>
+                    </tr>
+                </table>
+            </div>
+            @(Html.Kendo().Grid<QuotationDetail>()
+                .Name("grid")
+                .Editable(Html, "", false, false)
+                .Columns(c =>
+                {
+                    c.DeleteColumn(p => p.Id, childEdit: true);
+                    c.Bound(p => p.SKU).Width(120);
+                    c.Bound(p => p.UPC).Width(120);
+                    c.Bound(p => p.ItemCode).Width(120).Title("Item Name");
+                    c.Bound(p => p.NicNo).Width(120);
+                    c.DescriptionColumn(p => p.Description);
+                    c.MoneyColumn(p => p.Rate).Width(100).Editable("app.rateEditor");
+                    c.Bound(p => p.QuotationUnit).ClientTemplate("#: QuotationUnit #").Title("Unit").Width(100).EditorTemplateName("UnitComboBoxEditor").Editable("app.quotationUnit");
+                    c.Bound(p => p.Id).ClientTemplate("<i class='fa fa-caret-down'></i>").HtmlAttributes(new { @class = "pos-qcntrl dec", onclick = "app.decreaseQty(this)" }).ClearTitle().Filterable(false).Sortable(false).Width(40);
+                    c.Bound(p => p.Qty).Center().Width(80).HtmlAttributes(new { @class = "editable" }).EditorTemplateName("DecimalEditor");
+                    c.Bound(p => p.Id).ClientTemplate("<i class='fa fa-caret-up'></i>").HtmlAttributes(new { @class = "pos-qcntrl inc", onclick = "app.increaseQty(this)" }).ClearTitle().Filterable(false).Sortable(false).Width(40);
+                    c.MoneyColumn(p => p.TotalPrice).Width(100).Editable("disableEditor");
+                })
+                .Sortable()
+                .Resizable(x => x.Columns(true))
+                .HtmlAttributes(new { @class = "h-grid inl-grid" })
+                .AutoBind(false)
+                .NoRecords()
+                .Navigatable()
+                .Events(x => x.CellClose("app.gridCellClose").BeforeEdit("app.onGridBeforeEdit"))
+                .DataSource(dataSource => dataSource
+                .Ajax()
+                .Batch(true)
+                .ServerOperation(false)
+                .Model(model =>
+                {
+                    model.Id(p => p.Id);
+                    model.Field(p => p.Id).Editable(false);
+                    model.Field(p => p.SKU).Editable(false);
+                    model.Field(p => p.UPC).Editable(false);
+                    model.Field(p => p.ItemCode).Editable(false);
+                    model.Field(p => p.NicNo).Editable(false);
+                })
+                .Read(read => read.Action("ReadQuotationDetails", "Quotation").Data("app.gridData"))
+                .Events(x => x.RequestEnd("app.gridRequestEnd"))
+                ))
+        </div>
+    </div>
+</form>
+
+
+@{
+    var jsonData = Vue.Encode(new Quotation()
+            {
+                ShopId = appUser.ShopId,
+                GSTPercent = appUser.ShopGST,
+                QuotationType = "cash",
+                CustomerType = "Individual",
+                Currency = appUser.BaseCurrency,
+                ConversionRate = 1,
+                QuotationDate = DateTime.Now
+            });
+}
+@section Scripts{
+    @await Html.PartialAsync("QuotationItems")
+    @await Html.PartialAsync("DocumentsDialog","")
+    <script type="text/javascript">
+        var app = new Vue({
+            el: '#app',
+            data: {
+                SearchText: "",
+                input: @(jsonData),
+                DiscountByPercent: false
+            },
+            created: function () {
+                appItem.addItemCallBack = this.addItem;
+                appDoc.init("@DocumentReference.Quotations.ToString()", this.onSuccess);
+                this.input.Id = "@Request.Query["id"]";
+                if (this.input.Id) {
+                    $.getData("@Url.Action("GetQuotation", "Quotation")", { Id: this.input.Id }, function (res) {
+                        if (res) {
+                            app.input = res;
+                            app.DiscountByPercent = res.DiscountPercent > 0;
+                            //app.calculateQuotation();
+                        }
+                    });
+                }
+            },
+            methods: {
+                validateForm: function () {
+                    removeError();
+                    var isValid = true;
+                    var setError = function (cntrl, msg) {
+                        isValid = false;
+                        showError(cntrl, msg);
+                    };
+                    var item = this.input;
+                    if (!item.CustomerId)
+                        setError('CustomerId');
+                    if (!item.ContactName)
+                        setError('ContactName');
+                    if (!item.ContactNo)
+                        setError('ContactNo');
+                    if (!item.QuotationDate || !item.QuotationDate.isValid())
+                        setError('QuotationDate');
+
+                    if (!isValid)
+                        return false;
+
+                    if (item.TotalAmount < 0) {
+                        kendoAlert("Quotation amount cannot be negative", true);
+                        return false;
+                    }
+
+                    var items = $('#grid').getKendoGrid().dataSource.data();
+                    if (!items.length) {
+                        kendoAlert("Please add some items", true);
+                        return false;
+                    }
+
+                    var zeroQty = 0, emptyDescriptions = 0, duplicateDescriptions = 0;
+                    $('#grid').find(".rw-err").removeClass("rw-err");
+                    $.each(items, function (i, x) {
+                        var setRowError = function () {
+                            $('#grid').find("[data-uid=" + x.uid + "]:not('.rw-err')").addClass("rw-err");
+                        };
+                        if (x.Qty == 0) {
+                            zeroQty++;
+                            setRowError();
+                        }
+
+                        if (!x.Description || !x.Description.trim().length) {
+                            emptyDescriptions++;
+                            setRowError();
+                        }
+                        else if (!x.IsInventory && $.grep(items, function (y) { return y.uid != x.uid && y.Description && y.Description.trim() == x.Description.trim() }).length) {
+                            duplicateDescriptions++;
+                            setRowError();
+                        }
+                    });
+
+                    var errors = [];
+                    if (zeroQty > 0)
+                        errors.push("Qty should not be zero");
+
+                    if (emptyDescriptions > 0)
+                        errors.push("Description should not be empty");
+
+                    if (duplicateDescriptions > 0)
+                        errors.push("Description should not be same for Non-Inventory Items");
+
+                    if (errors.length) {
+                        isValid = false;
+                        kendoAlert(errors.join("\n"), true);
+                    }
+
+                    return isValid;
+                },
+                submitForm: function () {
+                    if (!this.validateForm())
+                        return;
+                    var items = $('#grid').getKendoGrid().dataSource.data();
+
+                    var quotationDetails = [];
+                    $.each(items, function (i, x) {
+                        quotationDetails.push({
+                            Id: x.Id,
+                            ItemId: x.ItemId,
+                            SerialItemId: x.SerialItemId,
+                            Description: x.Description,
+                            BaseRate: x.BaseRate,
+                            Rate: x.Rate,
+                            Qty: x.Qty,
+                            TotalPrice: x.TotalPrice,
+                            CreditAccountId: x.CreditAccountId,
+                            QuotationUnit: x.QuotationUnit,
+                            Conversion: x.Conversion,
+                            MinSellingRate: x.MinSellingRate
+                        });
+                    });
+                    $.postData("@Url.Action("SaveQuotation", "Quotation")",
+                        {
+                            Quotation: app.input,
+                            QuotationDetails: quotationDetails
+                        },
+                        function (res) {
+                            if (!appDoc.save(res.Id))
+                                app.onSuccess(res);
+                        });
+
+                    var unStockedItem = $.grep(items, function (item) {
+                        return (item.Qty * item.Conversion) > item.Stock;
+                    });
+
+                    if (unStockedItem && unStockedItem.length > 0) {
+                        var errors = $.map(unStockedItem, function (x) { return "Item: " + x.ItemCode + ", Available Stock: " + Math.floor(x.Stock / x.Conversion) + ", Requested Qty: " + x.Qty });
+                        console.log(errors)
+                        kendoConfirm("Following item stock \n" + errors.join("\n"), saveQuotaion);
+                    }
+
+                },
+                onSuccess: function (res) {
+                    if (res.HasError) {
+                        kendoAlert(res.Message, res.HasError);
+                        return;
+                    }
+                    
+                    if (app.input.Id == null || app.input.Id == 0 || app.input.Id == "")
+                        lapp.refreshNotification();
+
+                    kendoAlert(res.Message, false, "BSOL", function () {
+                        location.href = "@Url.Page("/Quotation/Quotations")";
+                    });
+                },
+                onData: function () {
+                    return { SearchText: $("#ddSearch").val() };
+                },
+                onSearchChange: function (e) {
+                    var item = e.sender.dataItem();
+
+                    if (!item) {
+                        this.input.ItemId = 0;
+                        this.onSearch(e.sender.value());
+                        e.preventDefault();
+                        e.sender.value(null);
+                        e.sender.close();
+                        return;
+                    }
+
+                    this.input.ItemId = item.Id;
+                    this.onSearch(e.sender.value());
+                },
+                onSearch: function (txt) {
+                    this.SearchText = txt;
+                    if (!this.SearchText)
+                        return;
+
+                    var searchText = this.SearchText;
+                    $.postData('@Url.Action("GetQuotationItem", "Quotation")', { SearchText: searchText, customerId: app.input.CustomerId, ItemId: app.input.ItemId }, function (res) {
+                        if (!res) {
+                            kendoAlert("Item not found", true);
+                            return;
+                        }
+                        app.addItem(res);
+                    });
+                    this.SearchText = "";
+                },
+                appendItem: function (newItem) {
+                    var dataSource = $('#grid').getKendoGrid().dataSource;
+                    var extItem = newItem.IsInventory ? $.grep(dataSource.data(), function (x) { return x.SKU == newItem.SKU }) : [];
+                    if (extItem.length) {
+                        extItem[0].set("Qty", extItem[0].Qty + 1);
+                        this.calculateItem(extItem[0]);
+                    }
+                    else {
+                        dataSource.add(newItem);
+                        var items = dataSource.data();
+                        this.calculateItem(items[items.length - 1]);
+                    }
+                    this.calculateQuotation();
+                },
+                addItem: function (item) {
+                    if (item.Rate == 0) {
+                        kendoAlert("Invalid Rate for item " + item.SKU, true);
+                        return;
+                    }
+                    var newItem = @(Vue.Encode(new QuotationDetail()));
+                    newItem.ItemId = item.ItemId;
+                    newItem.SKU = item.SKU;
+                    newItem.UPC = item.UPC;
+                    newItem.ItemCode = item.ItemCode;
+                    newItem.NicNo = item.NicNo;
+                    newItem.Description = item.Description;
+                    newItem.Stock = item.ShopStock;
+                    newItem.BaseRate = item.Rate;
+                    newItem.Rate = currencyConversion(item.Rate, this.input.Currency, this.input.ConversionRate);
+                    newItem.Qty = 1;
+                    newItem.IsInventory = item.IsInventory;
+                    newItem.GSTApplicable = item.GSTApplicable;
+
+                    newItem.QuotaionUnits = item.QuotaionUnits;
+                    newItem.QuotationUnit = item.Unit ?? "";
+                    newItem.Unit = item.Unit ?? "";
+                    newItem.Conversion = item.Conversion;
+                    newItem.MinSellingRate = item.Rate;
+                    this.appendItem(newItem);
+                },
+                deleteItem: function (uid) {
+                    var dataSource = $('#grid').getKendoGrid().dataSource;
+                    var dataItem = dataSource.getByUid(uid);
+                    if (!dataItem.Id)
+                        dataSource.cancelChanges(dataItem);
+                    else
+                        dataSource.remove(dataItem);
+
+                    this.calculateQuotation();
+                },
+                calculateItem: function (item) {
+                    item.set("TotalPrice", item.Rate * item.Qty);
+                    this.calculateQuotation();
+                },
+                calculateQuotation: function () {
+                    var items = $('#grid').getKendoGrid().dataSource.data();
+                    var netAmount = 0, taxableAmount = 0;
+                    $.each(items, function (i, item) {
+                        netAmount += item.TotalPrice;
+                        if (item.GSTApplicable)
+                            taxableAmount += item.TotalPrice;
+                    });
+                    var discountAmount = 0;
+                    if (this.DiscountByPercent) {
+                        discountAmount = parseFloat((netAmount * (this.input.DiscountPercent / 100)).toFixed(2));
+                        this.input.DiscountAmount = discountAmount;
+                    }
+                    else {
+                        this.input.DiscountPercent = 0;
+                        discountAmount = this.input.DiscountAmount == null ? 0 : this.input.DiscountAmount;
+                    }
+                    taxableAmount = (taxableAmount - discountAmount) > 0 ? (taxableAmount - discountAmount) : 0;
+                    var gst = parseFloat((taxableAmount * (this.input.GSTPercent / 100)).toFixed(2));
+                    var totalAmount = netAmount - discountAmount + gst;
+                    this.input.NetAmount = netAmount;
+                    this.input.GSTAmount = gst;
+                    this.input.TaxableAmount = taxableAmount;
+                    this.input.TotalAmount = totalAmount;
+                },
+                increaseQty: function (sender) {
+                    var item = $('#grid').getKendoGrid().dataItem($(sender).parent());
+                    if (!item.IsInventory)
+                        return;
+
+                    item.set("Qty", item.Qty + 1);
+                    //this.validateStock(item);
+                    this.calculateItem(item);
+                },
+                decreaseQty: function (sender) {
+                    var item = $('#grid').getKendoGrid().dataItem($(sender).parent());
+                    if (!item.IsInventory)
+                        return;
+
+                    if (item.Qty == 1)
+                        return;
+                    item.set("Qty", item.Qty - 1);
+                    this.calculateItem(item);
+                },
+                gridCellClose: function (e) {
+                    var fieldName = e.sender.columns[e.container.index()].field;
+                    var item = e.model;
+
+                    //this.validateStock(item);
+                    if (fieldName == "Rate" || fieldName == "Qty")
+                        this.calculateItem(item);
+                },
+                changeSellingUnit: function (e) {
+                    var selectedItem = e.sender.dataItem(e.sender.selectedIndex);
+                    var gridItem = $(".k-edit-cell").closest(".k-grid").data("kendoGrid").dataItem($(".k-edit-cell").closest("tr"));
+
+                    this.setProp(gridItem, "Rate", selectedItem.SellingUnitRate);
+                    this.setProp(gridItem, "MinSellingRate", selectedItem.SellingUnitRate);
+                    this.setProp(gridItem, "Conversion", selectedItem.Conversion);
+                    //this.validateStock(gridItem);
+                    this.calculateItem(gridItem);
+                },
+                validateStock: function (item) {
+                    var actualQty = item.Qty * item.Conversion;
+
+                    if ((actualQty) > item.Stock) {
+                        var availableStock = Math.floor(item.Stock / item.Conversion);
+                        kendoAlert("Cannot be greater than Stock (" + availableStock + ")", true);
+                        this.setProp(item, "Qty", availableStock);
+                        return;
+                    }
+                },
+                gridData: function () {
+                    return { QuotationId: this.input.Id };
+                },
+                gridRequestEnd: function () {
+                    setTimeout(function () {
+                        app.calculateQuotation();
+                    }, 500);
+                },
+                pickItems: function () {
+                    if (!this.input.CustomerId) {
+                        kendoAlert("Please select the Customer", true);
+                        return;
+                    }
+                    appItem.open();
+                },
+                clearCustomer: function () {
+                    this.input.CustomerId = null;
+                },
+                customerChange: function (e) {
+                    if (e.sender.selectedIndex == -1) {
+                        this.input.CustomerId = null;
+                        this.input.CustomerName = null;
+                        this.input.CustomerType = res.CustomerType;
+                        this.input.ContactName = res.ContactName;
+                        this.input.ContactNo = res.ContactNo;
+                        return;
+                    }
+                    this.input.CustomerId = e.sender.value();
+                    this.input.CustomerName = e.sender.text();
+                    $.getData("@Url.Action("GetQuotationCustomerDetails", "Quotation")", { CustomerId: this.input.CustomerId }, function (res) {
+                        if (res) {
+                            app.input.CustomerType = res.CustomerType;
+                            app.input.ContactName = res.ContactName;
+                            app.input.ContactNo = res.ContactNo;
+                        }
+                    });
+                },
+                currencyChange: function (e) {
+                    var prevCur = app.input.Currency;
+                    var prevCurRate = app.input.ConversionRate;
+                    this.input.Currency = e.sender.value();
+                    var item = e.sender.dataItem(e.sender.selectedIndex);
+                    if (item)
+                        this.input.ConversionRate = item.ConversionRate;
+
+                    var discountAmt = convertToBaseCurrency(this.input.DiscountAmount, prevCur, prevCurRate);
+                    app.input.DiscountAmount = currencyConversion(discountAmt, app.input.Currency, app.input.ConversionRate);
+
+                    var items = $('#grid').getKendoGrid().dataSource.data();
+                    $.each(items, function (i, item) {
+                        item.set("Rate", currencyConversion(item.BaseRate, app.input.Currency, app.input.ConversionRate));
+                        app.calculateItem(item);
+                    });
+                },
+                changeDiscountMode: function (e) {
+                    this.DiscountByPercent = (e == 1);
+                    this.calculateQuotation();
+                },
+                rateEditor: function (dataItem) {
+                    return !dataItem.IsInventory;
+                },
+                addDocument: function () {
+                    appDoc.open(!this.input.Id ? 0 : this.input.Id);
+                },
+                onGridBeforeEdit(e) {
+                    var quotaionUnits = e.model.QuotaionUnits ? e.model.QuotaionUnits : [];
+
+                    setTimeout(function () {
+                        var $cntrl = e.sender._current.find("[name=QuotationUnit]");
+                        if (!$cntrl.length)
+                            return;
+
+                        var $cb = $cntrl.getKendoComboBox();
+                        if (quotaionUnits && quotaionUnits.length) {
+
+                            var chkBaseUnit = $.grep(quotaionUnits, function (item) {
+                                return item.SellingUnit == e.model.Unit;
+                            });
+                            if (!chkBaseUnit.length)
+                                quotaionUnits.push({ Id: 0, SellingUnitId: 0, SellingUnitRate: e.model.Rate, SellingUnit: e.model.Unit, Conversion: 1.0 });
+
+                            $cb.dataSource.data(quotaionUnits);
+                        }
+                        else
+                            $cb.dataSource.data([]);
+                    }, 300);
+                },
+                quotationUnit: function (dataItem) {
+                    if (dataItem.QuotaionUnits.length)
+                        return true;
+                    else
+                        return false;
+                },
+                setProp: function (item, prop, value) {
+                    if (this.BulkUpload)
+                        item[prop] = value;
+                    else
+                        item.set(prop, value);
+                }
+            }
+        });
+
+        $(function () {
+            $('#grid').getKendoGrid().dataSource.read();
+            $('.c-breadcrumbs a[href="@Url.Page("/Quotation/Quotations")').addClass('active');
+        });
+    </script>
+}

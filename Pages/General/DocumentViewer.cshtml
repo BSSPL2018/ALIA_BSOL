@@ -1,0 +1,109 @@
+﻿@page
+@{
+    Layout = null;
+}
+@{
+    string reportName = Request.Method == "POST" ? Request.Form["RPT_R"].ToString() : "";
+    string reportTitle = Request.Method == "POST" ? Request.Form["RPT_ReportTitle"].ToString() : "";
+}
+<!DOCTYPE html>
+
+<html>
+<head>
+    <meta name="viewport" content="width=device-width" />
+    <title>
+        @(reportTitle.IsValid() ? reportTitle :
+            reportName.IsValid() ? System.Text.RegularExpressions.Regex.Replace(reportName.Split('/').LastOrDefault(), "([A-Z])", " $1").Trim() : "Document")
+    </title>
+    <environment include="Development">
+        <link href="~/css/kendo.common.min.css" rel="stylesheet" />
+        <link href="~/css/kendo.fiori.min.css" rel="stylesheet" />
+
+        <script src="~/lib/jquery/jquery.min.js"></script>
+    </environment>
+
+    <environment exclude="Development">
+        <link rel="stylesheet" href="https://kendo.cdn.telerik.com/2021.2.616/styles/kendo.common.min.css"
+              asp-fallback-href="~/css/kendo.common.min.css"
+              asp-fallback-test-class="span.k-dropdown" asp-fallback-test-property="background-image" asp-fallback-test-value="none" />
+        <link rel="stylesheet" href="https://kendo.cdn.telerik.com/2021.2.616/styles/kendo.fiori.min.css"
+              asp-fallback-href="~/css/kendo.common.min.css"
+              asp-fallback-test-class="span.k-dropdown" asp-fallback-test-property="background-image" asp-fallback-test-value="none" />
+
+        <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"
+                asp-fallback-src="~/lib/jquery/jquery.min.js"
+                asp-fallback-test="window.jQuery"
+                crossorigin="anonymous"
+                integrity="sha384-vtXRMe3mGCbOeY7l30aIg8H9p3GdeSe4IFlP6G8JMa7o7lXvnz3GFKzPxzJdPfGK">
+        </script>
+    </environment>
+
+    <style>
+        #reportViewer1 {
+            position: absolute;
+            left: 5px;
+            right: 5px;
+            top: 5px;
+            bottom: 5px;
+            overflow: hidden;
+        }
+
+        ul.trv-menu-large {
+            border-bottom: 1px solid #bfbfbf !important;
+        }
+
+        .k-pane {
+            user-select: text !important; /* For Reports couldn't select text in live */
+        }
+
+        div[class^='textBoxDHI'] > div {
+            left: unset !important;
+        }
+    </style>
+
+    <script src="~/js/kendo/telerikReportViewer.kendo-15.1.21.616.min.js"></script>
+    <script src="~/js/kendo/telerikReportViewer-15.1.21.616.min.js"></script>
+    @*<script src="~/js/temp/telerikReportViewer.kendo-15.0.21.120.min.js"></script>
+    <script src="~/js/temp/telerikReportViewer-15.0.21.120.min.js"></script>*@
+</head>
+<body>
+    @{
+        var keys = Request.Method == "POST" ? Request.Form.Keys.Cast<string>().Where(x => x.StartsWith("RPT_")).Select(x => x.Replace("RPT_", "")).ToList() : new List<string>();
+        var viewMode = Request.Method == "POST" && Request.Form["RC_VM"] == "1" ? "telerikReportViewer.ViewModes.INTERACTIVE" : "telerikReportViewer.ViewModes.PRINT_PREVIEW";
+    }
+    @if (!keys.Any())
+    {
+        <h3 style="text-align:center;color:red;display: inherit;margin-top:20%;">Document Expired <a style="font-size:12px;" href="javascript:window.close()">Click here to Close</a></h3>
+        return;
+    }
+    <div id="reportViewer1">
+        loading...
+    </div>
+    @{
+        Dictionary<string, string> dict = new Dictionary<string, string>();
+        foreach (string key in keys)
+        {
+            if (key != "R")
+            {
+                dict.Add(key, Request.Form["RPT_" + key]);
+            }
+        }
+    }
+    <script type="text/javascript">
+        $(document).ready(function () {
+            $("#reportViewer1")
+                .telerik_ReportViewer({
+                    serviceUrl: "/reports/",
+                    reportSource: {
+                        report: "@(reportName).trdp",
+                        parameters: @(Vue.Encode(dict))
+                            },
+                    viewMode: @viewMode,
+                    scaleMode: telerikReportViewer.ScaleModes.SPECIFIC,
+                    scale: 1.0,
+                    printMode: telerikReportViewer.PrintModes.AUTO_SELECT
+                });
+        });
+    </script>
+</body>
+</html>

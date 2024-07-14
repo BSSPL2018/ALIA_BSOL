@@ -1,0 +1,358 @@
+﻿@page
+@using BSOL.Core.Entities;
+@using BSOL.Core.Models.Procurement
+@{
+	ViewData["Title"] = "Perishable Stocks";
+	Layout = "~/Pages/Shared/_Layout.cshtml";
+	ViewBag.IsFolded = true;
+}
+@if (!await Html.HasAccess(Forms.Procurement.PerishableStocks))
+{
+	return;
+}
+@section BreadCrumb{
+	@await Html.PartialAsync("BreadCrumb", "Procurement")
+	@await Html.PartialAsync("Tabs", "Procurement/Stock")
+}
+
+<div class="g-title">
+	<div class="g-right">
+		@Html.SaveButton("app.submitChanges()")
+		@Html.ExcelButton()
+	</div>
+</div>
+
+@(
+Html.Kendo().Grid<PerishableStockModel>().Name("grid")
+	.Editable(editable => editable.Mode(GridEditMode.InCell))
+			.Columns(c =>
+			{
+				c.Bound(x=> x.Id).ClientTemplate("<a class='btn-grid btn-grid-print fa fa-cog' title='Add Adjustment' href='javascript:appA.open(\"#:uid#\")'></a>").ClearTitle().Width(40).Sortable(false).Filterable(false).Center();
+				c.Bound(x => x.SerialNo).Width(160).Title("Serial No/Log No");
+				c.Bound(x => x.SKUFormatted).Title("SKU").Width(120);
+				c.Bound(x => x.ItemCode).Width(120);
+				c.NumberColumn(c => c.Stock).Width(100).ClientTemplate("#{#<a href=javascript:app.open('#:uid#')><span class='lnk'>#:Stock#</span></a>#}#");
+				c.DateColumn(x => x.ExpiryDate).Editable("app.isEditable").Width(120).EditorTemplateName("DateEditor");
+				c.DescriptionColumn(x => x.Description);
+				c.Bound(x => x.Category).Width(140);
+				c.Bound(x => x.ItemType).Title("Type").Width(120);
+			})
+			.DataSource(dataSource => dataSource
+				.Ajax()
+				.Batch(true)
+				.ServerOperation(true)
+				.PageSize(50)
+				.Read(read => read.Action("ReadPerishableStocks", "PerishableStock"))
+				.Update("UpdatePerishableStocks", "PerishableStock")
+				.Model(model =>
+				{
+					model.Id(p => p.Id);
+					model.Field(p => p.Id).Editable(false);
+					model.Field(p => p.SerialNo).Editable(false);
+					model.Field(p => p.SKUFormatted).Editable(false);
+					model.Field(p => p.ItemCode).Editable(false);
+					model.Field(p => p.Stock).Editable(false);
+					model.Field(p => p.Description).Editable(false);
+					model.Field(p => p.Category).Editable(false);
+					model.Field(p => p.ItemType).Editable(false);
+				})
+				.Events(x => x.RequestEnd("app.gridRequestEnd"))
+				)
+		.EnableFilter()
+		.Excel(x => x.AllPages(true))
+		.Resizable(x => x.Columns(true))
+		.Pageable(x => x.Refresh(true))
+		.Sortable()
+		.Scrollable()
+		.HtmlAttributes(new { @class = "h-grid v-grid" })
+)
+
+@section Scripts
+	{
+	@await Html.PartialAsync("AddStockAdjustment")
+	@(Html.Kendo().Window()
+						.Name("wndPI")
+						.Title("Perishable Items")
+						.Content(@<text>
+							<form id="app" v-on:submit.prevent="submitForm">
+								<div class="g-title">
+									<div class="g-left">
+										@Html.AddButton("app.addItem()")
+										&nbsp;&nbsp;&nbsp;Total Qty: <b>{{ConfirmedQty}}</b>
+									</div>
+									<div class="g-right">
+											<input type="checkbox" id="serialNo" name="serialNo" v-model="AutoFill" onclick="app.onChangeAutoFill()">
+										<label for="serialNo"> Auto Fill Serial No</label>
+										@Html.SaveButton()
+									</div>
+								</div>
+							</form>
+							@(Html.Kendo().Grid<SerialedItem>()
+					.Name("gridPI")
+					.Editable(editable => editable.Mode(GridEditMode.InCell))
+					.AutoBind(false)
+					.Columns(x =>
+					{
+				x.DeleteColumn(p => p.Id, "app.deleteItem('#:uid#')");
+				x.Bound(c => c.SerialNo).Width(160).Title("Serial No/Lot No").Hidden();
+				x.NumberColumn(c => c.Qty).Title("Qty").Width(130).EditorTemplateName("DecimalEditor");
+				x.DateColumn(c => c.ExpiryDate).Width(140).EditorTemplateName("DateEditor");
+				x.Bound(c => c.SKU).Width(120);
+				x.Bound(c => c.Size).Width(130);
+				x.Bound(c => c.Unit).Width(120);
+			})
+					.Sortable()
+					.Scrollable()
+					.Navigatable()
+					.Pageable(x => x.Refresh(true))
+					.Events(x => x.CellClose("app.gridCellClose"))
+					.Resizable(x => x.Columns(true))
+					.EnableFilter()
+					.HtmlAttributes(new { @class = "h-grid v-grid" })
+					.Events(x => x.DataBound("app.gridDataBound"))
+					.AutoBind(false)
+					.DataSource(d => d
+					.Ajax().ServerOperation(true).PageSize(50)
+					//.Read(read => read.Action("ReadSIPerishableItems", "Stock").Data("app.gridData"))
+					.Model(model =>
+					{
+				model.Id(p => p.Id);
+				model.Field(p => p.Id).Editable(false);
+				model.Field(p => p.SKU).Editable(false);
+				model.Field(p => p.Size).Editable(false);
+				model.Field(p => p.Unit).Editable(false);
+			})
+					))
+							</text>)
+					.Draggable()
+					.Resizable()
+					.Visible(false)
+					.MaxWidth(1000)
+						)
+
+	<script type="text/javascript">
+		$(function () {
+			kendo.ui.validator.rules.mvcdate = function (input) {
+				return input.attr('data-role') != 'datepicker' || input.val() === "" || kendo.parseDate(input.val(), "@(Format.Date.Description())") !== null;
+			};
+		});
+	</script>
+	<script type="text/javascript">
+		var app = new Vue({
+			el: '#app',
+			data: {
+				ItemCostingId: null,
+				RefNo: "",
+				SKU: "",
+				Description: "",
+				ConfirmedQty: 0,
+				Unit: "",
+				Size: "",
+				ItemId: null,
+				SerialID: null,
+				AutoFill: true
+			},
+			methods: {
+				submitChanges: function () {
+					var $grid = $("#grid").getKendoGrid();
+					if ($grid.dataSource.hasChanges())
+						$grid.saveChanges();
+				},
+				onChangeAutoFill:function(){
+					this.AutoFill = this.AutoFill == true ? false : true;
+					if (this.AutoFill == true) {
+						var grid = $("#gridPI").data("kendoGrid");
+						grid.hideColumn("SerialNo");
+					}else{
+						var grid = $("#gridPI").data("kendoGrid");
+						grid.showColumn("SerialNo");
+					}
+				},
+				gridRequestEnd: function (e) {
+					if ((e.type == "create" || e.type == "update") && !e.response.Errors) {
+						kendoAlert("Changes saved successfully.");
+					}
+				},
+				isEditable: function (item) {
+					if (item.IsPerishable == true)
+						return true;
+					else
+						return false;
+				},
+				validateForm: function () {
+					removeError();
+					var isValid = true;
+					var setError = function (cntrl, msg) {
+						isValid = false;
+						showError(cntrl, msg);
+					};
+
+					var items = $('#gridPI').getKendoGrid().dataSource.data();
+					if (!items.length) {
+						kendoAlert("There is no data to Save", true);
+						return false;
+					}
+					var qty = 0, hasZeroQty = 0, emptySerialNos = 0, emptyExpiryDates = 0, duplicatedSerialNos = 0, duplicatedExpiryDates = 0;
+					$.each(items, function (i, x) {
+						x.SerialNo = x.SerialNo == null ? "" : x.SerialNo;
+						if ((!x.SerialNo || !x.SerialNo.trim().length) && app.AutoFill == false)
+							emptySerialNos++;
+						else if ($.grep(items, function (y) { return y.uid != x.uid && y.SerialNo && y.SerialNo.trim() == x.SerialNo.trim() }).length)
+							duplicatedSerialNos++;
+
+						if (!x.ExpiryDate)
+							emptyExpiryDates++;
+						else if ($.grep(items, function (y) { return y.uid != x.uid && (y.ExpiryDate && y.ExpiryDate.toDate().getTime() == x.ExpiryDate.toDate().getTime()) }).length)
+							duplicatedExpiryDates++;
+
+						if (x.Qty <= 0)
+							hasZeroQty++;
+						qty += x.Qty;
+					});
+
+					var errors = [];
+
+					if (emptySerialNos > 0)
+						errors.push(emptySerialNos + " row(s) has empty Serial No");
+
+					if (duplicatedSerialNos > 0)
+						errors.push(duplicatedSerialNos + " row(s) has duplicated Serial No");
+
+					if (duplicatedExpiryDates > 0)
+						errors.push(duplicatedExpiryDates + " row(s) has duplicated Expiry Date");
+
+					if (emptyExpiryDates > 0)
+						errors.push(emptyExpiryDates + " rows has empty Expiry Date(s)");
+
+
+					if (qty >= app.ConfirmedQty)
+						errors.push("Total Qty should not be equal or greater than " + app.ConfirmedQty);
+
+					if (hasZeroQty > 0)
+						errors.push("Qty should not be zero");
+
+					if (errors.length) {
+						isValid = false;
+						kendoAlert(errors.join("\n"), true);
+					}
+
+					return isValid;
+				},
+				submitForm: function () {
+					if (!this.validateForm())
+						return;
+
+					var items = $('#gridPI').getKendoGrid().dataSource.data();
+
+					var perishableItems = [];
+					$.each(items, function (i, x) {
+						perishableItems.push({
+							Id: x.Id,
+							SerialNo: app.AutoFill == false ? x.SerialNo : "",
+							Qty: x.Qty,
+							ExpiryDate: StdDate(x.ExpiryDate)
+						});
+					});
+
+					$.postData("@Url.Action("SavePerishableItems", "PerishableStock")",
+						{
+							Id: this.SerialID,
+							ItemCostingId: this.ItemCostingId,
+							RefNo: this.RefNo,
+							SKU: this.SKU,
+							ItemId: this.ItemId,
+							PerishableItems: perishableItems
+						},
+						this.onSuccess);
+				},
+				onSuccess: function (res) {
+					kendoAlert(res.Message, res.HasError);
+					if (res.HasError)
+						return;
+
+					$('#gridPI').getKendoGrid().dataSource.read();
+					var items = $('#gridPI').getKendoGrid().dataSource.data();
+					var qty=0;
+					$.each(items, function (i, x) {
+						qty+=x.Qty;
+					});
+					app.ConfirmedQty = app.ConfirmedQty - qty;
+
+					$('#grid').getKendoGrid().dataSource.read();
+				},
+				addItem: function () {
+					var newItem = @(Vue.Encode(new SerialedItem()));
+					newItem.SKU = this.SKU;
+					newItem.Description = this.Description;
+					newItem.Unit = this.Unit;
+					newItem.Size = this.Size;
+					$('#gridPI').getKendoGrid().dataSource.add(newItem);
+				},
+				deleteItem: function (uid) {
+					var dataSource = $('#gridPI').getKendoGrid().dataSource;
+					var dataItem = dataSource.getByUid(uid);
+					if (!dataItem.Id)
+						dataSource.cancelChanges(dataItem);
+					else
+						dataSource.remove(dataItem);
+				},
+				open: function (uid) {
+					var item = $('#grid').getKendoGrid().dataSource.getByUid(uid);
+					this.ItemCostingId = item.ItemCostingId;
+					this.ConfirmedQty = item.Stock;
+					this.SKU = item.SKUFormatted;
+					this.Description = item.Description;
+					this.Unit = item.Unit;
+					this.Size = item.Size;
+					this.ItemId = item.ItemId;
+					this.SerialID = item.Id;
+					$('#gridPI').getKendoGrid().dataSource.data([]);
+					$('#wndPI').getKendoWindow().setOptions({ title: "Perishable Items - " + item.ItemCode });
+					$('#wndPI').getKendoWindow().open().center();
+				},
+				gridCellClose: function (e) {
+					var $grid = $('#gridPI').getKendoGrid();
+					var fieldName = $grid.columns[e.container.index()].field;
+					var item = e.model;
+
+					var getColIndex = function (field) {
+						return $('#gridPI').find('[data-field="' + field + '"]').index()
+					};
+
+					var items = $grid.dataSource.data();
+					if (fieldName == "SerialNo") {
+						if (!item.SerialNo || !item.SerialNo.trim().length) {
+							e.container.parent().find("td:eq(" + getColIndex('SerialNo') + ")").addClass('r-red');
+						}
+						else {
+							var exists = $.grep(items, function (x) { return x.uid != item.uid && x.SerialNo == item.SerialNo });
+							if (exists.length) {
+								e.container.parent().find("td:eq(" + getColIndex('SerialNo') + ")").addClass('r-red');
+								kendoAlert(item.SerialNo + " already exists", true);
+							}
+							else
+								e.container.parent().find("td:eq(" + getColIndex('SerialNo') + ")").removeClass('r-red');
+						}
+					}
+					else if (fieldName == "ExpiryDate") {
+						if (!item.ExpiryDate) {
+							e.container.parent().find("td:eq(" + getColIndex('ExpiryDate') + ")").addClass('r-red');
+						}
+						else {
+							var exists = $.grep(items, function (x) { return x.uid != item.uid && (x.ExpiryDate && x.ExpiryDate.toDate().getTime() == item.ExpiryDate.toDate().getTime()) });
+							if (exists.length) {
+								e.container.parent().find("td:eq(" + getColIndex('ExpiryDate') + ")").addClass('r-red');
+								kendoAlert(StdDate(item.ExpiryDate) + " already exists", true);
+							}
+							else
+								e.container.parent().find("td:eq(" + getColIndex('ExpiryDate') + ")").removeClass('r-red');
+						}
+					}
+				},
+				gridDataBound: function () {
+					$('#wndPI').getKendoWindow().center();
+				}
+			}
+		});
+	</script>
+}

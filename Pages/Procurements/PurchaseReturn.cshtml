@@ -1,0 +1,509 @@
+﻿@page
+@inject AppUser appUser
+@inject IConfiguration config
+@using BSOL.Core.Entities
+@using Microsoft.Extensions.Configuration
+@model PurchaseReturn
+@{
+    ViewData["Title"] = "Purchase Return";
+    Layout = "~/Pages/Shared/_Layout.cshtml";
+}
+@section BreadCrumb{
+    @await Html.PartialAsync("Tabs", "Procurement/Purchase")
+}
+@if (!await Html.HasAccess(Forms.Procurement.PurchaseReturn))
+{
+    return;
+}
+
+@section Head{
+    <style type="text/css">
+        /*image preview*/
+        #overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 998;
+            background: #000;
+        }
+
+        .k-upload-selected {
+            display: none !important;
+        }
+
+        #lightbox {
+            position: fixed;
+            z-index: 999;
+        }
+
+        .lightbox {
+            cursor: zoom-in;
+        }
+
+        #lightbox img {
+            background-color: white;
+        }
+
+        #button {
+            float: right;
+            position: absolute;
+            right: 10px;
+            top: 5px;
+        }
+
+        .close {
+            float: right;
+            cursor: pointer;
+            font-weight: bold;
+            position: absolute;
+            right: 10px;
+            top: 5px;
+        }
+
+        .img-cnt img {
+            /*max-width: 100px;
+            cursor: zoom-in;*/
+            cursor: zoom-in;
+            height: 36px;
+        }
+
+        .pre-content table {
+            max-width: 100% !important;
+        }
+
+        button {
+            border: 1px solid #fff;
+        }
+    </style>
+}
+
+<div id="app">
+    <div class="g-title">
+        <div class="g-left">
+            @Html.ToggleButton(Orientation.Vertical)
+        </div>
+
+        <span class="g-center">Purchase Return</span>
+        <div class="g-right">
+            <div class="t-search-wrapper" style="padding-right:4px;">
+                <input type="text" v-model.trim="SKU" v-on:keyup.enter="searchBySKU" placeholder="Search by SKU" class="t-search" />
+            </div>
+            <button type='submit' class='btn btn-save btn-cntrls' id='btnSave' @@click='submitForm' title='Save'><i class='fa fa-check'></i>Save</button>
+            @Html.ExcelButton()
+        </div>
+    </div>
+    <div id="editor" style="display: none;">
+        <div class="row wt-box">
+            <div class="row">
+                <div class="form-group col-md-2">
+                    @Html.LabelFor(x => x.SupplierInvoiceId, "Supplier Invoice No")
+                    <div v-if="!input.Id">
+                        <kendo-datasource ref="dsSupInvoiceNo" :transport-read-url="'@Url.Action("ReadAllSupplierInvoices","Common")'" :transport-read-type="'POST'"></kendo-datasource>
+                        <kendo-combobox ref="ddSupInvoiceNo" v-model="input.SupplierInvoiceId" :data-source-ref="'dsSupInvoiceNo'" :data-text-field="'RefNo'" :data-value-field="'Id'" @@change="supplierInvoiceNoChange" :filter="'contains'" style="width:100%"></kendo-combobox>
+                    </div>
+
+                    <input v-if="input.Id" type="text" v-model="input.InvoiceRefNoFormatted" readonly />
+                </div>
+                <div class="form-group col-md-2">
+                    @Html.LabelFor(x => x.ReturnedDate, "Returned Date")
+                    <kendo-datepicker :value="input.ReturnedDate" :format="'dd-MMM-yyyy'" :max="new Date()" @@change="function(e){setModel(e,input,'ReturnedDate')}" style="width:100%;"></kendo-datepicker>
+                </div>
+                <div class="form-group col-md-6">
+                    @Html.LabelFor(x => x.Remarks, "Remarks")
+                    <textarea v-model.trim="input.Remarks" class="k-textbox" rows="1" style="height:50%"></textarea>
+                </div>
+                <div class="form-group col-md-2" v-show="input.ShipmentId != null">
+                    @Html.LabelFor(x => x.TotalAmount, "Invoice Amount")
+                    <kendo-numerictextbox v-model="input.TotalAmount" :min="0" :spinners="false" :format="'n2'" style="text-align:right;width:100%;" :disabled="true"></kendo-numerictextbox>
+                </div>
+                <div class="form-group col-md-6" style="padding-left:10px;">
+                    <input type="checkbox" id="chkPartial" v-model="input.PartialReturn" class="k-checkbox" @@change="returnPartialChange" :disabled="input.Id>0 || input.ShipmentId != null" />
+                    <label for="chkPartial" class="k-checkbox-label">Return Partially</label>
+                </div>
+                <div class="form-group col-md-6" style="text-align: right; padding-right: 10px;">
+                    <a href="javascript:app.addDocument()" class="c-lnk"><i class="fa fa-paperclip"></i> Attachments</a>
+                </div>
+            </div>
+            <div class="form-group">
+                @(Html.Kendo().Grid<PurchaseOrderDetail>()
+                         .Name("gridReturn")
+                         .Editable(Html, "", false, false, GridInsertRowPosition.Top)
+                         .AutoBind(false)
+                         .Columns(c =>
+                         {
+                             c.Bound(p => p.Id).Title(" ").ClientTemplate("<input type='checkbox' class='chkbox' id='chk_#:uid#' #:Selected ? 'checked=checked' : '' # onchange='onSelected(\"#:uid#\")' />")
+                                .HtmlAttributes(new { style = "text-align:center;" }).Width(20).Filterable(false).Sortable(false)
+                                .HeaderHtmlAttributes(new { style = "text-align:center;" });
+
+                             c.Bound(x => x.ImagePath).ClientTemplate(@"<img class='lightbox' src='" + Url.Content("/api/Common/ItemImage?img=") + "#=ImagePath#' download preview />")
+                                 .HtmlAttributes(new { @class = "img-cnt", onclick = "app.previewImage(this)" }).Center().ClearTitle().Width(30);
+                             c.Bound(x => x.SKU).Width(50);
+                             c.Bound(x => x.UPC).Width(50);
+                             c.Bound(x => x.ItemDescription).Title("Description").Width(250);
+                             c.Bound(x => x.ConfirmedQty).Title("Qty").Width(50).HtmlAttributes(new { style = "text-align:center;" }).HeaderHtmlAttributes(new { style = "vertical-align:middle" });
+                             c.Bound(x => x.ReturnedQty).Title("Return").EditorTemplateName("DecimalEditor").Editable("returnedQtyEdit").Width(50).HtmlAttributes(new { style = "text-align:center;" }).HeaderHtmlAttributes(new { style = "vertical-align:middle" });
+                             c.MoneyColumn(x => x.Rate).Title("Rate").Width(60).HeaderHtmlAttributes(new { style = "vertical-align:middle" });
+                             c.MoneyColumn(x => x.TotalPrice).Title("Amount").ClientTemplate("#= kendo.toString(Rate*ReturnedQty,'n2')#").HeaderHtmlAttributes(new { style = "vertical-align:middle" }).Width(60);
+                         })
+                         .Scrollable()
+                         .Resizable(x => x.Columns(true))
+                         .HtmlAttributes(new { @class = "h-grid inl-grid",@style="height:300px;" })
+                         .NoRecords()
+                         .Navigatable()
+                         .Events(x => x.CellClose("gridReturn_CellClose"))
+                         .DataSource(dataSource => dataSource
+                         .Ajax().Batch(true).ServerOperation(false)
+                         .Read(read => read.Action("ReadItemReturn", "Procurements")).Model(model =>
+                         {
+                             model.Id(p => p.Id);
+                             model.Field(x => x.Id).Editable(false);
+                             model.Field(x => x.SKU).Editable(false);
+                             model.Field(x => x.UPC).Editable(false);
+                             model.Field(x => x.ItemDescription).Editable(false);
+                             model.Field(x => x.ConfirmedQty).Editable(false);
+                             model.Field(x => x.Rate).Editable(false);
+                             model.Field(x => x.TotalPrice).Editable(false);
+                             model.Field(x => x.ImagePath).Editable(false);
+                         }))
+                         .Events(e=>e.DataBound("grid_DataBound"))
+                )
+            </div>
+        </div>
+    </div>
+</div>
+
+@(Html.Kendo().Grid<PurchaseReturn>()
+                       .Name("grid")
+                       .Columns(c =>
+                       {
+                           c.EditButtonColumn();
+                           c.DeleteColumn();
+                           c.Bound("").ClientTemplate(@"<button class='btn-grid btn-grid-print fa fa-print' title='Print' target='_self' onclick='javascript:app.printReturn(""#:uid#"")'></button>").HtmlAttributes(new { style = "text-align:center;" }).Width(41).Sortable(false).Filterable(false);
+                           c.Bound(c => c.RefNoFormatted).Title("Return No").Width(100);
+                           c.Bound(c => c.SupplierName).Width(190);
+                           c.Bound(c => c.InvoiceRefNoFormatted).Title("Sup. Invoice No").Width(130);
+                           c.Bound(c => c.PORefNo).Title("Pur. Order No").Width(130);//TODO:
+                           c.DateColumn(x => x.ReturnedDate).Width(130);
+                           c.Bound(c => c.ReturnedQty).HtmlAttributes(new { style = "text-align:center;" }).HeaderHtmlAttributes(new { style = "vertical-align:middle" }).Width(120);
+                           c.MoneyColumn(c => c.TotalAmount).Width(120);
+                           c.MoneyColumn(c => c.GSTAmount).Title("GST").Width(100);
+                           c.MoneyColumn(c => c.DiscountAmount).Title("Discount").Width(100);
+                           c.Bound(c => c.Remarks).Width(120);
+                           c.Bound(c => c.CreatedBy).Width(120);
+                           c.DateColumn(x => x.CreatedOn).Width(150);
+                       })
+                       .HtmlAttributes(new { @class = "h-grid v-grid" })
+                       .Sortable()
+                       .EnableFilter()
+                       .Resizable(x => x.Columns(true))
+                       .Scrollable()
+                       .Pageable(x => x.Refresh(true))
+                       .EnableEdit(Html)
+                       .DataSource(dataSource => dataSource
+                       .Ajax().ServerOperation(true).PageSize(50)
+                       .Read(read => read.Action("ReadPurchaseReturns", "Procurements").Data("app.gridData"))
+                       .Sort(s => s.Add(x => x.Id).Descending()))
+)
+<form asp-page="@Url.Page("/General/DocumentViewer")" method="POST" target="_blank" id="frmDoc" style="display:none;">
+    <input type="hidden" name="RPT_R" value="Purchase/PurchaseReturnNote" />
+    <input type="hidden" name="RPT_Id" />
+    <input type="hidden" name="RPT_EntityID" />
+    <input type="submit" value="Submit">
+</form>
+
+@{
+    var jsonData = Vue.Encode(new PurchaseReturn());
+}
+
+@section Scripts{
+    @await Html.PartialAsync("MessageDialog")
+    @await Html.PartialAsync("DocumentsDialog")
+    <script type="text/javascript">
+    var app = new Vue({
+        el: '#app',
+        data: {
+            input:@(jsonData),
+            Selected: false,
+            SKU: null,
+            ExpenseCategory: null
+        },
+        created: function() {
+            appDoc.init("@DocumentReference.PurchaseReturns.ToString()", this.onSuccess);
+        },
+        methods: {
+            previewImage: function (e) {
+                var item = $('#gridReturn').getKendoGrid().dataItem($(e).parent());
+                var windowHeight = window.innerHeight || $(window).height(),
+                    windowWidth = window.innerWidth || $(window).width();
+                var imgSrc = "/Common/ItemImage?img=" + item.ImagePath;
+                // Create the overlay, append it to body and make it visible.
+                $('<div id="overlay"></div>')
+                    .css('opacity', '0')
+                    .animate({
+                        'opacity': '0.5'
+                    }, 'slow')
+                    .appendTo('body');
+
+
+                // Create the lightbox container which shall contain the image
+                $('<div id="lightbox"><span class="close">X</span></div>')
+                    .hide()
+                    .appendTo('body');
+
+
+                // Create img-element and add to #lightbox when loaded.
+                $('<img>')
+                    .attr('src', imgSrc)
+                    .css({
+                        'max-height': windowHeight,
+                        'max-width': windowWidth
+                    })
+                    .on('load', function () {
+                        $('#lightbox')
+                            .css({
+                                'top': (windowHeight - $('#lightbox').height()) / 2,
+                                'left': (windowWidth - $('#lightbox').width()) / 2
+                            })
+                            .fadeIn();
+                    })
+                    .appendTo('#lightbox');
+
+                // Remove lightbox on click
+                $('#overlay, #lightbox').click(function () {
+                    $('#overlay, #lightbox').remove();
+                });
+            },
+
+            //customerChange: function (e) {
+            //    this.input.InvoiceId = "";
+
+            //    this.$refs.dsInvoiceNo.kendoWidget().data([]);
+            //    if (e.sender.value())
+            //        this.$refs.dsInvoiceNo.kendoWidget().read({CustomerId: e.sender.value()});
+            //},
+            supplierInvoiceNoChange: function (e) {
+                if (e.sender.selectedIndex == -1) {
+                    $('#gridReturn').data('kendoGrid').dataSource.data([]);
+                    return;
+                }
+
+                var item = e.sender.dataItem(e.sender.selectedIndex);
+                if (item) {
+                    this.ExpenseCategory = item.ExpenseCategory;
+                    this.input.TotalAmount = item.Amount;
+                    this.input.ShipmentId = item.ShipmentId;
+                    $('#gridReturn').data('kendoGrid').dataSource.read({ SupplierInvoiceId: item.Id, ShipmentId: item.ShipmentId == null ? 0 : item.ShipmentId, selected: false });
+                }
+            },
+            editItem: function (uid) {
+                $('.toggle-btn.btn-minus').open();
+                var dataItem = $('#grid').getKendoGrid().dataSource.getByUid(uid);
+                this.input = dataItem;
+                $('#gridReturn').data('kendoGrid').dataSource.read({ purchaseReturnId: dataItem.Id, ShipmentId: dataItem.ShipmentId == null ? 0 : dataItem.ShipmentId, selected: true });
+            },
+            validateForm: function () {
+                removeError();
+                var isValid = true;
+
+                var setError = function (cntrl, msg) {
+                    isValid = false;
+                    showError(cntrl, msg);
+                };
+
+                if (this.$refs.ddSupInvoiceNo && this.$refs.ddSupInvoiceNo.kendoWidget().selectedIndex == -1)
+                    setError('SupplierInvoiceId');
+
+                if (!this.input.ReturnedDate || !this.input.ReturnedDate.isValid())
+                    setError('ReturnedDate');
+
+                if (!this.input.Remarks)
+                    setError('Remarks')
+
+                if (this.ExpenseCategory != null && (!this.input.TotalAmount || this.input.TotalAmount == "0"))
+                    setError('TotalAmount')
+
+                if (!isValid)
+                    return false;
+
+                var datas = $('#gridReturn').getKendoGrid().dataSource.data();
+                if (app.input.PartialReturn) {
+                    datas = $.grep(datas, function (x) {
+                        return x.Selected;
+                    });
+                }
+
+                if (datas.length == 0) {
+                    kendoAlert('Please select any item to return.', true);
+                    return;
+                }
+                var returnedQtyErr = 0;
+                var negativeReturnedQtyErr = 0;
+                $(datas).each(function (i) {
+                    if (datas[i].ReturnedQty == 0) {
+                        returnedQtyErr++;
+                        return
+                    }
+                    if (datas[i].ReturnedQty < 0) {
+                        negativeReturnedQtyErr++;
+                        return
+                    }
+                });
+                var errors = [];
+                if (returnedQtyErr > 0)
+                    errors.push("Please enter returned qty for selected item");
+                if (negativeReturnedQtyErr > 0)
+                    errors.push("Returned qty should not be negative value");
+                if (errors.length) {
+                    isValid = false;
+                    kendoAlert(errors.join("\n"), true);
+                }
+                return isValid;
+            },
+            submitForm: function () {
+                if (!this.validateForm())
+                    return;
+
+                var items = $('#gridReturn').getKendoGrid().dataSource.data();
+                if (app.input.PartialReturn) {
+                    items = $.grep(items, function (x) {
+                        return x.Selected;
+                    });
+                }
+
+                var totalAmount = 0, discountAmount = 0;
+                var itemReturnedDetails = [];
+                $(items).each(function (i) {
+                    totalAmount += (items[i].Rate * items[i].ReturnedQty);
+                    //discountAmount += (items[i].DiscountAmount * items[i].ReturnedQty);
+                    itemReturnedDetails.push({
+                        ItemId: this.ItemId,
+                        ReturnedQty: this.ReturnedQty,
+                        PurchaseOrderDetailId: this.Id,
+                    });
+                });
+
+                this.input.DiscountAmount = 0;
+                this.input.TotalAmount = totalAmount;
+
+                var obj = this.input;
+                obj.ReturnItemDetails = itemReturnedDetails;
+                $.postJson("@Url.Action("SavePurchaseReturn", "Procurements")", obj,
+                    function (res) {
+                        if (appDoc.save(res.Id))
+                            return;
+
+                        app.onSuccess(res);
+                    });
+
+            },
+            deleteItem: function (uid) {
+                var dataItem = $('#grid').getKendoGrid().dataSource.getByUid(uid);
+                kendoConfirm("Do you want to delete this item return?", function () {
+                    $.postData("@Url.Action("DeletePurchaseReturn", "Procurements")", { Id: dataItem.Id, SupplierInvoiceId: dataItem.SupplierInvoiceId, RefNoFormatted: dataItem.RefNoFormatted, ShipmentId: dataItem.ShipmentId }, app.onSuccess);
+                });
+            },
+            returnPartialChange: function () {
+                app.input.PartialReturn = app.input.PartialReturn;
+                hideCheckBox();
+            },
+            onSuccess: function (res) {
+                $('#grid').getKendoGrid().dataSource.read();
+                if (res.HasWarning) {
+                    appMsg.open(res.GridData, "Invalid Request!");
+                    return;
+                }
+
+                kendoAlert(res.Message, res.HasError);
+                if (res.HasError)
+                    return;
+
+                $('.toggle-btn.btn-minus').close();
+                this.$refs.dsSupInvoiceNo.kendoWidget().read();
+            },
+            printReturn: function (uid) {
+                var dataItem = $('#grid').getKendoGrid().dataSource.getByUid(uid);
+                $('#frmDoc [name=RPT_Id]').val(dataItem.Id);
+                $('#frmDoc [name=RPT_EntityID]').val(@(appUser.EntityID));
+                $('#frmDoc').submit();
+                @*$('#grid tr[data-uid="' + uid + '"] .fa-print').prop('disabled', true);
+                oneClickPrint("@(config.GetValue<string>("PrintService"))",
+                    {
+                        Url: "@(Html.BaseUrl() + Url.Action("PrintPurchaseReturn", "Procurements"))?id=" + dataItem.Id,
+                        Token: "@(Request.Cookies[".AspNetCore.Cookies"])"
+                    }, function () {
+                        $('#grid tr[data-uid="' + uid + '"] .fa-print').prop('disabled', false);
+                    });*@
+            },
+            addDocument: function () {
+                appDoc.open(!this.input.Id ? 0 : this.input.Id);
+            },
+            searchBySKU: function () {
+                var $grid = $('#grid').getKendoGrid();
+                if ($grid.dataSource.page() != 1) {
+                    $grid.dataSource.page(1);
+                }
+                $grid.dataSource.read();
+            },
+            gridData: function () {
+                return { SKU: this.SKU };
+            }
+        }
+    });
+
+    </script>
+
+    <script type="text/javascript">
+        $(function () {
+            $('#grid.grid-edit').on('dblclick', 'tbody tr', function () {
+                app.editItem($(this).attr('data-uid'));
+            });
+        });
+        function toggle_Change(isOpened) {
+            app.input = @(jsonData);
+            if (isOpened)
+                $('#gridReturn').getKendoGrid().dataSource.data([]);
+        }
+
+        function gridReturn_CellClose(e) {
+            var item = e.model;
+            if (item.ReturnedQty > item.Qty) {
+                kendoAlert('Return quantity should be less than or equal to items quantity.', true);
+                item.ReturnedQty = item.Qty;
+            }
+            app.Discount = 0;
+            var amount = item.Rate * item.ReturnedQty;
+            //var discount = item.Discount * item.ReturnedQty;
+            item.TotalAmount = amount;
+            if (item.dirty && item.ReturnedQty > 0) {
+                e.container.parent().find("#chk_" + item.uid).prop("checked", true);
+                item.set('Selected', $('#chk_' + item.uid).prop('checked'));
+            }
+            $('#gridReturn').getKendoGrid().refresh();
+        }
+
+        function returnedQtyEdit() {
+            return app.input.PartialReturn;
+        }
+
+        function grid_DataBound(e) {
+            //$("#gridReturn .k-grid-content").attr("style", "height: auto");
+            hideCheckBox();
+        }
+
+        function onSelected(uid) {
+            var item = $('#gridReturn').getKendoGrid().dataSource.getByUid(uid);
+            item.set('Selected', $('#chk_' + uid).prop('checked'));
+        }
+
+        function hideCheckBox() {
+            $.each($("#gridReturn .chkbox"), function () {
+                if (app.input.PartialReturn)
+                    $('#' + this.id).show();
+                else
+                    $('#' + this.id).hide();
+            });
+        }
+    </script>
+}

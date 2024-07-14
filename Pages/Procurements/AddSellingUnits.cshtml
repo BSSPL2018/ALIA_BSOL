@@ -1,0 +1,146 @@
+﻿@using BSOL.Core.Entities
+<div id="appSellingUnits">
+    @Html.Kendo().Window().Name("wndSellingItemUints").Content(@<text>
+                @(Html.Kendo().Grid<SellingItemUnit>().Name("gridSellingItemUints")
+        .Editable(Html, null,true,false)
+        .Columns(c =>
+        {
+        c.DeleteColumn(x => x.Id, "appSellingUnits.deleteSellingItemUnits('#:uid#')");
+        c.Bound(p => p.SellingUnitId).ClientTemplate("#: SellingUnit #").EditorTemplateName("ComboBoxEditor").EditorViewData(new { Data = new EditorData(Url.Action("ReadUnitOfMeasureData", "Procurements"), "SellingUnit")}).Title("Selling Unit").Width(150);
+        c.Bound(p => p.UPC).Width(160);
+        c.MoneyColumn(p => p.SellingUnitRate).Title("Rate").Width(150);
+        c.Bound(p => p.Conversion).Title("Conversion Qty").Width(160);
+        //c.Bound(p => p.Formula).Width(160);
+        //c.Bound(p => p.Remarks).Width(160);
+        })
+        .DataSource(d => d
+        .Ajax()
+        .Batch(true)
+        .ServerOperation(true)
+        .PageSize(50)
+        .Model(model =>
+        {
+        model.Id(p => p.Id);
+        model.Field(p => p.Id).Editable(false);
+        model.Field(p => p.Conversion).Editable(true);
+        })
+        .Events(x => x.RequestEnd("gridSellingUnit_RequestEnd").Error("grid_ErrorHandler"))
+        .Read(read => read.Action("ReadSellingItemUnits", "Procurements").Data("appSellingUnits.gridSellingItemUints_Data"))
+        .Create(create => create.Action("UpdateSellingItemUnits", "Procurements"))
+        .Update(update => update.Action("UpdateSellingItemUnits", "Procurements"))
+        )
+        .Events(x => x.SaveChanges("gridSellingUnit_SaveChanges").DataBound("gridSellingUnit_DataBound"))
+        .Sortable()
+        .AutoBind(false)
+        .HtmlAttributes(new { @class = "h-grid v-grid" })
+        .Scrollable()
+        .Pageable(x => x.Refresh(true))
+        .Navigatable()
+                )
+            </text>).Visible(false).Title("Add Selling Units").Draggable(true).Events(e => e.Close("appSellingUnits.wndSellingItemUints_Close")).Resizable().MaxWidth(750)
+</div>
+<script type="text/javascript">
+
+    function gridSellingUnit_DataBound() {
+        $('#wndSellingItemUints').getKendoWindow().center();
+    }
+
+    function gridSellingUnit_SaveChanges(e) {
+        var data = $(e.sender.element).getKendoGrid().dataSource.data();
+        var dirty = $.grep(data, function (item) {
+            return item.dirty || item.Id === 0;
+        });
+        var itemSellingUnit = $.grep(dirty, function (item) {
+            return !item.SellingUnitId;
+        });
+        var itemConversion = $.grep(dirty, function (item) {
+            return !item.Conversion;
+        });
+        var itemRate = $.grep(dirty, function (item) {
+            return !item.SellingUnitRate;
+        });
+        var itemUPC = $.grep(dirty, function (item) {
+            return !item.UPC;
+        });
+
+        var errors = [];
+
+        if (itemSellingUnit && itemSellingUnit.length > 0) {
+            $.each(itemSellingUnit, function (i) {
+                if (itemSellingUnit[i].SellingUnit == "")
+                    errors.push("SellingUnit Should not be empty");
+                return;
+            });
+        }
+
+        if (itemConversion && itemConversion.length > 0) {
+            $.each(itemConversion, function (i) {
+                if (itemConversion[i].Conversion == "")
+                    errors.push("Conversion Should not be empty");
+                return;
+            });
+        }
+        if (itemRate && itemRate.length > 0) {
+            $.each(itemRate, function (i) {
+                if (itemRate[i].SellingUnitRate == "")
+                    errors.push("SellingUnit Should not be empty");
+                return;
+            });
+        }
+        if (itemUPC && itemUPC.length > 0) {
+            $.each(itemUPC, function (i) {
+                if (itemUPC[i].UPC == "")
+                    errors.push("SellingUnit Should not be empty");
+                return;
+            });
+        }
+
+
+        if (errors.length) {
+            e.preventDefault();
+            kendoAlert(errors.join("\n"), true);
+        }
+    }
+
+    function gridSellingUnit_RequestEnd(e) {
+        if ((e.type == "create" || e.type == "update") && !e.response.Errors)
+            kendoAlert("Category Saved.");
+    }
+    var appSellingUnits = new Vue({
+        el: '#appSellingUnits',
+        data: {
+            ItemId: 0,
+        },
+        methods: {
+            open: function (ItemId) {
+                this.ItemId = ItemId;
+
+                if (!$('#gridSellingItemUints').getKendoGrid().dataSource.data().length)
+                    $('#gridSellingItemUints').getKendoGrid().dataSource.read({ itemId: this.ItemId });
+
+                $('#wndSellingItemUints').getKendoWindow().open().center();
+            },
+            wndSellingItemUints_Close: function () {
+
+            },
+            deleteSellingItemUnits: function (uid) {
+                var dataItem = $('#gridSellingItemUints').getKendoGrid().dataSource.getByUid(uid);
+                if (dataItem.Id == 0) {
+                    $('#gridSellingItemUints').getKendoGrid().dataSource.cancelChanges(dataItem);
+                    return;
+                }
+                kendoConfirm("Do you want to Delete this Item Selling Units?", function () {
+                    $.postData("@Url.Action("DeleteItemSellingUnits", "Procurements")", { Id: dataItem.Id, SellingUnit: dataItem.SellingUnit, SellingUnitRate: dataItem.SellingUnitRate },
+                        function (data) {
+                            kendoAlert(data.Message, data.HasError);
+                            if (!data.HasError)
+                                $('#gridSellingItemUints').getKendoGrid().dataSource.read();
+                        });
+                });
+            },
+            gridSellingItemUints_Data: function () {
+                return { ItemId: this.ItemId };
+            }
+        }
+    });
+</script>

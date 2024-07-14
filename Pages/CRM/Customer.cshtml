@@ -1,0 +1,527 @@
+﻿@page
+@using BSOL.Core.Entities
+@using BSOL.Helpers
+@using Kendo.Mvc.UI
+@model Customer
+@{
+    ViewData["Title"] = "Customer Registration";
+    Layout = "~/Pages/Shared/_Layout.cshtml";
+}
+@if (!await Html.HasAccess(Forms.CRM.Customer))
+{
+    return;
+}
+
+<form id="app" v-on:submit.prevent="submitForm">
+    <div class="g-title v-edit">
+        <div class="g-left">
+            <table>
+                <tr>
+                    <td>
+                        @* @Html.ToggleButton(Orientation.Vertical) *@
+                        @if (await Html.HasAccess(Forms.CRM.Customer, Rights.Add))
+                        {
+                            <button type="button" style="padding: 4px 10px;border-radius: 0;background: #0F9D58;" onclick="app.addCustomer()" class="btn btn-primary">
+                                <i class="fa fa-plus-circle"></i>Create
+                            </button>
+                        }
+                    </td>
+                    <td>
+                        <ul class="tg-btn tg-fixed" style="float: right; margin-left: 15px; margin-top: 1px;">
+                            <li :class="{'tg-active': TabIndex == 0}">
+                                @* <li @(status == "Pending" ? "class=tg-active" : " TabIndex == 0")>*@
+                                <a href="javascript:app.tabChange(0)">Pending</a>
+                            </li>
+                            <li :class="{'tg-active': TabIndex == 1}">
+                                <a href="javascript:app.tabChange(1)">Approved</a>
+                            </li>
+
+                        </ul>
+                    </td>
+                </tr>
+            </table>
+        </div>
+        <span class="g-text">Customer Registration</span>
+        <div class="g-right">
+            @* @Html.SaveButton() *@
+            @Html.ExcelButton()
+        </div>
+    </div>
+    <div id="Customer" class="modal fade right" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered modal-xl">
+            <div class="modal-content" style="border-radius:0px;">
+                <div class="header-modal">
+                    <h5 class="modal-title title-modal">Customer</h5>
+                    <button type="button" onclick="hideModal('Customer')" class="btn-close close-btn close-modal-btn" data-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-7">
+                            <div class="g-box">
+                                <div class="g-header">
+                                    @* <div class="g-left">
+                                    <input type="checkbox" id="chkExpiredCheque" class="k-checkbox">
+                                    <label for="chkExpiredCheque" class="k-checkbox-label">HP Customer</label>
+                                    </div>*@
+                                    Customer Details
+                                </div>
+                                <div class="row">
+                                    <div class="form-group col-md-6">
+                                        @Html.LabelFor(x => x.CustomerType, "Type ")
+                                        <input type="checkbox" id="chkHPCustomer" class="k-checkbox" v-model="input.IsHPCustomer" @@change="app.chkHPCustomer()">
+                                        <label for="chkHPCustomer" class="k-checkbox-label">HP Customer</label>
+                                        <kendo-dropdownlist v-model="input.CustomerType" style="width:100%" :data-source="['CREDIT','CASH']"></kendo-dropdownlist>
+                                    </div>
+                                    <div class="form-group col-md-6">
+                                        @Html.LabelFor(x => x.EmployerType, "Employee Type ")
+                                        <kendo-dropdownlist v-model="input.EmployerType" style="width:100%" :data-source="['Individual','Local Investment','Private Limited','Government Office','Public limited','Others']"></kendo-dropdownlist>
+                                    </div>
+                                    <div class="form-group col-md-4">
+                                        @Html.LabelFor(x => x.NicNo, "NIC NO/Register No ")
+                                        <input id="txtNiNo" type="text" class="k-textbox" v-model="input.NicNo" style="width:100%" maxlength="50" />
+                                    </div>
+                                    <div class="form-group col-md-4">
+                                        @Html.LabelFor(x => x.NicExpiredOn, "Nic Expired On ")
+                                        <kendo-datepicker :value="input.NicExpiredOn" style="width:100%" :min="minDate" :format="'dd-MMM-yyyy'" @@change="function(e){setModel(e,input,'NicExpiredOn')}"></kendo-datepicker>
+                                    </div>
+                                    <div class="form-group col-md-4">
+                                        @Html.LabelFor(x => x.Nationality, "Nationality ")
+                                        <kendo-datasource ref="dsNationality" :transport-read-url="'@Url.Action("ReadNationality", "Common")'" :transport-read-type="'POST'"></kendo-datasource>
+                                        <kendo-combobox ref="ddNationality" v-model="input.Nationality" :data-source-ref="'dsNationality'" @@change="function(e){setModel(e,input,'Nationality')}" :filter="'contains'" style="width:100%"></kendo-combobox>
+                                    </div>
+                                </div>
+                                <div class="row">
+                                    <div class="form-group col-md-6">
+                                        @Html.LabelFor(x => x.NameEN, "Customer Name (En) ")
+                                        <input type="text" v-model="input.NameEN" class="k-textbox" style="width:100%" />
+                                    </div>
+                                    <div class="form-group col-md-6">
+                                        @Html.LabelFor(x => x.NameDHI, "Customer Name (Dhi) ")
+                                        <input type="text" v-model="input.NameDHI" class="k-textbox" style="width:100%" />
+                                    </div>
+                                </div>
+                                <div class="row">
+                                    <div class="form-group col-md-3">
+                                        @Html.LabelFor(x => x.DOB, "DOB ")
+                                        <kendo-datepicker :value="input.DOB" style="width:100%" :max="maxDate" :format="'dd-MMM-yyyy'" @@change="function(e){setModel(e,input,'DOB')}"></kendo-datepicker>
+                                    </div>
+                                    <div class="form-group col-md-3">
+                                        @Html.LabelFor(x => x.Gender, "Gender ")
+                                        <br />
+                                        <input type="radio" id="rdoMale" value="Male" v-model="input.Gender">
+                                        <label for="rdoMale" class="k-radio-label">Male</label>
+                                        <input type="radio" id="rdoFemale" value="Female" v-model="input.Gender">
+                                        <label for="rdoFemale" class="k-radio-label">Female</label>
+                                    </div>
+                                    <div class="form-group col-md-3">
+                                        @Html.LabelFor(x => x.ContactNo, "LandLine No ")
+                                        <input type="text" v-model="input.ContactNo" style="width:100%" maxlength="20" />
+                                    </div>
+                                    <div class="form-group col-md-3">
+                                        @Html.LabelFor(x => x.MobileNo, "Mobile No ")
+                                        <input type="text" v-model="input.MobileNo" style="width:100%" maxlength="100" />
+                                    </div>
+                                </div>
+                                <div class="row">
+                                    <div class="form-group col-md-3">
+                                        @Html.LabelFor(x => x.MonthlyIncome, "Income")
+                                        <kendo-numerictextbox v-model="input.MonthlyIncome" style="width:100%" :maxlength="8" :min="0" :spinners="false" :format="'n2'"></kendo-numerictextbox>
+                                    </div>
+                                    <div class="form-group col-md-3">
+                                        @Html.LabelFor(x => x.WorkedMonth, "Worked Month ")
+                                        <kendo-numerictextbox v-model="input.WorkedMonth" style="width:100%" :maxlength="4" :min="0" :spinners="true" :format="'n2'"></kendo-numerictextbox>
+                                    </div>
+                                    <div class="form-group col-md-6">
+                                        @Html.LabelFor(x => x.EmailID, "Email ID ")
+                                        <input type="text" class="k-textbox" v-model="input.EmailID" style="width:100%" />
+                                    </div>
+                                    <div class="form-group col-md-12">
+                                        @Html.LabelFor(x => x.Remarks, "Remarks ")
+                                        <textarea class="k-textbox" v-model="input.Remarks" rows="1"></textarea>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-5">
+                            <div class="g-box">
+                                <div class="g-header">Contact Details</div>
+                                <div class="row">
+                                    <div class="form-group col-md-6">
+                                        @Html.LabelFor(x => x.PresentAddressEN, "Present Address (En) ")
+                                        <textarea class="k-textbox" v-model="input.PresentAddressEN" rows="4" ></textarea>
+                                    </div>
+                                    <div class="form-group col-md-6">
+                                        @Html.LabelFor(x => x.PresentAddressDHI, "Present Address (Dhi) ")
+                                        <textarea class="k-textbox" v-model="input.PresentAddressDHI" rows="4"></textarea>
+                                    </div>
+                                    <div class="form-group col-md-6">
+                                        <a class="fa fa-files-o" href="javascript:app.sameAsPresent()" title="Same as Present Address" style="color:#b50d0d"></a>
+                                        @Html.LabelFor(x => x.PermanentAddressEN, "Permanent Address (En) ")
+                                        <textarea class="k-textbox" v-model="input.PermanentAddressEN" rows="4"></textarea>
+                                    </div>
+                                    <div class="form-group col-md-6">
+                                        @Html.LabelFor(x => x.PermanentAddressDHI, "Permanent Address (Dhi) ")
+                                        <textarea class="k-textbox" v-model="input.PermanentAddressDHI" rows="4"></textarea>
+                                    </div>
+                                    <div class="form-group col-md-6">
+                                        @Html.Label("Atoll")
+                                        <kendo-datasource ref="dsAtollID" :transport-read-url="'@Url.Action("ReadAtoll", "Common")'" :transport-read-type="'POST'"></kendo-datasource>
+                                        <kendo-combobox ref="ddAtollID" v-model="AtollID" :data-source-ref="'dsAtollID'" :data-text-field="'Text'" :data-value-field="'Id'" @@change="function(e){setModel(e,input,'AtollID',onAtollChange)}" :filter="'contains'" style="width:100%"></kendo-combobox>
+                                    </div>
+                                    <div class="form-group col-md-6">
+                                        @Html.LabelFor(x => x.IslandID, "Island ")
+                                        <kendo-datasource ref="dsIslandID" :transport-read-url="'@Url.Action("ReadIsland", "Common")'" :transport-read-type="'POST'"></kendo-datasource>
+                                        <kendo-combobox ref="ddIslandID" v-model="input.IslandID" :data-source-ref="'dsIslandID'" :data-text-field="'Text'" :data-value-field="'Id'" :auto-bind="false" @@change="function(e){setModel(e,input,'IslandID',onIslandChange)}" :filter="'contains'" style="width:100%"></kendo-combobox>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="g-box">
+                        <div class="g-header">Employer Details </div>
+                        <div class="row">
+                            <div class="form-group col-md-3">
+                                @Html.LabelFor(x => x.EmployerName, "Company Name ")
+                                <input type="text" v-model="input.EmployerName" style="width:100%" />
+                            </div>
+                            <div class="form-group col-md-3">
+                                @Html.LabelFor(x => x.EmployerDetails, "Company Details ")
+                                <input type="text" v-model="input.EmployerDetails" style="width:100%" />
+                            </div>
+                            <div class="form-group col-md-3">
+                                @Html.LabelFor(x => x.EmployerContactNo, "Company Contact No ")
+                                <input type="text" v-model="input.EmployerContactNo" style="width:100%" maxlength="100" />
+                            </div>
+                            <div class="form-group col-md-3">
+                                @Html.LabelFor(x => x.TINNo, "TIN No ")
+                                <input type="text" v-model="input.TINNo" style="width:100%" maxlength="20" />
+                            </div>
+                            @*<div class="form-group col-md-2">
+                            @Html.LabelFor(x=>x.FaxNo,"Fax No ")
+                            <input type="text" v-model="input.FaxNo" style="width:100%" maxlength="20" />
+                            </div>*@
+                            <div class="form-group col-md-6">
+                                @Html.LabelFor(x => x.EmployerPresentAddressEN, "Company Address (En) ")
+                                <textarea class="k-textbox" v-model="input.EmployerPresentAddressEN" style="height: 38px"></textarea>
+                            </div>
+                            <div class="form-group col-md-6">
+                                @Html.LabelFor(x => x.EmployerPresentAddressDHI, "Company Address (Dhi)")
+                                <textarea class="k-textbox" v-model="input.EmployerPresentAddressDHI" style="height: 38px"></textarea>
+                            </div>
+
+                        </div>
+                    </div>
+                    <div class="g-box">
+                        <div class="g-header">Emergency Details </div>
+                        <div class="row">
+                            <div class="form-group col-md-5">
+                                @Html.LabelFor(x => x.EmergencyContactNameEN, "Emergency Contact Name (En) ")
+                                <input type="text" v-model="input.EmergencyContactNameEN" style="width:100%" />
+                            </div>
+                            <div class="form-group col-md-5">
+                                @Html.LabelFor(x => x.EmergencyContactNameDHI, "Emergency Contact Name (Dhi) ")
+                                <input type="text" v-model="input.EmergencyContactNameDHI" style="width:100%" />
+                            </div>
+                            <div class="form-group col-md-2">
+                                @Html.LabelFor(x => x.EmergencyContactNo, "Emergency Contact No ")
+                                <input type="text" v-model="input.EmergencyContactNo" style="width:100%" />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    @if (await Html.HasAccess(Forms.CRM.Customer, Rights.Modify))
+                    {
+                        <button type="submit" title="Save" class="btn btn-save btn-cntrls"><i class="fa fa-check-circle"></i>Save</button>
+                    }
+                    <button type="button" class="btn btn-danger" onclick="hideModal('Customer')" data-dismiss="modal"><i class="fa fa-times"></i>Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    @* <div id="editor" class="components" style="display: none">
+        
+    </div> *@
+</form>
+@(
+Html.Kendo().Grid<Customer>()
+    .Name("grid")
+    .Columns(c =>
+    {
+        c.EditButtonColumn("app.editItem('#:uid#')");
+        c.DeleteColumn(p => p.ID, "app.deleteItem('#:uid#')");
+        c.ApproveColumn(p => p.ApprovedDate);
+        c.Bound(p => p.RegistrationType).Title("Reg. Type").Width(110);
+        c.Bound(p => p.CustomerType).Title("Type").Width(80);
+        c.Bound(p => p.EmployerType).Width(150);
+        c.Bound(p => p.NicNo).Width(120);
+        c.DateColumn(p => p.NicExpiredOn).Width(150);
+        c.Bound(p => p.NameEN).Width(350);
+        c.Bound(p => p.NameDHI).Width(350);
+        c.DateColumn(p => p.DOB).Width(130);
+        c.Bound(p => p.Nationality).Width(130);
+        c.Bound(p => p.Gender).Width(100);
+        c.TelColumn(p => p.ContactNo).Width(120);
+        c.TelColumn(p => p.MobileNo).Width(120);
+        c.EmailColumn(p => p.EmailID).Width(250);
+        @*c.Bound(p => p.FaxNo).Width(120);*@
+        c.Bound(p => p.TINNo).Width(120);
+        c.Bound(p => p.WorkedMonth).Width(150);
+        c.Bound(p => p.MonthlyIncome).Width(150);
+        c.Bound(p => p.PresentAddressEN).Width(400);
+        c.Bound(p => p.PresentAddressDHI).Width(400);
+        c.Bound(p => p.PermanentAddressEN).Width(400);
+        c.Bound(p => p.PermanentAddressDHI).Width(400);
+        c.Bound(p => p.EmployerName).Width(280);
+        c.Bound(p => p.EmployerDetails).Width(400);
+        c.Bound(p => p.EmployerPresentAddressEN).Width(400);
+        c.Bound(p => p.EmployerPresentAddressDHI).Width(400);
+        c.Bound(p => p.EmployerContactNo).Width(180);
+        c.Bound(p => p.EmergencyContactNameEN).Width(400);
+        c.Bound(p => p.EmergencyContactNameDHI).Width(400);
+        c.Bound(p => p.EmergencyContactNo).Width(180);
+        c.Bound(p => p.Remarks).Width(180);
+        c.Bound(p => p.EntryBy).Width(180);
+        c.DateColumn(p => p.EntryDate).Width(130);
+        c.Bound(p => p.ApprovedBy).Width(180);
+        c.DateColumn(p => p.ApprovedDate).Title("Approved On").Width(150);
+    })
+    .HtmlAttributes(new { @class = "h-grid v-grid" })
+    .Scrollable()
+    .Sortable()
+    .Selectable()
+    .EnableFilter()
+    .Resizable(x => x.Columns(true))
+    .Pageable(x => x.Refresh(true))
+    .Excel(x => x.AllPages(true))
+    .DataSource(dataSource => dataSource
+    .Ajax().ServerOperation(true).PageSize(50)
+    .Read(read => read.Action("ReadCustomer", "CRM").Data("app.grid_Data"))
+    .Sort(s => s.Add(x => x.ID).Descending())
+    )
+    )
+
+
+@{
+    var jsonData = Vue.Encode(new Customer() { CustomerType = "CREDIT", EmployerType = "Individual", Gender = "Male", WorkedMonth = 0, IsHPCustomer = true });
+}
+
+@section Scripts{
+    @await Html.PartialAsync("DocumentsDialog","")
+
+    <script type="text/javascript">
+        var d = new Date();
+        var year = d.getFullYear();
+        var month = d.getMonth();
+        var day = d.getDate();
+
+        var app = new Vue({
+            el: "#app",
+            data: {
+                input: @(jsonData),
+                maxDate: new Date(),
+                minDate: new Date(),
+                AtollID: null,
+                TabIndex: 0,
+
+            },
+            created: function () {
+                this.validateForm();
+            },
+            methods: {
+                validateForm: function () {
+                    var isValid = true;
+                    removeError();
+                    var setError = function (cntrl, msg) {
+                        isValid = false;
+                        showError(cntrl, msg, null, false);
+                    };
+                    var item = this.input;
+                    if (!item.NicNo)
+                        setError('NicNo', '');
+                    if (!item.NicExpiredOn && item.IsHPCustomer)
+                        setError('NicExpiredOn', '')
+                    if (!item.NameEN)
+                        setError('NameEN');
+                    if (!item.NameDHI)
+                        setError('NameDHI', '');
+                    if (!item.PermanentAddressEN)
+                        setError('PermanentAddressEN', '');
+                    if (!item.PermanentAddressDHI)
+                        setError('PermanentAddressDHI', '');
+                    if (!item.PresentAddressEN)
+                        setError('PresentAddressEN', '');
+                    if (!item.PresentAddressDHI)
+                        setError('PresentAddressDHI', '');
+                    if (!item.ContactNo)
+                        setError('ContactNo');
+                    if (!item.MobileNo)
+                        setError('MobileNo');
+                    if (!item.EmailID)
+                        setError('EmailID');
+                    if (!item.Remarks && item.IsHPCustomer)
+                        setError('Remarks');
+
+                    if (!this.AtollID)
+                        setError('AtollID');
+                    if (!item.IslandID)
+                        setError('IslandID');
+
+
+
+                    if (!item.DOB && item.IsHPCustomer)
+                        setError('DOB')
+
+                    if (item.EmailID && !validateEmail(item.EmailID))
+                        setError('EmailID', 'Invalid Email Id')
+
+                    if (item.ContactNo && !validateNumeric(item.ContactNo)) {
+                        setError('ContactNo', 'Mobile No should be numeric')
+
+                    }
+                    if (item.MobileNo && !validateMobileNo(item.MobileNo)) {
+                        setError('MobileNo', 'Mobile no Format should be 1234567/+9601234567')
+                    }
+
+                    if (item.EmergencyContactNo && !validateMobileNo(item.EmergencyContactNo)) {
+                        setError('EmergencyContactNo', 'Contact No format should be 1234567')
+                    }
+
+                    if (!item.EmergencyContactNameEN && item.IsHPCustomer)
+                        setError('EmergencyContactNameEN');
+
+                    if (!item.EmergencyContactNameDHI && item.IsHPCustomer)
+                        setError('EmergencyContactNameDHI', '');
+
+                    if (!item.EmergencyContactNo && item.EmployerType != 'Individual' && item.IsHPCustomer)
+                        setError('EmergencyContactNo');
+
+                    if (!item.WorkedMonth && item.IsHPCustomer)
+                        setError('WorkedMonth', '');
+
+                    //if (item.NicNo && !validateNicNo(item.NicNo))
+                    //    setError('NicNo', "NIC No should not be Special Characters.");
+
+                    if (!isValid)
+                        return false;
+
+
+                    var errors = [];
+
+                    if (errors.length) {
+                        isValid = false;
+                        kendoAlert(errors.join("\n"), true);
+                    }
+                    return isValid;
+                },
+
+                submitForm: function () {
+                    if (!this.validateForm())
+                        return;
+
+                    this.input.NicExpiredOn = StdDate(this.input.NicExpiredOn);
+                    this.input.DOB = StdDate(this.input.DOB);
+
+                    $.postData("@Url.Action("SaveCustomer","CRM")", this.input, this.onSuccess);
+                },
+                sameAsPresent: function () {
+                    this.input.PermanentAddressEN = this.input.PresentAddressEN;
+                    this.input.PermanentAddressDHI = this.input.PresentAddressDHI;
+                },
+                onSuccess: function (res) {
+                    kendoAlert(res.Message, res.HasError);
+                    if (res.HasError)
+                        return;
+                    $('.toggle-btn.btn-minus').close();
+                    $('#grid').getKendoGrid().dataSource.read();
+                    this.AtollID = 0;
+                    hideModal('Customer');
+                },
+                deleteItem: function (uid) {
+                    var dataItem = $('#grid').getKendoGrid().dataSource.getByUid(uid);
+
+                    kendoConfirm("Do you want to delete this Customer Details?", function () {
+                        $.postData("@Url.Action("DeleteCustomer", "CRM")", { ID: dataItem.ID }, app.onSuccess);
+                    });
+                },
+                selectItem: function (uid) {
+                    var dataItem = $('#grid').getKendoGrid().dataSource.getByUid(uid);
+                    this.input = cloneAndDecode(dataItem);
+                },
+                addCustomer: function () {
+                    showModal('Customer');
+                    this.input = @(jsonData);
+                },
+                editItem: function editItem(uid) {
+                    // $('.toggle-btn.btn-minus').open();
+                    this.selectItem(uid);
+                    showModal('Customer');
+                    this.AtollID = this.input.AtollID;
+                    this.$refs.dsIslandID.kendoWidget().read({ AtollId: this.AtollID });
+                    this.input.Atoll = this.input.Atoll;
+                    this.validateForm();
+                },
+                grid_Data: function () {
+                    return { StatusFilter: this.TabIndex };
+                },
+                tabChange: function (index) {
+                    this.TabIndex = index;
+                    $('#grid').getKendoGrid().dataSource.read();
+                },
+                approveItem: function (uid) {
+                    this.selectItem(uid)
+                    $.postData("@Url.Action("ApprovedItem","CRM")", this.input, this.onSuccess);
+                },
+                rejectItem: function (uid) {
+
+                    this.selectItem(uid);
+
+                    kendoConfirm("Do you want to revert this Customer?", function (res) {
+                        $.postData("@Url.Action("RevertItem", "CRM")", app.input, app.onSuccess);
+                    });
+                },
+                onAtollChange: function (e) {
+                    if (e.sender.selectedIndex != -1) {
+                        this.input.Atoll = e.sender.text();
+                        this.$refs.dsIslandID.kendoWidget().read({ AtollId: e.sender.value() });
+                    }
+                    else {
+                        this.$refs.dsIslandID.kendoWidget().data([]);
+                        this.input.Atoll = null;
+                    }
+                },
+                onIslandChange: function (e) {
+                    if (e.sender.selectedIndex != -1)
+                        this.input.Island = e.sender.text();
+                    else
+                        this.input.Island = null;
+                },
+                checkNicNo: function () {
+                    $.getData("@Url.Action("CheckNicNo", "CRM")", { NicNo: this.input.NicNo }, function (res) {
+                        if (res.HasError)
+                            kendoAlert(res.Message, res.HasError);
+                    });
+                },
+                chkHPCustomer: function () {
+                    this.validateForm();
+                }
+            }
+        })
+
+    </script>
+
+    <script type="text/javascript">
+        function toggle_Change() {
+            app.input = @(jsonData);
+            app.validateForm();
+        }
+        $(function () {
+            $('#grid').on('dblclick', 'tbody tr', function () {
+                app.editItem($(this).attr('data-uid'));
+            });
+        });
+        $("#txtNiNo").focusout(function () {
+            app.checkNicNo();
+        });
+    </script>
+}

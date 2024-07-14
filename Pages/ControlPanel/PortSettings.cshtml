@@ -1,0 +1,227 @@
+﻿@page
+@using BSOL.Core.Entities
+@using Kendo.Mvc.UI
+@{
+    ViewData["Title"] = "Port Settings";
+    Layout = "~/Pages/Shared/_Layout.cshtml";
+    ViewBag.IsFolded = true;
+}
+@if (!await Html.HasAccess(Forms.Procurement.ControlPanel))
+{
+    return;
+}
+@section BreadCrumb{
+    @await Html.PartialAsync("Tabs", "Material Management/Control Panel")
+}
+<div class="components">
+    <div class="row">
+        <div id="displayContainer" class="col-md-4">
+            @(Html.Kendo().Grid<Port>().Name("grid")
+                .Editable(Html, "Port Settings")
+                .Columns(c =>
+                {
+                    c.DeleteColumn(x => x.Id, "deletePortSetting('#:uid#')").Width(10);
+                    c.Bound(x => x.CountryName).Width(350).Title("Country Name");
+                    c.Bound(x => x.PortName).Width(350).Title("Port Name");
+                })
+                .Events(x => x.SaveChanges("gridPort_SaveChanges"))
+                .DataSource(d => d.Ajax()
+                .Batch(true)
+                .ServerOperation(false)
+                .Read("ReadPortSettings", "ControlPanel")
+                .Model(m =>
+                {
+                    m.Id(f => f.Id);
+                    m.Field("Id", typeof(long)).Editable(false);
+                })
+                .Create("SavePortSettings", "ControlPanel")
+                .Update("SavePortSettings", "ControlPanel")
+                .Events(events => events.Error("grid_ErrorHandler").RequestEnd("gridPort_RequestEnd")))
+                .Sortable()
+                .AutoBind(true)
+                .Navigatable()
+                )
+        </div>
+        <div class="col-md-8">
+            @(
+                Html.Kendo().Grid<ShipmentExpenseCategory>().Name("gridShipment")
+                .Editable(Html, "Shipment Settings")
+                .Columns(c =>
+                {
+                    c.Bound(x => x.Id).ClientTemplate(@"#if(Active || Id==0){# <a class='btn-grid btn-grid-delete fa fa-trash-o' title='Delete' href=""javascript:deleteItem('#:uid#')""></a>
+            #} else if(!Active) {# <a class='btn-grid btn-save fa fa-undo' title='Undo' href=""javascript:revertItem('#:uid#')""></a>
+            #}#").Width(50).ClearTitle().Filterable(false).Sortable(false).HtmlAttributes(new { style = "text-align:center;" }).HeaderHtmlAttributes(new { style = "text-align:center;" });
+
+                    c.Bound(x => x.ShipmentType).Width(300).Title("ShipmentType").ClientTemplate("").EditorTemplateName("DropDownEditor").EditorViewData(new { Data = new[] { "SEA", "AIR" } }).Width(150);
+                    c.Bound(x => x.ItemCategoryId).ClientTemplate("#: Category ? Category : '' #").EditorTemplateName("ComboBoxEditor").EditorViewData(new { Data = new EditorData(Url.Action("ReadCategory", "ControlPanel"), "Category", "Text", "Id") }).Title("ItemCategory").Width(150);
+                    c.Bound(x => x.ExpenseCategory).Width(300).Title("Category").ClientTemplate("").EditorTemplateName("DropDownEditor").EditorViewData(new { Data = new[] { "Invoice", "Freight", "Duty", "Others" } }).Width(150); ;
+                    c.Bound(x => x.ExpenseCategoryDetails).Width(300).Title("Expense Details");
+                    c.MoneyColumn(x => x.MaxAmount).Width(200).Title("Expense Details");
+                })
+                .Events(x => x.SaveChanges("gridShipment_SaveChanges"))
+                .DataSource(d => d.Ajax()
+                .Batch(true)
+                .ServerOperation(false)
+                .Read("ReadShipmentSettings", "ControlPanel")
+                .Model(m =>
+                {
+                    m.Id(f => f.Id);
+                    m.Field("Id", typeof(long)).Editable(false);
+                    m.Field("EntryBy", typeof(string)).Editable(false);
+                    m.Field("EntryDate", typeof(DateTime)).Editable(false);
+
+                })
+                .Create("SaveShipmentSettings", "ControlPanel")
+                .Update("SaveShipmentSettings", "ControlPanel")
+                .Events(events => events.Error("grid_ErrorHandler").RequestEnd("gridShipment_RequestEnd")))
+                .Sortable()
+                .AutoBind(true)
+                .Navigatable()
+                )
+        </div>
+    </div>
+</div>
+<script type="text/javascript">
+    function gridPort_SaveChanges(e) {
+        var data = $(e.sender.element).getKendoGrid().dataSource.data();
+        var dirty = $.grep(data, function (item) {
+            return item.dirty || item.Id === 0;
+        });
+        var port = $.grep(dirty, function (item) {
+            return !item.port;
+        });
+
+        var errors = [];
+        if (port && port.length > 0) {
+            $.each(port, function (i) {
+                if (port[i].CountryName == "" && port[i].PortName == "") {
+                    errors.push("Port details should not be empty");
+                    return;
+                }
+                if (port[i].CountryName == "") {
+                    errors.push("Please enter country name");
+                    return;
+                }
+                if (port[i].PortName == "") {
+                    errors.push("Please enter port name");
+                    return;
+                }
+            });
+        }
+
+        if (errors.length) {
+            e.preventDefault();
+            kendoAlert(errors.join("\n"), true);
+        }
+    }
+    function gridPort_RequestEnd(e) {
+        if ((e.type == "create" || e.type == "update") && !e.response.Errors)
+            kendoAlert("Port settings saved successfully.");
+    }
+
+    function deletePortSetting(uid) {
+        var dataItem = $('#grid').getKendoGrid().dataSource.getByUid(uid);
+        if (dataItem.Id == 0) {
+            $('#grid').getKendoGrid().dataSource.cancelChanges(dataItem);
+            return;
+        }
+        kendoConfirm("Do you want to delete this port setting?", function () {
+            $.postData("@Url.Action("DeletePortSetting", "ControlPanel")",
+                { Id: dataItem.Id, CountryName: dataItem.CountryName, PortName: dataItem.PortName },
+                function (data) {
+                    kendoAlert(data.Message, data.HasError);
+                    if (!data.HasError)
+                        $('#grid').getKendoGrid().dataSource.read();
+                });
+        });
+    }
+</script>
+
+<script type="text/javascript">
+    function gridShipment_RequestEnd(e) {
+        if ((e.type == "create" || e.type == "update") && !e.response.Errors)
+            kendoAlert("Shipment settings saved successfully.");
+    }
+    //function VaildationForm(){
+    //    //var isVaild=true;
+    // //   var data = $(e.sender.element).getKendoGrid().dataSource.data();
+    //    var data = $("#gridShipment").dataSource.data("kendoGrid");
+    //    var Errors = []
+    //    if (!data.ShipmentType)
+    //        Errors('ShipmentType', '');
+    //    if (!data.ItemCategoryId)
+    //        Errors('ItemCategoryId', '');
+    //    if (!data.ExpenseCategory)
+    //        Errors('ExpenseCategory', '');
+    //    if (!data.ExpenseCategoryDetails)
+    //        Errors('ExpenseCategoryDetails', '');
+
+    //        return Errors;
+
+    //}
+    function gridShipment_SaveChanges(e) {
+        var data = $(e.sender.element).getKendoGrid().dataSource.data();
+        var dirty = $.grep(data, function (item) {
+            return item.dirty || item.Id === 0;
+        });
+        var ShipmentExpenseCategory = $.grep(dirty, function (item) {
+            return !item.ShipmentExpenseCategory;
+        });
+
+        var errors = []
+        if (ShipmentExpenseCategory && ShipmentExpenseCategory.length > 0) {
+            $.each(ShipmentExpenseCategory, function (i) {
+                if (ShipmentExpenseCategory[i].ShipmentType == "" && ShipmentExpenseCategory[i].ExpenseCategory == "") {
+                    errors.push("Item Categoies details should not be empty");
+                    return;
+                }
+                if (ShipmentExpenseCategory[i].ShipmentType == "") {
+                    errors.push("Please enter Itemcategory");
+                    return;
+                }
+                if (ShipmentExpenseCategory[i].ExpenseCategory == "") {
+                    errors.push("ExpenseCategory should not be empty");
+                    return;
+                }
+
+            });
+        }
+
+        if (errors.length) {
+            e.preventDefault();
+            kendoAlert(errors.join("\n"), true);
+        }
+    }
+    function deleteItem(uid) {
+        var dataItem = $('#gridShipment').getKendoGrid().dataSource.getByUid(uid);
+        if (dataItem.Id == 0) {
+            $('#gridShipment').getKendoGrid().dataSource.cancelChanges(dataItem);
+            return;
+        }
+        kendoConfirm("Do you want to delete this Shipment setting?", function () {
+            $.postData("@Url.Action("DeleteShipmentSetting", "ControlPanel")",
+                { Id: dataItem.Id, ShipmentType: dataItem.ShipmentType, ExpenseCategory: dataItem.ExpenseCategory },
+
+                function (data) {
+                    kendoAlert(data.Message, data.HasError);
+                    if (!data.HasError)
+                        $('#gridShipment').getKendoGrid().dataSource.read();
+                });
+        });
+    }
+    function revertItem(uid) {
+        var dataItem = $('#gridShipment').getKendoGrid().dataSource.getByUid(uid);
+        kendoConfirm("Do you want to Revert this Shipment setting?", function () {
+            $.postData("@Url.Action("RevertItem", "ControlPanel")",
+                { Id: dataItem.Id, ShipmentType: dataItem.ShipmentType, ExpenseCategory: dataItem.ExpenseCategory },
+
+                function (data) {
+                    kendoAlert(data.Message, data.HasError);
+                    if (!data.HasError)
+                        $('#gridShipment').getKendoGrid().dataSource.read();
+                });
+        });
+    }
+
+</script>
+

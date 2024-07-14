@@ -1,0 +1,27 @@
+﻿@model string
+@{
+    var id = Model.IsValid() ? Model : "app";
+}
+
+<div class="doc-list hl-list">
+    <ul>
+        <li v-for="(x,index) in Doc.Items">
+            <table>
+                <tr>
+                    <td class="fileicon"><i :class="getDocIcon(x.FileName)"></i></td>
+                    <td class="file-details">
+                        {{x.DisplayName}}<br />
+                        <span class="file-size">{{x.FileSize}}</span>
+                        <a v-if="x.Id" class="fa fa-eye cntrl-icon" title="View" :href="'@Url.Action("Download", "Document")?id=' + x.Id + '&download='+ false" target="_blank"></a>
+                        <a v-if="x.Id" class="fa fa-download cntrl-icon" title="Download" :href="'@Url.Action("Download", "Document")?id=' + x.Id"></a>
+                        <a class="fa fa-times cntrl-icon" title="Delete" :href="'javascript:@(id).Doc.deleteItem(' + index + ')'"></a>
+                        <span class="cnt-unsaved" v-if="!x.Id" title="Un Saved"></span>
+                    </td>
+                </tr>
+            </table>
+        </li>
+        <li class="cntrl-add">
+            <a href="javascript:@(id)AddDoc.open()"> <i class="fa fa-plus"></i> Click here to add</a>
+        </li>
+    </ul>
+</div>

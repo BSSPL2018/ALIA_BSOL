@@ -1,0 +1,22 @@
+﻿@using BSOL.Core.Models.General
+@Html.Kendo().Window().Name("wndMessage").Content(@<text>
+    @(Html.Kendo().Grid<DetailedValidationModel>().Name("gridMessage")
+                                .Columns(x =>
+                                {
+                                    x.Bound(c => c.Category).ClientTemplate(@"#if(ActionLink){#<a href='#: ActionLink #' target='_blank'>#:Category#</a>#}else{# #:Category# #}#").Title("Category");
+                                    x.Bound(c => c.Message);
+                                })
+                                .AutoBind(false)
+    )
+</text>).Visible(false).Title("Message")
+
+<script type="text/javascript">
+    var appMsg = new Vue({
+        methods: {
+            open: function (gridData, title) {
+                $('#gridMessage').getKendoGrid().dataSource.data(gridData);
+                $("#wndMessage").getKendoWindow().open().center().setOptions({ title: title });
+            }
+        }
+    });
+</script>

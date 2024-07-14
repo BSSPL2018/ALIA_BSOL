@@ -1,0 +1,95 @@
+﻿@using Core.Entities
+@model ShopItem
+
+@(Html.Kendo().Window().Name("window").Content(@<text>
+                <div id="editor" class="g-content">
+                    <div class="row">
+                        <div class="form-group col-md-3">
+                            @Html.LabelFor(x => x.ShopId, "Shop Name")
+                            @(Html.Kendo().ComboBoxFor(x => x.ShopId)
+                                  .AutoBind(false)
+                                  .DataSource(x => x.Read(r => r.Action("ReadShops", "Common").Type(HttpVerbs.Post)))
+                                  .DataTextField("Text")
+                                  .DataValueField("Id")
+                                  .HtmlAttributes(new { style = "width:100%" }))
+                        </div>
+                        <div class="form-group col-md-9" style="padding-top: 20px;">
+                            <div style="float:right;">
+                                @Html.SaveButton("SaveShopItems()")
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div>
+                    @(Html.Kendo().Grid<Item>().Name("gridItems")
+                                .Columns(c =>
+                                {
+                                    c.Bound("").ClientTemplate("<input type='checkbox' id='chk_#:uid#' #:Selected ? 'checked=checked' : '' # onchange='onSelected(\"#:uid#\")' />")
+                                    .Filterable(false).Sortable(false).Width(30).HtmlAttributes(new { style = "text-align:center;" });
+                                    c.Bound(p => p.ItemType).Width(150);
+                                    c.Bound(p => p.ItemCategory).Width(150);
+                                    c.Bound(p => p.ItemDescription).Width(150);
+                                    c.MoneyColumn(p => p.Stock).EditorTemplateName("MoneyEditor").Width(100);
+                                    c.MoneyColumn(p => p.OpeningStock).EditorTemplateName("MoneyEditor").Width(150);                                    
+                                })
+                               .HtmlAttributes(new { @class = "h-grid v-grid" })
+                               .Scrollable()
+                               .Sortable()
+                               .EnableFilter()
+                               .EnableEdit(Html)
+                               .Resizable(c => c.Columns(true))
+                               .Pageable(x => x.Refresh(true))
+                               .Excel(x => x.AllPages(true))
+                               .DataSource(dataSource => dataSource.Ajax().ServerOperation(false).PageSize(50)
+                               .Read(read => read.Action("GetItems", "Procurements"))
+                              ))
+                    )
+                </div>
+        </text>).Visible(false).Title("Please Select Items").Draggable(true).Resizable().Width(1000)  
+)
+
+<script type="text/javascript">
+    function AssignShopItems() {
+        $('#window').getKendoWindow().open().center();
+        $('#gridItems').getKendoGrid().dataSource.read();
+        $("#ShopId").getKendoComboBox().text(null);
+        $('#ShopId').getKendoComboBox().value(null);
+        $('#ShopId').getKendoComboBox().dataSource.read();
+        $('#chkAll').prop('checked', false);
+    }
+    function onSelected(uid) {
+        var item = $('#gridItems').getKendoGrid().dataSource.getByUid(uid);
+        item.set('Selected', $('#chk_' + uid).prop('checked'));
+    }
+    function SaveShopItems() {
+        removeError();
+        if ($("#ShopId").getKendoComboBox().value() == '' || $("#ShopId").getKendoComboBox().selectedIndex == -1) {
+            showError('ShopId', 'Please select shop name');
+            return;
+        }
+
+        var items = [];
+        var datas = $('#gridItems').getKendoGrid().dataSource.data();
+        var selected = $.grep(datas, function (x) {
+            return x.Selected;
+        });
+
+        $(selected).each(function () {
+            items.push({
+                ShopId: $('#ShopId').getKendoComboBox().value(),
+                ItemId: this.Id
+            });
+        });
+        $.postData('@Url.Action("SaveShopItems","Procurements")',
+            {
+                data: JSON.stringify(items)
+            },
+            function (data) {
+                kendoAlert(data.Message, data.HasError);
+                if (!data.HasError)
+                    $('#window').getKendoWindow().close();
+                $('#grid').getKendoGrid().dataSource.read();
+            });
+    }
+
+</script>

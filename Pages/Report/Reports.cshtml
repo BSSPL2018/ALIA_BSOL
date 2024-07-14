@@ -1,0 +1,261 @@
+﻿@page
+@inject AppUser appUser
+@{
+    ViewData["Title"] = "Reports";
+    Layout = "~/Pages/Shared/_Layout.cshtml";
+}
+@if (!await Html.HasAccess(Forms.Report.Reports))
+{
+    return;
+}
+
+<style>
+    #reportSplitter {
+        margin: 5px auto;
+    }
+
+    .pane-content {
+        padding: 0 10px;
+    }
+
+    #mainView {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        left: 0;
+        right: 0;
+    }
+
+    #reportSplitter {
+        height: 100%;
+    }
+
+    .heading {
+        font-size: 13px;
+        font-weight: bold;
+    }
+
+    .menu {
+        text-align: left;
+        font-size: 12px;
+        padding-left: 10px;
+    }
+
+        .menu .fa-file-pdf-o {
+            color: orangered;
+            margin-right: 5px;
+        }
+
+        .menu li a {
+            color: black;
+            line-height: 2;
+        }
+
+        .menu li.active a {
+            font-weight: 500;
+        }
+
+    .rpt-params {
+        width: 100%;
+    }
+
+        .rpt-params li {
+            display: inline-block;
+            padding: 5px 0 5px 0px;
+        }
+</style>
+
+<div id="app">
+    @(Html.Kendo().Splitter()
+            .Name("reportSplitter")
+            .Orientation(SplitterOrientation.Horizontal)
+            .Panes(verticalPanes =>
+            {
+                verticalPanes.Add()
+            .Scrollable(false)
+            .Collapsible(false)
+            .Size("25%")
+            .HtmlAttributes(new { @class = "horizontal" })
+            .Content(@<div class="pane-content">
+        <div id="reportList" style="overflow-y:scroll;">
+            <table>
+                <template v-for="(x, catIndex) in Reports">
+                    <tr>
+                        <td class="heading">{{x.Category}}</td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <ul id="lstPrint" class="menu">
+                                <li v-for="(item, index) in x.Reports" :class="{'active': item.Title == SelectedReport}">
+                                    <a :href="'javascript:app.onReportClick(' + catIndex + ',' + index + ')'">
+                                        <i :class="{'fa': true, 'fa-file-pdf-o': item.ReportType == '@((int)ReportType.Report)', 'fa-file-excel-o': item.ReportType == '@((int)ReportType.Excel)'}"></i>
+                                        {{item.Title}}
+                                    </a>
+                                </li>
+                            </ul>
+                        </td>
+                    </tr>
+                </template>
+            </table>
+        </div>
+    </div>
+            );
+                verticalPanes.Add()
+            .HtmlAttributes(new { @class = "horizontal" })
+            .Scrollable(false)
+            .Collapsible(false)
+            .Size("75%")
+            .Content(@<div class="pane-content">
+        <ul class="rpt-params">
+            <li v-show="Report.Shop">
+                <kendo-datasource ref="dsShops" :transport-read-url="'@Url.Action("ReadAllShops", "Common")'" :transport-read-type="'POST'" style="width:100%"></kendo-datasource>
+                <kendo-multiselect v-model="param.ShopId" :data-source-ref="'dsShops'" :data-text-field="'Text'" :data-value-field="'Id'" @@change="onShopChange" :filter="'contains'" placeholder="Select Shop" style="width:800px;"></kendo-multiselect>
+            </li>
+            <li v-show="Report.Product">
+                <kendo-datasource ref="dsProduct" :transport-read-url="'@Url.Action("ReadSalesProduct", "Common")'" :transport-read-type="'POST'" style="width:100%"></kendo-datasource>
+                <kendo-combobox v-model="param.Product" :data-source-ref="'dsProduct'" @@change="function(e){setModel(e,param,'Product')}" :filter="'contains'" placeholder="Select Unit" style="width:800px;"></kendo-combobox>
+            </li>
+        </ul>
+        <ul class="rpt-params">
+            <li v-show="Report.FromDate">
+                <kendo-datepicker :value="param.FromDate" :format="'dd-MMM-yyyy'" @@change="function(e){setModel(e,param,'FromDate')}"></kendo-datepicker>
+            </li>
+            <li v-show="Report.ToDate">
+                <kendo-datepicker :value="param.ToDate" :format="'dd-MMM-yyyy'" @@change="function(e){setModel(e,param,'ToDate')}"></kendo-datepicker>
+            </li>
+            <li v-show="SelectedReport != null">
+                <button type='button' class='btn btn-save' @@click='previewReport'>View Report</button>
+            </li>
+        </ul>
+        <div>
+            <iframe id="reportFrame" name="reportFrame" style="width:100%;"></iframe>
+        </div>
+    </div>);
+            })
+        )
+</div>
+@{
+    var reports = new[] {
+        new Report(appUser, Forms.Report.DailyCollectionReport) { Category = "Accounts", Title = "Daily Collection Details", ReportName = "Accounts/SalesCollectionDetails",FromDate = true,ToDate = true,Shop=true,Product=false,PreviewMode=1 },
+        new Report(appUser, Forms.Report.DailyCollectionDetails) { Category = "Accounts", Title = "Daily Collection Details AC", ReportName = "Accounts/SalesCollectionDetailsAc",FromDate = true,ToDate = true,Shop=true,Product=false,PreviewMode=1 },
+        new Report(appUser, Forms.Report.DailyCollectionSummary) { Category = "Accounts", Title = "Daily Collection Summary", ReportName = "Accounts/SalesCollectionSummary",FromDate = true,ToDate = true,Shop=true,Product=false,PreviewMode=1 },
+        new Report(appUser, Forms.Report.DailyCollectionSummaryDepartment) { Category = "Accounts", Title = "Daily Collection Summary (Dept)", ReportName = "Accounts/SalesCollectionSummaryByDept",FromDate = true,ToDate = true,Shop=true,Product=false,PreviewMode=1 },
+        new Report(appUser, Forms.Report.SalesRemittance) { Category = "Accounts", Title = "Remittance", ReportName = "Accounts/SalesCollectionRemittance",FromDate = true,ToDate = true,Shop=true,Product=false,PreviewMode=1 },
+        new Report(appUser, Forms.Report.UnitSalesSummary) { Category = "Sales", Title = "Unit Sales Summary", ReportName = "POS/UnitSalesSummary",FromDate = true,ToDate = true,Shop=false,Product=false,PreviewMode=1 },
+        new Report(appUser, Forms.Report.ItemSalesSummary) { Category = "Sales", Title = "Item Sales Summary", ReportName = "POS/ItemSalesSummary",FromDate = true,ToDate = true,Shop=false,Product=true,PreviewMode=1 }
+    }.Where(x => x.HasAcess).GroupBy(x => x.Category).Select(x => new
+    {
+
+        Category = x.Key,
+        Reports = x.ToList()
+    }).ToList();
+}
+
+<form asp-page="@Url.Page("/General/DocumentViewer")" method="POST" target="reportFrame" id="frmDoc" style="display:none;">
+    <input type="hidden" name="RPT_R" />
+    @* <input type="hidden" name="RPT_Filter" value="@appUser.IsPowerUser" />
+    <input type="hidden" name="RPT_AppUser" value="@appUser." />*@
+    <input type="hidden" name="RPT_FromDate" />
+    <input type="hidden" name="RPT_ToDate" />
+    <input type="hidden" name="RPT_ShopIDs" />
+    <input type="hidden" name="RPT_ShopID" value="0" />
+    <input type="hidden" name="RPT_InnerOption" />
+    <input type="hidden" name="RPT_Product" />
+    <input type="submit" value="Submit">
+</form>
+<script type="text/javascript">
+    var app = new Vue({
+        el: '#app',
+        data: {
+            Reports: @(Vue.Encode(reports)),
+            Report: @(Vue.Encode(new Report())),
+            SelectedReport: null,
+            param: {
+                FromDate: new Date(),
+                ToDate: new Date(),
+                ShopId: [],
+                Product: "MC"
+            }
+        },
+        methods: {
+            onReportClick: function (categoryIndex, index) {
+                this.Report = cloneAndDecode(this.Reports[categoryIndex].Reports[index]);
+                this.SelectedReport = this.Report.Title
+
+                this.previewReport();
+                setReportHeight();
+            },
+            setParam: function (formName, isExport) {
+                var setFormValue = function (name, value) {
+                    name = isExport ? name.replace("RPT_", "") : name;
+                    $('#' + formName + ' [name=' + name + ']').val(value);
+                };
+
+                var tempReport = this.Report.ReportName;
+
+                if (tempReport == "POS/UnitSalesSummary")
+                    setFormValue("RPT_InnerOption", "UNIT_SUMMARY");
+                else if (tempReport == "POS/ItemSalesSummary")
+                    setFormValue("RPT_InnerOption", "ITEMCODE_SUMMARY");
+                else
+                    setFormValue("RPT_InnerOption", "ALL");
+
+                setFormValue("RPT_R", this.Report.ReportName);
+                setFormValue("RC_VM", this.Report.PreviewMode);
+                setFormValue("RPT_FromDate", StdDate(this.param.FromDate));
+                setFormValue("RPT_ToDate", StdDate(this.param.ToDate));
+                setFormValue("RPT_ShopIDs", this.param.ShopId);
+                setFormValue("RPT_Product", this.param.Product);
+                this.Report.ReportName = tempReport;
+            },
+            previewReport: function () {
+                // if (this.Report.ReportName == "POS/ItemSalesSummary" && !this.param.Product) {
+                //     kendoAlert("Please select Unit");
+                //     return;
+                // }
+
+                if (this.Report.ReportType == "@((int)ReportType.Report)") {
+                    this.setParam("frmDoc");
+                    $('#frmDoc').submit();
+                }
+                else {
+                    this.setParam("frmExcel");
+                    $('#frmExcel').submit();
+                }
+            },
+            exportExcel: function () {
+                this.setParam("frmExcelExport", true);
+                $('#frmExcelExport').submit();
+            },
+            onData: function () {
+                return { SearchText: $("#ddEmployee").val() };
+            },
+            onShopChange: function (e) {
+                var item = e.sender.dataItem(e.sender.selectedIndex);
+                if (item)
+                    this.param.ShopId = item.ID;
+                else
+                    this.param.ShopId = null;
+
+            }
+        }
+    });
+</script>
+<script type="text/javascript">
+    $(document).ready(setReportHeight);
+
+    function setReportHeight() {
+        var $spliter = $("#reportSplitter");
+        var footerHeight = $('.content-footer').outerHeight() ? $('.content-footer').outerHeight() : 0;
+        var height = $(window).height() - $spliter.offset().top - footerHeight - 6;
+        $spliter.getKendoSplitter().wrapper.height(height);
+        setTimeout(function () {
+            $('#reportFrame').css('height', height - ($('.rpt-params').is(':visible') ? $('.rpt-params').height() : 0));
+            $('#reportList').css('height', height);
+            $spliter.getKendoSplitter().resize();
+        }, 200);
+    }
+</script>
+
+
+

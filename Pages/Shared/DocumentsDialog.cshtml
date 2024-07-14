@@ -1,0 +1,90 @@
+﻿@model string
+@{
+    var id = Model.IsValid() ? Model : "appDoc";
+}
+@(Html.Kendo().Window()
+.Name("wndDoc" + id)
+.Content(@<text>
+    <div id="@(id)" class="doc-list hl-list">
+        <ul>
+            <li v-for="(x,index) in Items">
+                <table>
+                    <tr>
+                        <td class="fileicon"><i :class="getDocIcon(x.FileName)"></i></td>
+                        <td class="file-details">
+                            {{x.DisplayName}}<br />
+                            <span class="file-size">{{x.FileSize}}</span>
+                            <a v-if="x.Id" class="fa fa-eye cntrl-icon" title="View" :href="'@Url.Action("Download", "Document")?id=' + x.Id + '&download='+ false" target="_blank"></a>
+                            <a v-if="x.Id" class="fa fa-download cntrl-icon" title="Download" :href="'@Url.Action("Download", "Document")?id=' + x.Id"></a>
+                            <a class="fa fa-times cntrl-icon" title="Delete" :href="'javascript:@(id).deleteItem(' + index + ')'"></a>
+                            <span class="cnt-unsaved" v-if="!x.Id" title="Un Saved"></span>
+                        </td>
+                    </tr>
+                </table>
+            </li>
+            <li class="cntrl-add">
+                <a href="javascript:@(id)Editor.addDoc()"> <i class="fa fa-plus"></i> Click here to add</a>
+            </li>
+        </ul>
+    </div>
+</text>).Visible(false).Title("Documents").Draggable(true).Width(300).Events(events => events.Close("onWindowClose")))
+@await Html.PartialAsync("DocumentsEditor", Model)
+<script type="text/javascript">
+    var @(id) = new Vue({
+        el: "#@(id)",
+        data: {
+            Reference: null,
+            ReferenceId: 0,
+            Items: [],
+            DisplayCategory: false,
+            SuccessCallBack: null
+        },
+        methods: {
+            init: function (reference, successCallBack) {
+                this.Reference = reference;
+                this.SuccessCallBack = successCallBack;
+            },
+            open: function (referenceId) {
+                onWindowOpen(); //For Opacity
+                var reload = this.ReferenceId != referenceId;
+                this.ReferenceId = referenceId;
+                if (reload)
+                    this.load();
+                $("#wndDoc@(id)").getKendoWindow().open().center();
+            },
+            close: function () {
+                $("#wndDoc@(id)").getKendoWindow().close();
+            },
+            load: function () {
+                this.Items = [];
+                var self = this;
+                $.getData("@Url.Action("GetDocuments", "Document")", { Reference: this.Reference, ReferenceId: this.ReferenceId }, function (res) {
+                    self.Items = res;
+                });
+            },
+            deleteItem: function (i) {
+                var item = this.Items[i];
+                var self = this;
+
+                if (item.Id) {
+                    kendoConfirm("Do you want to delete this Document (" + item.DisplayName + ")?", function () {
+                        $.post("@Url.Action("Delete", "Document")", { Id: item.Id }, function (res) {
+                            self.load();
+                        });
+                    });
+                }
+                else {
+    @(id)Editor.Files = $.grep(@(id)Editor.Files, function (x) { return x != item.UploadControlId });
+                    this.Items.splice(i, 1);
+                }
+            },
+            save: function (referenceId) {
+                this.ReferenceId = referenceId
+                return @(id)Editor.save();
+            },
+            reset: function () {
+                this.Items = [];
+            }
+        }
+    });
+</script>

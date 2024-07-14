@@ -1,0 +1,88 @@
+﻿@page
+@using BSOL.Core.Models.HirePurchase
+@using BSOL.Core.Entities
+@model Agreement
+@{
+    ViewBag.Title = "Agreement";
+    Layout = "~/Pages/Shared/_Layout.cshtml";
+}
+@*@section BreadCrumb{
+        @await Html.PartialAsync("BreadCrumb", "Hire Purchase")
+    }*@
+
+<div id="app">
+    <div class="g-title">
+        <div class="g-left">
+            <ul class="tg-btn tg-fixed" style="display: inline-flex;">
+                <li :class="{'tg-active': TabIndex == 0}">
+                    <a href="javascript:app.tabChange(0)">Pending</a>
+                </li>
+                <li :class="{'tg-active': TabIndex == 1}">
+                    <a href="javascript:app.tabChange(1)">Billed</a>
+                </li>
+            </ul>
+        </div>
+        <span class="g-text">Agreement Request</span>
+    </div>
+</div>
+@(Html.Kendo().Grid<AgreementModel>()
+                                .Name("grid")
+                                .Columns(x =>
+                                {
+                                    x.Bound("").Width(50).ClientTemplate(@"<a class='fa fa-external-link' style='font-size: 15px;' title='Agreement List' onclick='app.AgreementList(""#:uid#"")'></a>").Title("").Width(41).Sortable(false).Filterable(false);
+                                    x.Bound(c => c.AgrementRef).Title("Ref No").Width(130);
+                                    x.Bound(c => c.ProRefNo).Title("proforma No").Width(130);
+                                    x.Bound(c => c.Cust_Name_EN).Title("Customer Name").Width(180);
+                                    x.Bound(c => c.Cust_Ref).Title("Nic No").Width(100);
+                                    x.Bound(c => c.AgreementType).Width(150);
+                                    x.DateColumn(c => c.Agrement_Date).Title("Agreement Date").Width(140);
+                                    x.DateColumn(c => c.InstallmentStart).Title("Install. Start").Width(130);
+                                    x.Bound(c => c.Customer_Type).Title("Customer Type").Width(150);
+                                    x.Bound(c => c.Guarantor_ID).Title("Guarantor ID").Width(130);
+                                    x.Bound(c => c.Guarantor_Name).Width(160);
+                                    x.Bound(c => c.EntryBy).Width(150);
+                                    x.DateColumn(c => c.BinnedDate).Width(100);
+                                    x.DateColumn(c => c.PickedDate).Width(110);
+                                    x.Bound(c => c.LockerStatus).Width(130);
+                                })
+                                .Scrollable()
+                                .Sortable()
+                                .Selectable()
+                                .EnableEdit(Html)
+                                .EnableFilter()
+                                .Resizable(x => x.Columns(true))
+                                .Pageable()
+                                .Excel(x => x.AllPages(true))
+                                    .DataSource(dataSource => dataSource
+                                    .Ajax().ServerOperation(true).PageSize(50)
+                                    .Read(read => read.Action("ReadAgreement", "Agreement").Data("app.gridData"))
+                                    )
+)
+
+@section Scripts{
+    @await Html.PartialAsync("AgreementPartial")
+    <script type="text/javascript">
+        var app = new Vue({
+            el: "#app",
+            data: {
+                TabIndex: 0
+            },
+            methods: {
+                tabChange: function (index) {
+                    this.TabIndex = index;
+                    $("#grid").getKendoGrid().dataSource.read();
+                },
+                gridData: function () {
+                    return { Status: this.TabIndex };
+                }
+                ,
+                AgreementList: function (uid) {
+                    if (uid)
+                        var dataItem = $('#grid').getKendoGrid().dataSource.getByUid(uid);
+
+                    applst.open(dataItem.tbl_Id);
+                }
+            }
+        });
+    </script>
+}

@@ -1,0 +1,67 @@
+﻿@using BSOL.Core.Models.Procurement
+@(Html.Kendo().Window()
+.Name("wndItems")
+.Title("Items")
+.Content(@<text>
+    <div id="appItem">
+        @(Html.Kendo().Grid<PurchaseItemModel>()
+                .Name("gridItems")
+                .AutoBind(false)
+                .Columns(x =>
+                {
+                    x.Bound(x => x.ItemId).ClientTemplate("<i class='fa fa-plus' title='Select Item'></i>").HtmlAttributes(new { @class = "pos-qcntrl inc", onclick = "appItem.addItem(this)" }).Width(40).Filterable(false).Sortable(false).ClearTitle();
+                    x.Bound(c => c.SKUFormatted).Title("SKU").Width(120);
+                    x.Bound(c => c.UPC).Title("UPC").Width(120);
+                    x.Bound(c => c.ItemCode).Title("Item Code").Width(130);
+                    x.Bound(c => c.Unit).Width(120);
+                    x.Bound(c => c.Size).Width(120);
+                    x.Bound(c => c.SupplierCode).Width(130);
+                    x.Bound(c => c.Description).Width(250);
+                    x.MoneyColumn(c => c.Rate, 4).Title("Rate").Width(100);
+                    x.NumberColumn(c => c.Stock).Width(80);
+                    x.Bound(c => c.ItemCategory).Title("Category").Width(160);
+                })
+                .Sortable()
+                .Scrollable()
+                .Pageable(x => x.Refresh(true))
+                .Resizable(x => x.Columns(true))
+                .Filterable()
+                .HtmlAttributes(new { @class = "h-grid v-grid" })
+                .Events(x => x.DataBound("appItem.gridItemsDataBound"))
+                .DataSource(d => d
+                .Ajax().ServerOperation(true).PageSize(50)
+                .Read(read => read.Action("GetPOItems", "Procurements").Data("appItem.grid_Data"))))
+        </div>
+    </text>)
+.Draggable()
+.Resizable()
+.Visible(false)
+.MaxWidth(1000).Events(events => events.Close("onWindowClose"))
+)
+
+<script type="text/javascript">
+    var appItem = new Vue({
+        el: '#appItem',
+        data: {
+            addItemCallBack: null
+        },
+        methods: {
+            addItem: function (sender) {
+                var item = $('#gridItems').getKendoGrid().dataItem($(sender).parent());
+                if (this.addItemCallBack)
+                    this.addItemCallBack(item);
+            },
+            open: function () {
+                onWindowOpen(); //For Opacity
+                $('#gridItems').getKendoGrid().dataSource.read();
+                $('#wndItems').getKendoWindow().open().center();
+            },
+            gridItemsDataBound: function () {
+                $('#wndItems').getKendoWindow().center();
+            },
+            grid_Data: function () {
+                return { supplierId: app.input.SupplierId }
+            }
+        }
+    });
+</script>

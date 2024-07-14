@@ -1,0 +1,742 @@
+﻿@page
+@*
+@using BSOL.Core.Entities *@
+@using BSOL.Core.Models.Accounts
+@using BSOL.Helpers
+@using Kendo.Mvc.UI
+@using BSOL.Core.Models.General
+@model ContractMaster
+@{
+    ViewData["Title"] = "Contract List";
+    Layout = "~/Pages/Shared/_Layout.cshtml";
+}
+
+@if (!await Html.HasAccess(Forms.Accounts.ContractList))
+{
+    return;
+}
+<style>
+    /* Optional CSS for the textarea */
+    textarea {
+        width: 100%; /* Adjust as needed */
+        min-height: 50px; /* Set minimum height */
+        resize: none; /* Disable user resizing */
+    }
+</style>
+<style type="text/css">
+    #gridPO .k-grid-content {
+        height: 80px !important;
+    }
+
+    .na-border {
+        border: 1px solid #ccc;
+    }
+
+    .grp-btn .dropdown-btn-content .fa {
+        margin-right: 10px;
+        font-size: 15px;
+    }
+
+    .grp-btn .fa-cloud-download {
+        color: #45459f;
+    }
+
+    .grp-btn .fa-cloud-upload {
+        color: #2bd5e2;
+    }
+
+    .grp-btn .fa-trash-o {
+        color: #d9534f;
+    }
+
+    .dropbtn {
+        /*background-color: #4CAF50;*/
+        color: white;
+        padding: 16px;
+        font-size: 16px;
+        border: none;
+        cursor: pointer;
+    }
+
+    .dropdown-btn {
+        /*position: relative;*/
+        display: inline-block;
+        /*background-color: #c01c79;*/
+        padding: 3px 5px;
+        color: white;
+        cursor: pointer;
+    }
+
+    .dropdown-btn-content {
+        display: none;
+        position: absolute;
+        background-color: #f9f9f9;
+        min-width: 160px;
+        box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2);
+        z-index: 1;
+        text-align: left;
+    }
+
+        .dropdown-btn-content a {
+            color: #5A738E;
+            padding: 8px 16px;
+            text-decoration: none;
+            display: block;
+            border: 1px solid #ececec;
+        }
+
+            .dropdown-btn-content a:hover {
+                background-color: #f1f1f1
+            }
+
+    .dropdown-btn:hover .dropdown-btn-content {
+        display: block;
+    }
+
+    /* Change the background color of the dropdown-btn button when the dropdown-btn content is shown */
+    .dropdown-btn:hover .dropbtn {
+        background-color: #3e8e41;
+    }
+
+    .dropdown-btn .fa-caret-down {
+        margin-left: 5px;
+        font-size: 10px;
+    }
+
+    #ddTag_listbox .k-selected {
+        display: none;
+    }
+</style>
+<form id="app" v-on:submit.prevent="submitForm">
+    <div class="g-title v-edit">
+        <div class="g-left" style="display:flex">
+            <div style="margin:12px 15px 14px 3px">
+                @*  @Html.ToggleButton(Orientation.Vertical) *@
+                @if (await Html.HasAccess(Forms.Accounts.ContractList, Rights.Add))
+                {
+                    <button type="button" style="padding: 4px 10px;border-radius: 0;background: #0F9D58;" onclick="app.addContractMaster()" class="btn btn-primary">
+                        <i class="fa fa-plus-circle"></i>Create
+                    </button>
+                }
+            </div>
+            <ul class="rdc-tab">
+                <li :class="{'active': TabIndex == 0}">
+                    <a id="lnkPending" href="javascript:app.changeStatus(0)">Pending</a>
+                </li>
+                <li :class="{'active': TabIndex == 1}">
+                    <a id="lnkPending" href="javascript:app.changeStatus(1)">On Going</a>
+                </li>
+            </ul>
+        </div>
+        <span class="g-text">Contract List</span>
+        <div class="g-right" style="display:flex">
+            @*  @Html.SaveButton() *@
+            @Html.ExcelButton()
+        </div>
+    </div>
+    <div id="ContractMaster" class="modal fade right" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered ">
+            <div class="modal-content" style="border-radius:0px;">
+                <div class="header-modal">
+                    <h5 class="modal-title title-modal">Contract List</h5>
+                    <button type="button" onclick="hideModal('ContractMaster')" class="btn-close close-btn close-modal-btn" data-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="form-group col-md-6">
+                            @Html.LabelFor(x => x.ContractRefNo, "Contract Ref No")
+                            <input type="text" v-model.trim="input.ContractRefNo" class="k-textbox" />
+                        </div>
+                        <div class="form-group col-md-6">
+                            @Html.LabelFor(x => x.ContractType, "Contract Type")
+                            <kendo-datasource ref="dsContractType" :transport-read-url="'@Url.Action("ReadContractType", "Accounts")'" :transport-read-type="'POST'"></kendo-datasource>
+                            <kendo-combobox v-model="input.ContractType" :data-source-ref="'dsContractType'" :filter="'contains'" style="width:100%"></kendo-combobox>
+                        </div>
+                        <div class="form-group col-md-12">
+                            @Html.LabelFor(x => x.ContractName, "Contract Name")
+                            <input type="text" v-model.trim="input.ContractName" class="k-textbox" />
+                        </div>
+                        <div class="form-group col-md-12">
+                            @Html.LabelFor(x => x.VendorID, "Vendor")
+                            <kendo-datasource ref="dsVendorID" :transport-read-url="'@Url.Action("ReadVenorList", "Accounts")'" :transport-read-type="'POST'"></kendo-datasource>
+                            <kendo-combobox ref="ddVendorID" v-model="input.VendorID" :data-source-ref="'dsVendorID'" :data-text-field="'Text'" :data-value-field="'Id'" :filter="'contains'" style="width:100%"></kendo-combobox>
+                        </div>
+                        <div class="form-group col-md-6">
+                            @Html.LabelFor(x => x.ContractFrom, "Contract From")
+                            <kendo-datepicker :value="input.ContractFrom" :format="'dd-MMM-yyyy'" @@change="function(e){setModel(e,input,'ContractFrom')}" style="width:100%;"></kendo-datepicker>
+                        </div>
+                        <div class="form-group col-md-6">
+                            @Html.LabelFor(x => x.ContractTo, "Contract To")
+                            <kendo-datepicker :value="input.ContractTo" :format="'dd-MMM-yyyy'" @@change="function(e){setModel(e,input,'ContractTo')}" style="width:100%;"></kendo-datepicker>
+                        </div>
+                        <div class="form-group col-md-4">
+                            @Html.LabelFor(x => x.Currency, "Currency")
+                            <kendo-datasource ref="dsCurrency" :transport-read-url="'@Url.Action("ReadCurrencies", "Accounts")'" :transport-read-type="'POST'"></kendo-datasource>
+                            <kendo-combobox ref="ddCurrency" v-model="input.Currency" :disabled="!Payable" :data-source-ref="'dsCurrency'" style="width:100%"></kendo-combobox>
+                        </div>
+                        <div class="form-group col-md-8">
+                            @Html.LabelFor(x => x.Amount, "Rent/Premium Amount")
+                            <input type="checkbox" id="chkPayable" v-model="Payable" class="k-checkbox" style="margin-left:71px;" onchange="app.chkPayableChange()">
+                            <label for="chkPayable" class="k-checkbox-label">Is Payable</label>
+                            <kendo-numerictextbox v-model="input.Amount" :min="0" :disabled="!Payable" :spinners="false" :format="'n2'" style="text-align:right;width:100%;"></kendo-numerictextbox>
+                        </div>
+                        <div class="form-group col-md-6">
+                            @Html.LabelFor(x => x.ContractAmount, "Contract Amount")
+                            <kendo-numerictextbox v-model="input.ContractAmount" :min="0" :disabled="!Payable" :spinners="false" :format="'n2'" style="text-align:right;width:100%;"></kendo-numerictextbox>
+                        </div>
+                        <div class="form-group col-md-6">
+                            @Html.LabelFor(x => x.ExpireNotifyDays, "Notify Days")
+                            <kendo-numerictextbox v-model="input.ExpireNotifyDays" :min="0" :spinners="false" :format="'n0'" style="text-align:right;width:100%;"></kendo-numerictextbox>
+                        </div>
+                        <div class="form-group col-md-12">
+                            <label for="ExpireNotifyTo">Expire Notify To </label>
+                            <kendo-datasource ref="dsExpireNotifyTo" :transport-read-url="'@Url.Action("ReadExpireNotifyTo", "Accounts")'" :transport-read-type="'POST'"></kendo-datasource>
+                            <kendo-multiselect id="ddExpireNotifyTo"
+                                               v-model="ExpireNotifyTo"
+                                               :data-source-ref="'dsExpireNotifyTo'"
+                                               :no-data-template="TagAddTemplate"
+                                               placeholder="Click here to Email">
+                            </kendo-multiselect>
+                        </div>
+                        <div class="form-group col-md-6">
+                            @Html.LabelFor(x => x.Details)
+                            <textarea v-model="input.Details" id="txtDetails" oninput="onDetailschange(this)" class="k-textbox"></textarea>
+                        </div>
+                        <div class="form-group col-md-6">
+                            <div class="wt-sub-title"><span>Attachments</span></div>
+                            @await Html.PartialAsync("Documents")
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    @if (await Html.HasAccess(Forms.Accounts.ContractList, Rights.Modify))
+                    {
+                        <button type="submit" title="Save" class="btn btn-save btn-cntrls"><i class="fa fa-check-circle"></i>Save</button>
+                    }
+                    <button type="button" class="btn btn-danger" onclick="hideModal('ContractMaster')" data-dismiss="modal"><i class="fa fa-times"></i>Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    @*    <div id="editor" class="components" style="display: none;">
+    </div> *@
+</form>
+
+<div>
+    @(
+        Html.Kendo().Grid<ContractMasterModel>()
+        .Name("grid")
+        .Columns(x =>
+        {
+            x.Bound("").ClientTemplate(@"<div class='grp-btn dropdown-btn'>"
+            + "<i style='color:black;' class='fa fa-ellipsis-v'></i>"
+            + "<div class='dropdown-btn-content'>"
+            + @"<a  href='javascript:app.editItem(""#:uid#"")'> View</a>"
+            + @"#if(CanDelete){#<a  href='javascript:app.deleteItem(""#:uid#"")'> Delete</a>" + "#}#"
+            + @"#if(IsRenewal){#<a <a  href='javascript:app.revertItem(""#:uid#"")'> Revert</a>" + "#}#"
+            + @"#if(CanApprove){#<a  href='javascript:app.approveItem(""#:uid#"")'> Approve</a>" + "#}#"
+            + @"#if(CanUndo){#<a  href='javascript:app.rejectItem(""#:uid#"")'> Undo</a>" + "#}#"
+            + @"<a  href='javascript:app.viewDocument(""#:uid#"")'> View Attachment</a>"
+            + @"<a  href='javascript:app.viewExpiredList(""#:uid#"")'> Contract History</a>"
+            + "</div>"
+            + "</div>").Title("").Editable("disableEditor").Width(30);
+            x.Bound(c => c.ID).ClientTemplate("<a title='Renewal' class='crs-tag' href=\"javascript:app.renewalContractPolicy('#:uid#')\">Renew</a>"
+            ).Width(90).ClearTitle().Filterable(false).Sortable(false).HtmlAttributes(new { style = "text-align:center;" }).HeaderHtmlAttributes(new { style = "text-align:center;" }).Hidden(true);
+
+            x.Bound(c => c.ContractRefNo).Width(150);
+            x.Bound(c => c.ContractType).Width(150);
+            x.Bound(c => c.ContractName).Width(150);
+            x.Bound(c => c.SupplierName).Title("Vendor").Width(180);
+            x.DateColumn(c => c.ContractFrom).Width(150);
+            x.DateColumn(c => c.ContractTo).Width(150);
+            x.Bound(c => c.Currency).Width(110);
+            x.MoneyColumn(c => c.Amount).Title("Rent/Premium").Width(100);
+            x.MoneyColumn(c => c.ContractAmount).Title("Contract Amount").Width(100);
+            x.Bound("").ClientTemplate("<span  class='cts-tag'>#:CStatus#</span>").Title("Status").Width(250).Sortable(false).Filterable(false);
+            x.Bound(c => c.Details).Width(150);
+            x.EmailColumn(c => c.ExpireNotifyTo).Width(150);
+            x.NumberColumn(c => c.ExpireNotifyDays).Title("Notify Days").Width(130);
+            x.Bound(c => c.CreatedBy).Width(200);
+            x.DateColumn(c => c.CreatedOn).Width(150);
+            x.Bound(c => c.VerifiedBy).Width(200);
+            x.DateColumn(c => c.VerifiedOn).Width(150);
+        })
+        .Scrollable()
+        .Sortable()
+        .Selectable()
+        .EnableEdit(Html)
+        .EnableFilter()
+        .Resizable(x => x.Columns(true))
+        .Pageable(x => x.Refresh(true))
+        .Excel(x => x.AllPages(true))
+        .DataSource(dataSource => dataSource
+        .Ajax().ServerOperation(true).PageSize(50)
+        .Read(read => read.Action("ReadContractList", "Accounts").Data("app.grid_Data"))
+        )
+        )
+</div>
+
+@Html.Kendo().Window().Name("wndContractRenewal").Content(@<text>
+        <form id="appRenewal" v-on:submit.prevent="submitForm">
+            <div class="row">
+                <div class="form-group col-md-6">
+                    @Html.Label( "Contract From")
+                    <kendo-datepicker :value="input.RContractFrom" :min="input.rMinDate" :format="'dd-MMM-yyyy'" @@change="function(e){setModel(e,input,'RContractFrom')}" style="width:100%;"></kendo-datepicker>
+                </div>
+                <div class="form-group col-md-6">
+                    @Html.Label( "Contract To")
+                    <kendo-datepicker :value="input.RContractTo" :min="input.rMinDate" :format="'dd-MMM-yyyy'" @@change="function(e){setModel(e,input,'RContractTo')}" style="width:100%;"></kendo-datepicker>
+                </div>
+                <div class="form-group col-md-3">
+                    @Html.Label( "Currency")
+                    <kendo-datasource ref="dsCurrency" :transport-read-url="'@Url.Action("ReadCurrencies", "Accounts")'" :transport-read-type="'POST'"></kendo-datasource>
+                    <kendo-combobox ref="ddCurrency" v-model="input.RCurrency" :data-source-ref="'dsCurrency'" style="width:100%"></kendo-combobox>
+                </div>
+                <div class="form-group col-md-5">
+                    @Html.Label("Amount")
+                    <input type="checkbox" id="chkRPayable" v-model="RPayable" class="k-checkbox" style="margin-left:53px;" onchange="appRenewal.chkRPayableChange()">
+                    <label for="chkPayable" class="k-checkbox-label">Is Payable</label>
+                    <kendo-numerictextbox v-model="input.RAmount" :disabled="!RPayable" :min="0" :spinners="false" :format="'n2'" style="text-align:right;width:100%;"></kendo-numerictextbox>
+                </div>
+                <div class="form-group col-md-4">
+                    @Html.Label("Notify Days")
+                    <kendo-numerictextbox v-model="input.RExpireNotifyDays" :min="0" :spinners="false" :format="'n0'" style="text-align:right;width:100%;"></kendo-numerictextbox>
+                </div>
+                <div class="form-group col-md-12">
+                    <label for="ExpireNotifyTo">Notify To </label>
+                    <kendo-datasource ref="dsExpireNotifyTo" :transport-read-url="'@Url.Action("ReadExpireNotifyTo", "Accounts")'" :transport-read-type="'POST'"></kendo-datasource>
+                    <kendo-multiselect id="ddRExpireNotifyTo"
+                                       v-model="input.RExpireNotifyTo"
+                                       :data-source-ref="'dsExpireNotifyTo'"
+                                       :no-data-template="TagAddTemplateRenewal"
+                                       placeholder="Click here to Email">
+                    </kendo-multiselect>
+                </div>
+
+                <div class="form-group" style="text-align:right;padding-top:5px;">
+                    <button type="submit" class="btn btn-approve">Renewal</button>
+                    <button type="button" class="btn btn-cancel" @@click="closeApproveWindow">Cancel</button>
+                </div>
+            </div>
+        </form>
+    </text>).Visible(false).Title("Contrat Renewal").Width(500).Draggable(true)
+
+@Html.Kendo().Window().Name("wndContractExpireList").Content(@<text>
+        <div class="g-title">
+            <div class="g-right" style="padding-left: 840px;">
+                @Html.ExcelButton("exportHistory()")
+            </div>
+        </div>
+        <div>
+            @(
+        Html.Kendo().Grid<ContractExpiredList>()
+        .Name("gridExpired")
+        .Columns(x =>
+        {
+        x.DateColumn(c => c.ContractFrom).Width(150);
+        x.DateColumn(c => c.ContractTo).Width(150);
+        x.Bound(c => c.Currency).Width(150);
+        x.MoneyColumn(c => c.Amount).Width(150);
+        x.NumberColumn(c => c.NotifyDays).Width(150);
+        x.Bound(c => c.NotifyTo).Width(120);
+        x.Bound(c => c.ProcessedBy).Width(200);
+        x.DateColumn(c => c.ProcessedOn).Width(150);
+        x.Bound(c => c.VerifiedBy).Width(200);
+        x.DateColumn(c => c.VerifiedDate).Width(150);
+        })
+        .Scrollable()
+        .Sortable()
+        .Selectable()
+        .EnableEdit(Html)
+        .EnableFilter()
+        .Resizable(x => x.Columns(true))
+        .Pageable(x => x.Refresh(true))
+        .Excel(x => x.AllPages(true))
+        .AutoBind(false)
+        .DataSource(dataSource => dataSource
+        .Ajax().ServerOperation(true).PageSize(50)
+        .Read(read => read.Action("ReadContractExpiredList", "Accounts").Data("app.gridExpired_Data"))
+        )
+        .HtmlAttributes(new { @class = "h-grid v-grid", data_wnd = 1 })
+            )
+        </div>
+    </text>).Visible(false).Title("Contrat Expired List").HtmlAttributes(new { style = "width: 130vw;max-width:900px;" }).Draggable(true)
+@{
+    var jsonData = Vue.Encode(new ContractMaster() { ContractFrom = DateTime.Now, ContractTo = DateTime.Now.AddMonths(12), Currency = "MVR" });
+}
+<script id="noDataTemplate" type="text/x-kendo-tmpl">
+    # var value = instance.input.val(); #
+    # var id = instance.element[0].id; #
+    #if(value && value.trim().length && value != 'Click here to Email'){#
+    <div>
+        Do you want to add new Email - <b>'#: value #'</b> ?
+    </div>
+    <br />
+    <button class="k-button" onclick="app.addTag('#: id #', '#: value #')" ontouchend="app.addTag('#: id #', '#: value #')">Add new Email</button>
+    #}#
+</script>
+<script id="noDataTemplateRenewal" type="text/x-kendo-tmpl">
+    # var value = instance.input.val(); #
+    # var id = instance.element[0].id; #
+    #if(value && value.trim().length && value != 'Click here to Email'){#
+    <div>
+        Do you want to add new Email - <b>'#: value #'</b> ?
+    </div>
+    <br />
+    <button class="k-button" onclick="appRenewal.addTagRenewal('#: id #', '#: value #')" ontouchend="appRenewal.addTagRenewal('#: id #', '#: value #')">Add new Email</button>
+    #}#
+</script>
+@section Scripts {
+    @await Html.PartialAsync("DocumentsDialog", "")
+
+    <script type="text/javascript">
+        var app = new Vue({
+            el: '#app',
+            data: {
+                input: @(jsonData),
+                ExpireNotifyTo: [],
+                TabIndex: 0,
+                minDate: new Date(),
+                Doc: @(Vue.Encode(new DocumentModel())),
+                Payable: true,
+                TagAddTemplate: $("#noDataTemplate").html(),
+            },
+            created: function () {
+                appDoc.init("@DocumentReference.PolicyContract.ToString()", this.onSuccess);
+            },
+            methods: {
+                validateForm: function () {
+                    removeError();
+                    var isValid = true;
+                    var setError = function (cntrl, msg) {
+                        isValid = false;
+                        showError(cntrl, msg);
+                    };
+                    var item = this.input;
+                    if (!item.ContractRefNo)
+                        setError('ContractRefNo');
+                    if (!item.ContractType)
+                        setError('ContractType');
+                    if (!item.ContractName)
+                        setError('ContractName');
+
+                    if (!this.ExpireNotifyTo.length) {
+                        kendoAlert("Please select the Expire Notify To");
+                        isValid = false;
+                    }
+
+                    if (this.$refs.ddVendorID && this.$refs.ddVendorID.kendoWidget().selectedIndex == -1)
+                        setError('VendorID');
+
+                    if (!item.ContractFrom)
+                        setError('ContractFrom');
+                    if (!item.ContractTo)
+                        setError('ContractTo');
+                    if (item.ContractFrom && item.ContractTo && item.ContractTo <= item.ContractFrom)
+                        setError('ContractTo', "Contract To should be greater than contract From");
+
+                    if (this.$refs.ddCurrency && this.$refs.ddCurrency.kendoWidget().selectedIndex == -1)
+                        setError('Currency');
+
+                    if (item.Amount <= 0 && this.Payable)
+                        setError('Amount');
+
+                    var invalidEmail = $.grep(this.ExpireNotifyTo, function (item) {
+                        return !validateEmail(item);
+                    });
+
+                    if (invalidEmail && invalidEmail.length > 0) {
+                        kendoAlert("Please enter the valid email id", true);
+                        isValid = false;
+                    }
+                    return isValid;
+                },
+                submitForm: function () {
+                    if (!this.validateForm())
+                        return;
+
+                    this.input.ExpireNotifyTo = this.ExpireNotifyTo.join(";");
+                    $.postData("@Url.Action("SaveContractPolicy", "Accounts")", { data: this.input }, function (res) {
+                        app.input.ID = res.Id;
+
+                        if (res.HasError) {
+                            app.onSuccess(res);
+                            return;
+                        }
+                        if (app.Doc.Items.length > 0) {
+                            if (!app.Doc.save(res.Id))
+                                app.onSuccess(res);
+                        }
+                        else
+                            app.onSuccess(res);
+                    });
+                },
+                selectItem: function (uid) {
+                    var dataItem = $('#grid').getKendoGrid().dataSource.getByUid(uid);
+                    this.input = cloneAndDecode(dataItem);
+                    this.ExpireNotifyTo = dataItem.ExpireNotifyTo.split(';');
+
+                    this.Payable = this.input.Amount > 0 ? true : false;
+
+                    var dataSource = $("#ddExpireNotifyTo").getKendoMultiSelect().dataSource.data();
+
+                    var dataSourceArray = $.grep(dataSource, function (item) {
+                        return item;
+                    })
+                    const misMatch = this.getDifference(dataSourceArray, this.ExpireNotifyTo);
+                    if (misMatch.length) {
+                        $.grep(misMatch, function (item) {
+                            dataSource.push(item);
+                        })
+                    }
+                },
+                editItem: function editItem(uid) {
+                    // $('.toggle-btn.btn-minus').open();
+                    showModal('ContractMaster');
+                    this.selectItem(uid);
+
+                    appDoc.load(this.input.ID);
+                    app.Doc.load(this.input.ID);
+                },
+
+                deleteItem: function (uid) {
+                    if (uid)
+                        this.selectItem(uid);
+                    kendoConfirm("Do you want to delete this contract policy?", function () {
+                        $.postData("@Url.Action("DeleteContractPolicy", "Accounts")", app.input, app.onSuccess);
+                    });
+                },
+                approveItem: function (uid) {
+                    if (uid)
+                        this.selectItem(uid);
+
+                    $.postData("@Url.Action("ApproveContractPolicy", "Accounts")", this.input, this.onSuccess);
+                },
+                rejectItem: function (uid) {
+                    if (uid)
+                        this.selectItem(uid);
+                    kendoConfirm("Do you want to Undo this contract policy?", function () {
+                        $.postData("@Url.Action("UndoContractPolicy", "Accounts")", app.input, app.onSuccess);
+                    });
+                },
+                onSuccess: function (res) {
+                    kendoAlert(res.Message, res.HasError);
+                    if (res.HasError)
+                        return;
+                    hideModal('ContractMaster');
+                    // $('.toggle-btn.btn-minus').close();
+                    $('#grid').getKendoGrid().dataSource.read();
+                },
+                addContractMaster: function () {
+                    showModal('ContractMaster');
+                    this.input = @(jsonData);
+                },
+                addDoc: function () {
+                    var Id = this.input.ID
+                    appDoc.open(Id);
+                },
+                changeStatus: function (value) {
+                    this.TabIndex = value;
+                    $("#grid").getKendoGrid().dataSource.read();
+
+                    var $grid = $('#grid').getKendoGrid();
+                    if (this.TabIndex == 0) {
+                        $grid.hideColumn("ID");
+                    }
+                    else {
+                        $grid.showColumn("ID");
+                    }
+                },
+                grid_Data: function () {
+                    return { StatusFilter: this.TabIndex };
+                },
+                renewalContractPolicy: function (uid) {
+                    var dataItem = $('#grid').getKendoGrid().dataSource.getByUid(uid);
+                    app.input.ID = dataItem.ID;
+                    appRenewal.input.RCurrency = dataItem.Currency;
+                    appRenewal.input.RAmount = dataItem.Amount;
+                    appRenewal.input.RExpireNotifyDays = dataItem.ExpireNotifyDays;
+                    appRenewal.input.RExpireNotifyTo = dataItem.ExpireNotifyTo.split(';')
+                    appRenewal.RPayable = dataItem.Amount > 0 ? true : false;
+
+                    var dt = dataItem.ContractTo;
+                    var year = dt.getFullYear();
+                    var month = dt.getMonth();
+                    var date = dt.getDate();
+
+                    appRenewal.input.rMinDate = new Date(year, month, date + 1);
+                    appRenewal.input.RContractFrom = new Date(year, month, date + 1);
+                    appRenewal.input.RContractTo = new Date(year, month + 12, date + 1);
+
+                    var dataSource = $("#ddRExpireNotifyTo").getKendoMultiSelect().dataSource.data();
+
+                    var dataSourceArray = $.grep(dataSource, function (item) {
+                        return item;
+                    })
+                    const misMatch = this.getDifference(dataSourceArray, appRenewal.input.RExpireNotifyTo);
+                    if (misMatch.length) {
+                        $.grep(misMatch, function (item) {
+                            dataSource.push(item);
+                        })
+                    }
+
+                    $('#wndContractRenewal').getKendoWindow().open().center();
+                },
+                viewExpiredList: function (uid) {
+                    var dataItem = $('#grid').getKendoGrid().dataSource.getByUid(uid);
+                    app.input.ID = dataItem.ID;
+                    $('#wndContractExpireList').getKendoWindow().open().center();
+                    $("#gridExpired").getKendoGrid().dataSource.read();
+                },
+                gridExpired_Data: function () {
+                    return { ID: app.input.ID };
+                },
+                viewDocument: function (uid) {
+                    var dataItem = $('#grid').getKendoGrid().dataSource.getByUid(uid);
+                    this.input.ID = dataItem.ID;
+                    app.addDoc();
+                },
+                revertItem: function (uid) {
+                    if (uid)
+                        this.selectItem(uid);
+                    kendoConfirm("Do you want to revert this contract policy?", function () {
+                        $.postData("@Url.Action("RevertContractPolicy", "Accounts")", app.input, app.onSuccess);
+                    });
+                },
+                addTag: function (widgetId, value) {
+                    value = value.trim();
+                    var widget = $("#" + widgetId).getKendoMultiSelect();
+                    var dataSource = widget.dataSource;
+                    dataSource.data().push(value);
+                    this.ExpireNotifyTo.push(value);
+                    widget.close();
+                },
+                getDifference: function (arr1, arr2) {
+                    return arr2.filter(item => !arr1.includes(item));
+                },
+                chkPayableChange: function () {
+                    if (!$('#chkPayable').prop("checked")) {
+                        this.input.Amount = 0.0;
+                        this.input.ContractAmount = 0.0;
+                    }
+                }
+            }
+        });
+    </script>
+
+    <script type="text/javascript">
+        var appRenewal = new Vue({
+            el: '#appRenewal',
+            data: {
+                input: {
+                    RContractFrom: new Date(),
+                    RContractTo: new Date(),
+                    RCurrency: null,
+                    RAmount: 0.0,
+                    RExpireNotifyDays: 0,
+                    RExpireNotifyTo: [],
+                    rMinDate: new Date(),
+                },
+                TagAddTemplateRenewal: $("#noDataTemplateRenewal").html(),
+                RPayable: true,
+            },
+            methods: {
+                submitForm: function () {
+                    if (!this.input.RContractFrom) {
+                        kendoAlert('Please select the contract From');
+                        return;
+                    }
+                    if (!this.input.RContractTo) {
+                        kendoAlert('Please select the contract To');
+                        return;
+                    }
+                    if (!this.input.RCurrency) {
+                        kendoAlert('Please select the currecy');
+                        return;
+                    }
+                    if (this.input.RAmount <= 0 && this.RPayable) {
+                        kendoAlert('Please enter the amount');
+                        return;
+                    }
+                    if (!this.input.RExpireNotifyTo.length) {
+                        kendoAlert('Please select the notify to');
+                        return;
+                    }
+                    if (this.input.RContractFrom && this.input.RContractTo && this.input.RContractTo <= this.input.RContractFrom) {
+                        kendoAlert('ContractTo', "Contract To should be greater than contract From");
+                        return;
+                    }
+
+                    var invalidEmail = $.grep(this.input.RExpireNotifyTo, function (item) {
+                        return !validateEmail(item);
+                    });
+
+                    if (invalidEmail && invalidEmail.length > 0) {
+                        kendoAlert("Please enter the valid email id", true);
+                        return;
+                    }
+
+                    $.postData("@Url.Action("UpdateContractPolicy", "Accounts")", {
+                        ID: app.input.ID,
+                        RContractRefNo: app.input.ContractRefNo,
+                        RContractFrom: this.input.RContractFrom,
+                        RContractTo: this.input.RContractTo,
+                        RCurrency: this.input.RCurrency,
+                        RAmount: this.input.RAmount,
+                        RExpireNotifyTo: this.input.RExpireNotifyTo.join(";"),
+                        RExpireNotifyDays: this.input.RExpireNotifyDays
+                    }, function (res) {
+                        kendoAlert(res.Message, res.HasError);
+                        if (res.HasError)
+                            return;
+                        $('.toggle-btn.btn-minus').close();
+                        $('#grid').getKendoGrid().dataSource.read();
+                        $('#wndContractRenewal').getKendoWindow().close();
+                    });
+                },
+                closeApproveWindow: function () {
+                    $('#wndContractRenewal').getKendoWindow().close();
+                },
+                addTagRenewal: function (widgetId, value) {
+                    value = value.trim();
+                    var widget = $("#" + widgetId).getKendoMultiSelect();
+                    var dataSource = widget.dataSource;
+                    dataSource.data().push(value);
+                    this.input.RExpireNotifyTo.push(value);
+                    widget.close();
+                },
+                chkRPayableChange: function () {
+                    if (!$('#chkRPayable').prop("checked"))
+                        this.input.RAmount = 0.0;
+                }
+            }
+        });
+    </script>
+    @await Html.PartialAsync("DocumentScripts")
+    <script type="text/javascript">
+        $(function () {
+            $('#grid.grid-edit').on('dblclick', 'tbody tr', function () {
+                app.editItem($(this).attr('data-uid'));
+            });
+        });
+        function toggle_Change() {
+            app.Doc.reset();
+            app.ExpireNotifyTo = [];
+            // appDoc.reset();
+            app.input = @(jsonData);
+        }
+        $(function () {
+            app.Doc.init("@DocumentReference.PolicyContract", app.onSuccess);
+        });
+
+        function exportHistory() {
+            ExportToExcel("gridExpired");
+        }
+    </script>
+    <script>
+        function autoResize(textarea) {
+            textarea.style.height = 'auto'; // Reset height to auto
+            textarea.style.height = textarea.scrollHeight + 'px'; // Set new height based on content
+        }
+    </script>
+}

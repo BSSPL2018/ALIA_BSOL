@@ -1,0 +1,208 @@
+﻿@page
+@using BSOL.Core.Models.Logitics
+@model LorryPaymentSetting
+@{
+    ViewBag.Title = "Lorry Payment Setting";
+    Layout = "~/Pages/Shared/_Layout.cshtml";
+}
+@if (!await Html.HasAccess(Forms.Logistics.LorryPaymentSetting))
+{
+    return;
+}
+<form id="app" v-on:submit.prevent="submitForm">
+    <div class="g-title">
+        <div class="g-left">
+            @* @Html.ToggleButton(Orientation.Vertical) *@
+            @if (await Html.HasAccess(Forms.Logistics.LorryPaymentSetting, Rights.Add))
+            {
+                <button type="button" style="padding: 4px 10px;border-radius: 0;background: #0F9D58;" onclick="app.addLorryPaymentSetting()" class="btn btn-primary">
+                    <i class="fa fa-plus-circle"></i>Create
+                </button>
+            }
+        </div>
+        <span class="g-text">Lorry Payment Setting</span>
+        <div style="float:right;">
+            @* @Html.SaveButton() *@
+        </div>
+    </div>
+    <div id="LorryPaymentSetting" class="modal fade right" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered modal-sm">
+            <div class="modal-content" style="border-radius:0px;">
+                <div class="header-modal">
+                    <h5 class="modal-title title-modal">Lorry Payment Settings</h5>
+                    <button type="button" onclick="hideModal('LorryPaymentSetting')" class="btn-close close-btn close-modal-btn" data-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="form-group col-md-12">
+                            @Html.LabelFor(x => x.LorryType, "Lorry Type")
+                            <input type="text" v-model.trim="input.LorryType" class="k-textbox" />
+                        </div>
+                        <div class="form-group col-md-12">
+                            @Html.LabelFor(x => x.NoOfFreeBundles, "No Of Free Bundles")
+                            <kendo-numerictextbox :value="input.NoOfFreeBundles" :min="0" :maxlength="2" :spinners="true" :format="'n0'" style="text-align:center;width:100%" @@spin="function(e){setModel(e,input,'NoOfFreeBundles')}" @@change="function(e){setModel(e,input,'NoOfFreeBundles')}"></kendo-numerictextbox>
+                        </div>
+                        <div class="form-group col-md-12">
+                            @Html.LabelFor(x => x.ExtraBundleRate, "Extra Bundle Rate")
+                            <kendo-numerictextbox :value="input.ExtraBundleRate" :min="0" :spinners="false" :format="'n0'" style="text-align:right;width:100%" @@change="function(e){setModel(e,input,'ExtraBundleRate')}"></kendo-numerictextbox>
+                        </div>
+                        <div class="form-group col-md-12">
+                            @Html.LabelFor(x => x.NewLorryRateFrom, "New Lorry Rate From")
+                            <kendo-timepicker :value="input.NewLorryRateFrom" :format="'HH:mm'" @@change="function(e){setModel(e,input,'NewLorryRateFrom')}"></kendo-timepicker>
+                        </div>
+                        <div class="form-group col-md-12">
+                            @Html.LabelFor(x => x.NewLorryRateTo, "New Lorry Rate To")
+                            <kendo-timepicker :value="input.NewLorryRateTo" :format="'HH:mm'" @@change="function(e){setModel(e,input,'NewLorryRateTo')}"></kendo-timepicker>
+                        </div>
+                        <div class="form-group col-md-12">
+                            @Html.LabelFor(x => x.BeforeFirstHourRateMinimumMins, "Minimum Time (Mins)")
+                            <kendo-numerictextbox :value="input.BeforeFirstHourRateMinimumMins" :min="0" :spinners="false" :format="'n0'" style="text-align:right;width:100%" @@change="function(e){setModel(e,input,'BeforeFirstHourRateMinimumMins')}"></kendo-numerictextbox>
+                        </div>
+                        <div class="form-group col-md-12">
+                            @Html.LabelFor(x => x.BeforeFirstHourRate, "Before First Hr Rate")
+                            <kendo-numerictextbox :value="input.BeforeFirstHourRate" :min="0" :spinners="false" :format="'n2'" style="text-align:right;width:100%" @@change="function(e){setModel(e,input,'BeforeFirstHourRate')}"></kendo-numerictextbox>
+                        </div>
+                        <div class="form-group col-md-12">
+                            @Html.LabelFor(x => x.BeforeSubsequentHourRate, "Before Subsequent Hr Rate")
+                            <kendo-numerictextbox :value="input.BeforeSubsequentHourRate" :min="0" :spinners="false" :format="'n2'" style="text-align:right;width:100%" @@change="function(e){setModel(e,input,'BeforeSubsequentHourRate')}"></kendo-numerictextbox>
+                        </div>
+                        <div class="form-group col-md-12">
+                            @Html.LabelFor(x => x.AfterFirstHourRate, "After First Hr Rate")
+                            <kendo-numerictextbox :value="input.AfterFirstHourRate" :min="0" :spinners="false" :format="'n2'" style="text-align:right;width:100%" @@change="function(e){setModel(e,input,'AfterFirstHourRate')}"></kendo-numerictextbox>
+                        </div>
+                        <div class="form-group col-md-12">
+                            @Html.LabelFor(x => x.AfterSubsequentHourRate, "After Subsequent Hr Rate")
+                            <kendo-numerictextbox :value="input.AfterSubsequentHourRate" :min="0" :spinners="false" :format="'n2'" style="text-align:right;width:100%" @@change="function(e){setModel(e,input,'AfterSubsequentHourRate')}"></kendo-numerictextbox>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    @if (await Html.HasAccess(Forms.Logistics.LorryPaymentSetting, Rights.Modify))
+                    {
+                        <button type="submit" title="Save" class="btn btn-save btn-cntrls"><i class="fa fa-check-circle"></i>Save</button>
+                    }
+                    <button type="button" class="btn btn-danger" onclick="hideModal('LorryPaymentSetting')" data-dismiss="modal"><i class="fa fa-times"></i>Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    @*  <div id="editor" class="components" style="display: none;">
+
+    </div> *@
+</form>
+@(Html.Kendo().Grid<LorryPaymentSettingModel>()
+                                .Name("grid")
+                                .Columns(x =>
+                                {
+                                    x.EditButtonColumn("app.editItem('#:uid#')");
+                                    x.DeleteColumn("app.deleteItem('#:uid#')");
+                                    x.Bound(c => c.LorryType).Width(130);
+                                    x.Bound(c => c.NoOfFreeBundles).Title("Free Bundles").Width(120);
+                                    x.MoneyColumn(c => c.ExtraBundleRate).Title("Extra Bundle Rate").Width(150);
+                                    x.TimeColumn(c => c.NewLorryRateFrom).Title("New Lorry Rate From").Width(150);
+                                    x.TimeColumn(c => c.NewLorryRateTo).Title("New Lorry Rate To").Width(150);
+                                    x.NumberColumn(c => c.BeforeFirstHourRateMinimumMins).Title("Minimum Time").Width(130);
+                                    x.MoneyColumn(c => c.BeforeFirstHourRate).Title("Before First Hrs").Width(130);
+                                    x.MoneyColumn(c => c.BeforeSubsequentHourRate).Title("Before Subsequent Hrs").Width(180);
+                                    x.MoneyColumn(c => c.AfterFirstHourRate).Title("After First Hrs").Width(130);
+                                    x.MoneyColumn(c => c.AfterSubsequentHourRate).Title("After Subsequent Hrs").Width(180);
+                                    x.Bound(c => c.EntryBy).Title("Entry By").Width(150);
+                                    x.DateColumn(c => c.EntryDate).Title("Entry Date").Width(120);
+                                })
+                               .Scrollable(sc => sc.Endless(true))
+                               .Selectable()
+                               .Sortable()
+                               .EnableFilter()
+                               .Resizable(x => x.Columns(true))
+                               .Pageable()
+                               .EnableEdit(Html)
+                               .DataSource(dataSource => dataSource
+                               .Ajax().ServerOperation(true).PageSize(50)
+                               .Read(read => read.Action("ReadLorryPaymentSetting", "LorryPayment"))
+                               )
+
+)
+@{
+    var jsonData = Vue.Encode(new LorryPaymentSetting());
+}
+<script type="text/javascript">
+    function toggle_Change() {
+        app.input = @(jsonData);
+    }
+</script>
+<script type="text/javascript">
+    var app = new Vue({
+        el: '#app',
+        data: {
+            input: @(jsonData),
+        },
+        methods: {
+            validateForm: function () {
+                removeError();
+                var isValid = true;
+                var setError = function (cntrl, msg) {
+                    isValid = false;
+                    showError(cntrl, msg);
+                };
+                var item = this.input;
+
+                if (!item.LorryType)
+                    setError('LorryType');
+
+                return isValid;
+            },
+            submitForm: function () {
+                if (!this.validateForm())
+                    return;
+
+                this.input.NewLorryRateFrom = TimeSpanToTime(this.input.NewLorryRateFrom);
+                this.input.NewLorryRateTo = TimeSpanToTime(this.input.NewLorryRateTo);
+
+                $.postData("@Url.Action("SaveLorryPaymentSetting", "LorryPayment")",
+                    this.input
+                    , this.onSuccess);
+            },
+            onSuccess: function (res) {
+                if (res.HasWarning) {
+                    appMsg.open(res.GridData, "Invalid Request!");
+                    return;
+                }
+                kendoAlert(res.Message, res.HasError);
+                if (res.HasError)
+                    return;
+
+                hideModal('LorryPaymentSetting');
+                this.cancel();
+
+            },
+            addLorryPaymentSetting: function () {
+                showModal('LorryPaymentSetting');
+                this.input = @(jsonData);
+            },
+            editItem: function (uid) {
+                // $('.toggle-btn.btn-minus').open();
+                showModal('LorryPaymentSetting');
+                this.selectItem(uid);
+            },
+            deleteItem: function (uid) {
+                var dataItem = $('#grid').getKendoGrid().dataSource.getByUid(uid);
+                this.selectItem(uid);
+
+                if (dataItem.ID > 0) {
+                    kendoConfirm("Do you want to Delete this lorry payment?", function () {
+                        $.postData("@Url.Action("DeleteLorryPaymentSetting", "LorryPayment")", app.input,
+                            app.onSuccess);
+                    });
+                }
+            },
+            selectItem: function (uid) {
+                var dataItem = $('#grid').getKendoGrid().dataSource.getByUid(uid);
+                this.input = cloneAndDecode(dataItem);
+            },
+            cancel: function () {
+                $('.toggle-btn.btn-minus').close();
+                $('#grid').getKendoGrid().dataSource.read();
+            }
+        }
+    });
+</script>

@@ -1,0 +1,359 @@
+﻿@page
+@using Core.Entities
+@inject AppUser _appUser
+@model PaymentRequest
+
+@{
+    ViewBag.Title = "Payment Request";
+    Layout = "~/Pages/Shared/_Layout.cshtml";
+}
+@if (!await Html.HasAccess(Forms.Procurement.Shipments))
+{
+    return;
+}
+@section BreadCrumb{
+    @await Html.PartialAsync("BreadCrumb", "Procurement")
+    @await Html.PartialAsync("Tabs", "Procurement/Shipments")
+}
+
+<style type="text/css">
+    #grid .k-grid-content {
+        height: 150px !important;
+    }
+
+    .na-border {
+        border: 1px solid #ccc;
+    }
+</style>
+<form id="app" v-on:submit.prevent="submitForm">
+    <div class="v-edit">
+        <div class="g-title">
+            <div class="g-left">
+                @Html.ToggleButton(Orientation.Vertical)
+            </div>
+
+            <span>Payment Request</span>
+            <div class="g-right">
+                @Html.SaveButton()
+                @Html.ExcelButton()
+            </div>
+        </div>
+        <div id="editor" class="g-content" style="display:none;padding:10px;">
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="row">
+                        <div class="form-group col-md-4">
+                            @Html.LabelFor(x => x.PaymentType, "Payment Type")
+                            <kendo-dropdownlist v-model="input.PaymentType" :data-source="['Cash','Cheque']" style="width:100%"></kendo-dropdownlist>
+                        </div>
+                        <div class="form-group col-md-4">
+                            @Html.LabelFor(x => x.Currency, "Currency")
+                            <kendo-datasource ref="dsCurrency" :transport-read-url="'@Url.Action("ReadCurrencies", "Common")'" :transport-read-type="'POST'"></kendo-datasource>
+                            <kendo-dropdownlist v-model="input.Currency" :data-source-ref="'dsCurrency'" :data-text-field="'Currency'" :data-value-field="'Currency'" @@change="currencyChange" style="width:100%"></kendo-dropdownlist>
+                        </div>
+                        <div class="form-group col-md-4">
+                            @Html.LabelFor(x => x.TransactionNo, "Transaction No")
+                            <input type="text" class="k-textbox" v-model="input.TransactionNo" />
+                        </div>
+                        <div class="form-group col-md-4">
+                            @Html.LabelFor(x => x.TransactionDate, "Transaction Date")
+                            <kendo-datepicker v-model="input.TransactionDate" :format="'dd-MMM-yyyy'" @@change="function(e){setModel(e,input,'TransactionDate')}" style="width:100%;"></kendo-datepicker>
+                        </div>
+                        <div class="form-group col-md-4" v-if="input.PaymentType=='Cheque'">
+                            @Html.LabelFor(x => x.ChequeDate, "Cheque Date")
+                            <kendo-datepicker v-model="input.ChequeDate" :format="'dd-MMM-yyyy'" @@change="function(e){setModel(e,input,'ChequeDate')}" style="width:100%;"></kendo-datepicker>
+                        </div>
+                        <div class="form-group col-md-4">
+                            @Html.LabelFor(x => x.RequestedBy, "Requested By")
+                            <kendo-datasource ref="dsRequestedBy" :transport-read-url="'@Url.Action("ReadShopEmployees", "Common")'" :transport-read-type="'POST'" style="width:100%"></kendo-datasource>
+                            <kendo-combobox ref="ddRequestedBy" v-model="input.RequestedBy" :data-source-ref="'dsRequestedBy'" :data-text-field="'Text'" :data-value-field="'Text'" :filter="'contains'" style="width:100%;"></kendo-combobox>
+                        </div>
+                        <div class="form-group col-md-4">
+                            @Html.LabelFor(x => x.RequestedDate, "Requested Date")
+                            <kendo-datepicker v-model="input.RequestedDate" :format="'dd-MMM-yyyy'" @@change="function(e){setModel(e,input,'RequestedDate')}" style="width:100%;"></kendo-datepicker>
+                        </div>
+                        <div class="form-group col-md-4">
+                            @Html.LabelFor(x => x.TotalAmount, "Amount")
+                            <kendo-numerictextbox :value="input.TotalAmount" :disabled="true" :min="0" :spinners="false" :format="'n2'" @@change="function(e){setModel(e,input,'TotalAmount')}" style="text-align:right;width:100%"></kendo-numerictextbox>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="row">
+                        <div class="wt-box">
+                            <div class="wt-box-header">
+                                Shipment Expenses
+                                <a href="javascript:app.pickShipment()" class="c-lnk" style="float: right;text-decoration:underline">Select Shipments</a>
+                            </div>
+                            @(Html.Kendo().Grid<ShipmentExpense>()
+                               .Name("grid")
+                               .Columns(c =>
+                               {
+                                   c.Bound(p => p.Id).ClientTemplate("<i class='fa fa-times'></i>").HtmlAttributes(new { @style = "color:red;text-align:center;padding:0", onclick = "app.deleteDetailItem(this)" }).ClearTitle().Filterable(false).Sortable(false).Width(20);
+                                   c.Bound(p => p.ShipmentRefNo).ClientGroupHeaderTemplate(@"#: value # <a href='javascript:app.deleteItem(""#: value #"")' class='grid-inl-delete'><i class='fa fa-times'></i> Remove</a>").Hidden();
+                                   c.Bound(p => p.ExpenseName).Width(150);
+                                   c.Bound(p => p.Description).HtmlAttributes(new { @class = "grid-desc", style="font-size:11px;" });
+                                   //c.Bound(p => p.Currency).Width(100);
+                                   c.MoneyColumn(p => p.Amount).EditorTemplateName("MoneyEditor").Width(100);
+                               })
+                               .Scrollable()
+                               .Editable(Html, "", false, false)
+                               .Sortable()
+                               .Resizable(x => x.Columns(true))
+                               .HtmlAttributes(new { @class = "h-grid v-grid inl-grid sm-grid" })
+                               .AutoBind(false)
+                               .NoRecords()
+                               .Navigatable()
+                               .Events(x => x.CellClose("app.gridCellClose").DataBound("app.gridDataBound"))
+                               .DataSource(dataSource => dataSource
+                               .Ajax()
+                               .Batch(true)
+                               .ServerOperation(false)
+                               .Model(model =>
+                               {
+                                   model.Id(p => p.Id);
+                                   model.Field(p => p.Id).Editable(false);
+                                   model.Field(p => p.ShipmentRefNo).Editable(false);
+                                   model.Field(p => p.ExpenseName).Editable(false);
+                                   model.Field(p => p.Description).Editable(false);
+                                   //model.Field(p => p.Currency).Editable(false);
+                                   model.Field(p => p.Amount).Editable(false);
+                               })
+                                   .Read(read => read.Action("ReadShipmentExpenseDetails", "Shipment").Data("app.gridData"))
+                                   .Group(g =>
+                                   {
+                                       g.Add(f => f.ShipmentRefNo);
+                                   })
+                               ))
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</form>
+<div>
+
+    @(Html.Kendo().Grid<PaymentRequest>()
+    .Name("gridPaymentRequst")
+        .Columns(c =>
+        {
+            c.DeleteColumn(x => x.ID);
+            c.Bound(x => x.RefNoFormatted).Title("Ref No").Width(150);
+            c.Bound(x => x.PaymentType).Width(200);
+            c.Bound(x => x.TotalAmount).Width(150);
+            c.Bound(x => x.PaymentCount).Width(120);
+            c.Bound(x => x.RequestedBy).Width(120);
+            c.DateColumn(x => x.RequestedDate).Width(120);
+            c.Bound(x => x.ReceivedBy).Width(120);
+            c.DateColumn(x => x.ReceivedDate).Width(120);
+        })
+
+    .Scrollable()
+                .Sortable()
+                .EnableEdit(Html)
+                .EnableFilter()
+                .Resizable(x => x.Columns(true))
+                .Pageable(x => x.Refresh(true))
+                .Excel(x => x.AllPages(true))
+                .DataSource(dataSource => dataSource
+                .Ajax().ServerOperation(true).PageSize(50)
+    .Read(read => read.Action("ReadPaymentRequests", "Shipment")))
+
+)
+</div>
+
+@{
+    var jsonData = Vue.Encode(new PaymentRequest() { 
+        PaymentType = "Cash", 
+        Currency = _appUser.BaseCurrency, 
+        ConversionRate = _appUser.ConversionRate, 
+        RequestedBy = _appUser.CommonEmpNo, 
+        RequestedDate = DateTime.Now 
+    });
+}
+
+@section Scripts{
+
+    @(Html.Kendo().Window()
+    .Name("wndShipmentExpenses")
+    .Title("Shipment Expenses")
+    .Content(@<text>
+                <div id="appShipment">
+                    @(Html.Kendo().Grid<Shipment>()
+                  .Name("gridShipment")
+                  .AutoBind(false)
+                  .Columns(x =>
+                  {
+                      x.Bound(c => c.Id).ClientTemplate("<i class='btn-grid btn-grid-plus fa fa-plus' title='Select Item'></i>").Center().HtmlAttributes(new { onclick = "appShipment.addItem(this)" }).Width(20).Filterable(false).Sortable(false).ClearTitle();
+                      x.Bound(c => c.RefNoFormatted).Title("Ref No").Width(100);
+                      x.Bound(c => c.ShipmentMode).Width(80);
+                      x.DateColumn(c => c.ClearedDate).Width(80);
+                      x.Bound(c => c.CreatedBy).Width(100);
+                      x.DateColumn(c => c.CreatedOn).Width(100);
+                  })
+                  .Sortable()
+                  .Scrollable()
+                  .Pageable(x => x.Refresh(true))
+                  .Resizable(x => x.Columns(true))
+                  .EnableFilter()
+                  .HtmlAttributes(new { @class = "h-grid v-grid" })
+                  .Events(x => x.DataBound("appShipment.gridShipmentDataBound"))
+                  .DataSource(d => d
+                  .Ajax().ServerOperation(true).PageSize(50)
+                  .Read(read => read.Action("ReadShipmentExpenseRefNos", "Shipment").Data("app.gridData"))
+                  ))
+                </div>
+    </text>)
+.Draggable()
+.Resizable()
+.Visible(false)
+.MaxWidth(1000)
+    )
+
+    <script type="text/javascript">
+        var appShipment = new Vue({
+            el: '#appShipment',
+            data: {
+                addItemCallBack: null
+            },
+            methods: {
+                addItem: function (sender) {
+                    var $grid = $('#gridShipment').getKendoGrid();
+                    var item = $grid.dataItem($(sender).parent());
+                    $(sender).find('i').removeClass("fa-plus").addClass("fa-spinner fa-spin");
+                    $.postData("@Url.Action("GetShipmentExpenses", "Shipment")", { shipmentId: item.Id }, function (res) {
+                        $grid.dataSource.remove(item);
+                       if (appShipment.addItemCallBack)
+                            appShipment.addItemCallBack(res);
+                    });
+                },
+                open: function () {
+                    if (!$('#gridShipment').getKendoGrid().dataSource.data().length)
+                        $('#gridShipment').getKendoGrid().dataSource.read();
+                    $('#wndShipmentExpenses').getKendoWindow().open().center();
+                },
+                gridShipmentDataBound: function () {
+                    $('#wndShipmentExpenses').getKendoWindow().center();
+                }
+            }
+        });
+    </script>
+    <script type="text/javascript">
+        var app = new Vue({
+            el: '#app',
+            data: {
+                input: @(jsonData)
+            },
+            created: function () {
+                appShipment.addItemCallBack = this.addItem;
+            },
+            methods: {
+                validateForm: function () {
+                    removeError();
+                    var isValid = true;
+                    var setError = function (cntrl, msg) {
+                        isValid = false;
+                        showError(cntrl, msg);
+                    };
+                    var item = this.input;
+                    ////if (!item.ShipmentMode)
+                    ////    setError('ShipmentMode');
+                    ////if (!item.ETD)
+                    ////    setError('ETD');
+                    ////if (!item.TradeTerm)
+                    ////    setError('TradeTerm');
+
+                    ////if (!isValid)
+                    ////    return false;
+
+                    var items = $('#grid').getKendoGrid().dataSource.data();
+                    if (!items.length) {
+                        kendoAlert("Please select some shipment expenses", true);
+                        return false;
+                    }
+                    return isValid;
+                },
+                submitForm: function () {
+                    if (!this.validateForm())
+                        return;
+
+                    var items = $('#grid').getKendoGrid().dataSource.data();
+
+                    var shipmentExpenses = [];
+                    $.each(items, function (i, x) {
+                        shipmentExpenses.push({
+                            Id: x.Id
+                        })
+                    });
+
+                    @*$.postData("@Url.Action("SaveShipment", "Shipment")",
+                        {
+                            Shipment: this.input,
+                            PurchaseOrderDetails: purchaseOrderDetails
+                        },
+                        this.onSuccess);*@
+                },
+                onSuccess: function (res) {
+                    if (res.HasError) {
+                        kendoAlert(res.Message, res.HasError);
+                        return;
+                    }
+                    kendoAlert(res.Message, false, "BSOL", function () {
+                        location.href = "@Url.Page("/Shipment/Shipments")";
+                    });
+                },
+                addItem: function (items) {
+                    var dataSource = $('#grid').getKendoGrid().dataSource;
+                    var existingItems = dataSource.data();
+                    $.each(items, function (i, item) {
+                        if (item.Currency != app.input.Currency)
+                            return false;
+
+                        var extItem = $.grep(existingItems, function (x) { return x.Id == item.Id });
+                        if (!extItem.length)
+                            dataSource.add(item);
+                    });
+                },
+                deleteItem: function (shipmentRefNo) {
+                    var dataSource = $('#grid').getKendoGrid().dataSource;
+                    var items = dataSource.data();
+                    var itemsToRemove = $.grep(items, function (x) { return x.ShipmentRefNo == shipmentRefNo });
+                    $.each(itemsToRemove, function (i, item) {
+                        dataSource.remove(item);
+                    });
+                },
+                deleteDetailItem: function (sender) {
+                    var dataItem = $('#grid').getKendoGrid().dataItem($(sender).parent());
+                    $('#grid').getKendoGrid().dataSource.remove(dataItem);
+                },
+                pickShipment: function () {
+                    appShipment.open();
+                },
+                currencyChange: function (e) {
+                    this.input.Currency = e.sender.value();
+                    var item = e.sender.dataItem(e.sender.selectedIndex);
+                    if (item)
+                        this.input.ConversionRate = item.ConversionRate;
+                    $('#grid').getKendoGrid().dataSource.data([]);
+                },
+                gridData: function () {
+                    return { ShipmentId: this.input.Id };
+                },
+                gridCellClose: function (e) {
+                    var item = e.model;
+                },
+                gridDataBound: function (e) {
+                    var data = $('#grid').getKendoGrid().dataSource.data();
+                    var totalAmount = 0;
+                    $.each(data, function (i, item) {
+                        var amount = convertCurrency(item.Amount, item.Currency, app.input.Currency, item.CurrencyRate, app.input.ConversionRate);
+                        totalAmount += amount;
+                    });
+                    app.input.TotalAmount = totalAmount;
+                }
+            }
+        });
+
+    </script>
+}

@@ -1,0 +1,638 @@
+﻿@page
+@using BSOL.Core.Entities
+@using BSOL.Helpers
+@using Kendo.Mvc.UI
+@model Supplier
+@{
+    ViewData["Title"] = "Suppliers";
+    Layout = "~/Pages/Shared/_Layout.cshtml";
+}
+
+@if (!await Html.HasAccess(Forms.Procurement.Supplier))
+{
+    return;
+}
+<style type="text/css">
+    .highlight-empty-row {
+        background-color: #ffcccc;
+    }
+</style>
+<form id="app" v-on:submit.prevent="submitForm">
+    <div class="g-title v-edit">
+        <div class="g-left" style="display:flex">
+            <div style="margin:12px 15px 14px 3px">
+                @Html.ToggleButton(Orientation.Vertical)
+            </div>
+            <ul class="rdc-tab">
+                <li :class="{'active': TabIndex == 0}">
+                    <a id="lnkPending" href="javascript:app.changeStatus(0)">Active</a>
+                </li>
+                <li :class="{'active': TabIndex == 1}">
+                    <a id="lnkInActive" href="javascript:app.changeStatus(1)">In-Active</a>
+                </li>
+            </ul>
+        </div>
+        <span class="g-text">Suppliers</span>
+        <div class="g-right">
+            @Html.SaveButton()
+            <div v-if="input.ID" class="cntrl-inline">
+                @Html.DeleteButton()
+            </div>
+            @Html.ExcelButton()
+        </div>
+    </div>
+    <div id="editor" class="components" style="display: none;">
+        <div class="row">
+            <div class="form-group col-md-2">
+                @Html.LabelFor(x => x.Type, "Type")
+                <kendo-dropdownlist v-model="input.Type" :data-source='@Vue.Encode(Utilities.EnumToString<SupplierType>())' style="width:100%"></kendo-dropdownlist>
+            </div>
+            <div class="form-group col-md-3">
+                <label for="Category">Service </label>
+                <kendo-datasource ref="dsCategory" :transport-read-url="'@Url.Action("ReadItemCategory", "Common")'" :transport-read-type="'POST'"></kendo-datasource>
+                <kendo-multiselect ref="ddCategory"
+                                   v-model="ServiceIds"
+                                   :data-source-ref="'dsCategory'"
+                                   :filter="'contains'"
+                                   :auto-bind="false"
+                                   :data-text-field="'Text'"
+                                   :data-value-field="'Id'">
+                </kendo-multiselect>
+            </div>
+            <div class="form-group col-md-3">
+                @Html.LabelFor(x => x.SupplierName, "Name")
+                <input type="text" v-model.trim="input.SupplierName" class="k-textbox" />
+            </div>
+            <div class="form-group col-md-2">
+                @Html.LabelFor(x => x.SupplierCode, "Code")
+                <input type="text" v-model.trim="input.SupplierCode" class="k-textbox" />
+            </div>
+            <div class="form-group col-md-2">
+                @Html.LabelFor(x => x.RegNo, "Reg. No")
+                <input type="text" v-model.trim="input.RegNo" class="k-textbox" />
+            </div>
+        </div>
+        <div class="row">
+            <div class="form-group col-md-2">
+                @Html.LabelFor(x => x.GSTIN)
+                <input type="text" v-model.trim="input.GSTIN" class="k-textbox" />
+            </div>
+            @*<div class="form-group col-md-2">
+            @Html.LabelFor(x => x.GST, "GST (%)")
+            <kendo-numerictextbox v-model="input.GST" :min="0" :spinners="false" :format="'n2'" style="text-align:right;width:100%;"></kendo-numerictextbox>
+            </div>*@
+            <div class="form-group col-md-2">
+                @Html.LabelFor(x => x.Country)
+                <kendo-datasource ref="dsCountry" :transport-read-url="'@Url.Action("ReadCountries", "Common")'" :transport-read-type="'POST'"></kendo-datasource>
+                <kendo-combobox v-model="input.Country" :data-source-ref="'dsCountry'" :filter="'contains'" @@change="onCountryChange" style="width:100%"></kendo-combobox>
+            </div>
+
+            <div class="form-group col-md-2">
+                @Html.LabelFor(x => x.State)
+                <kendo-datasource ref="dsState" :transport-read-url="'@Url.Action("ReadStates", "Common")'" :transport-read-type="'POST'"></kendo-datasource>
+                <kendo-combobox v-model="input.State" :data-source-ref="'dsState'" :auto-bind="false" :filter="'contains'" @@change="onStateChange" style="width:100%"></kendo-combobox>
+            </div>
+            <div class="form-group col-md-2">
+                @Html.LabelFor(x => x.City)
+                <kendo-datasource ref="dsCity" :transport-read-url="'@Url.Action("ReadCities", "Common")'" :transport-read-type="'POST'"></kendo-datasource>
+                <kendo-combobox v-model="input.City" :data-source-ref="'dsCity'" :auto-bind="false" :filter="'contains'" style="width:100%"></kendo-combobox>
+            </div>
+            <div class="form-group col-md-2">
+                @Html.LabelFor(x => x.ZipCode, "Zip Code")
+                <kendo-numerictextbox v-model="input.ZipCode" :spinners="false" :format="'#'" :min="0" style="width:100%"></kendo-numerictextbox>
+            </div>
+            <div class="form-group col-md-2">
+                @Html.LabelFor(x => x.PhoneNo, "Phone No")
+                <input type="tel" v-model.trim="input.PhoneNo" class="k-textbox" />
+            </div>
+            <div class="form-group col-md-3">
+                @Html.LabelFor(x => x.Email)
+                <input type="email" v-model.trim="input.Email" class="k-textbox" />
+            </div>
+            <div class="form-group col-md-3">
+                @Html.LabelFor(x => x.Website)
+                <input type="text" v-model.trim="input.Website" class="k-textbox" />
+            </div>
+            <div class="form-group col-md-4">
+                @Html.LabelFor(x => x.Address)
+                <textarea v-model="input.Address" class="k-textbox" rows="1"></textarea>
+            </div>
+            <div class="form-group col-md-2">
+                @Html.LabelFor(x => x.Currency)
+                <kendo-datasource ref="dsCurrency" :transport-read-url="'@Url.Action("ReadCurrencies", "Common")'" :transport-read-type="'POST'"></kendo-datasource>
+                <kendo-combobox v-model="input.Currency" :data-source-ref="'dsCurrency'" :data-text-field="'Currency'" :data-value-field="'Currency'" @@change="currencyChange" style="width:100%"></kendo-combobox>
+            </div>
+            <div class="form-group col-md-2">
+                @Html.LabelFor(x => x.DuePeriodDays, "Due Period Days")
+                <kendo-numerictextbox v-model="input.DuePeriodDays" :min="0" :spinners="false" :format="'n2'" style="text-align:right;width:100%;"></kendo-numerictextbox>
+            </div>
+            <div class="form-group col-md-3">
+                @Html.LabelFor(x => x.VendorGroup, "Vendor Group")
+                <input type="tel" v-model.trim="input.VendorGroup" class="k-textbox" />
+            </div>
+            <div class="form-group col-md-3">
+                @Html.LabelFor(x => x.ChequeAccountName, "Cheque Account Name")
+                <input type="tel" v-model.trim="input.ChequeAccountName" class="k-textbox" />
+            </div>
+            <div class="form-group col-md-4">
+                @Html.LabelFor(x => x.Notes)
+                <textarea v-model="input.Notes" class="k-textbox" rows="1"></textarea>
+            </div>
+        </div>
+        <br />
+        <a href="javascript:app.addContact()" class="c-lnk"><i class="fa fa-plus"></i> Add Contact</a>
+        @(Html.Kendo().Grid<SupplierContact>()
+            .Name("gridContacts")
+            .Editable(Html, "", false, false)
+            .Columns(c =>
+            {
+                c.DeleteColumn(p => p.Id, "app.deleteContact('#:uid#')", childEdit: true);
+                c.Bound(p => p.ContactName).Width(220);
+                c.TelColumn(p => p.ContactNo).Width(220);
+                c.Bound(p => p.Position);
+                c.Bound(p => p.EmailId).Title("Email ID");
+                c.CheckedColumn(p => p.IsPrimaryContact).Width(150).Center();
+            })
+            .Sortable()
+            .Resizable(x => x.Columns(true))
+            .HtmlAttributes(new { @class = "h-grid inl-grid" })
+            .AutoBind(false)
+            .NoRecords()
+            .Navigatable()
+            .Events(x => x.CellClose("gridContacts_CellClose"))
+            .DataSource(dataSource => dataSource
+            .Ajax()
+            .Batch(true)
+            .ServerOperation(false)
+            .Model(model =>
+            {
+                model.Id(p => p.Id);
+                model.Field(p => p.Id).Editable(false);
+            })
+            .Events(x => x.RequestEnd("gridContacts_RequestEnd"))
+            .Read(read => read.Action("ReadSupplierContacts", "Procurements").Data("gridContacts_Data"))
+            .Create(create => create.Action("UpdateSupplierContact", "Procurements").Data("gridContacts_Data"))
+            .Update(update => update.Action("UpdateSupplierContact", "Procurements").Data("gridContacts_Data"))
+            ))
+        <br />
+        <a href="javascript:app.addBankDetails()" class="c-lnk"><i class="fa fa-plus"></i> Add Bank Details</a>
+        @(Html.Kendo().Grid<SupplierBankDetail>()
+            .Name("gridBankDetails")
+            .Editable(Html, "", false, false)
+            .Columns(c =>
+            {
+                c.DeleteColumn(p => p.ID, "app.deleteBankDetail('#:uid#')", childEdit: true);
+                c.Bound(x => x.BankId).ClientTemplate("#: BankName ? BankName : '' #").EditorTemplateName("ComboBoxEditor").EditorViewData(new { Data = new EditorData(Url.Action("ReadBank", "Accounts"), "BankName", "Text") }).Title("Bank").Width(150);
+                c.Bound(p => p.AccountName).Width(220);
+                c.NumberColumn(p => p.AccountNo).Width(220);
+                c.Bound(p => p.Branch).Width(220);
+                c.Bound(p => p.SwiftCode).Width(120);
+                c.Bound(p => p.Address).Width(200);
+                c.CheckedColumn(p => p.IsPrimary).Width(150).Center();
+            })
+            .Sortable()
+            .Resizable(x => x.Columns(true))
+            .HtmlAttributes(new { @class = "h-grid inl-grid" })
+            .AutoBind(false)
+            .NoRecords()
+            .Navigatable()
+            .Events(x => x.SaveChanges("gridBankDetails_SaveChanges").CellClose("gridBank_CellClose"))
+            .DataSource(dataSource => dataSource
+            .Ajax()
+            .Batch(true)
+            .ServerOperation(false)
+            .Model(model =>
+            {
+                model.Id(p => p.ID);
+                model.Field(p => p.ID).Editable(false);
+            })
+            .Read(read => read.Action("ReadSupplierBankDetails", "Procurements").Data("gridBankDetails_Data"))
+            .Create(create => create.Action("UpdateSupplierBankDetails", "Procurements").Data("gridBankDetails_Data"))
+            .Update(update => update.Action("UpdateSupplierBankDetails", "Procurements").Data("gridBankDetails_Data"))
+            ))
+        <br />
+        <div>
+            <a href="javascript:app.addDoc()" class="c-lnk"><i class="fa fa-paperclip"></i> Attachments</a>
+        </div>
+    </div>
+</form>
+
+<div>
+    @(Html.Kendo().Grid<Supplier>()
+        .Name("grid")
+        .Columns(x =>
+        {
+            x.EditButtonColumn();
+            x.Bound(x => x.Id).ClientTemplate(@"#if(Active || Id==0){# <a class='btn-grid btn-grid-delete fa fa-trash-o' title='Delete' href=""javascript:app.deleteItem('#:uid#')""></a>
+    #} else if(!Active) {# <a class='btn-grid btn-save fa fa-undo' title='Undo' href=""javascript:app.revertItem('#:uid#')""></a>
+    #}#").Width(50).ClearTitle().Filterable(false).Sortable(false).HtmlAttributes(new { style = "text-align:center;" }).HeaderHtmlAttributes(new { style = "text-align:center;" });
+            x.Bound(c => c.Type).Width(150);
+            x.Bound(c => c.ServiceIdlsts).Title("Category").Width(200);
+            x.Bound(c => c.SupplierName).Width(220);
+            x.Bound(c => c.SupplierCode).Title("Code").Width(100);
+            x.Bound(c => c.RegNo).Width(100);
+            x.Bound(c => c.GSTIN).Width(150);
+            x.Bound(c => c.Currency).Width(150);
+            x.TelColumn(c => c.PhoneNo).Width(110);
+            x.EmailColumn(c => c.Email).Width(180);
+            x.Bound(c => c.Notes).Width(200);
+            x.Bound(c => c.Country).Width(150);
+            x.Bound(c => c.State).Width(150);
+            x.Bound(c => c.City).Width(150);
+            x.Bound(c => c.ZipCode).Width(150);
+            x.Bound(c => c.Address).Width(200);
+            x.NumberColumn(c => c.DuePeriodDays).Width(120);
+            x.Bound(c => c.VendorGroup).Title("Vendor").Width(160);
+            x.Bound(c => c.BankName).Width(150);
+            x.Bound(c => c.AccountName).Width(150);
+            x.Bound(c => c.AccountNo).Width(150);
+            x.Bound(c => c.Branch).Width(150);
+            x.Bound(c => c.SwiftCode).Width(200);
+            x.Bound(c => c.EntryBy).Width(160);
+            x.DateColumn(c => c.EntryDate).Width(150);
+        })
+        .Scrollable()
+        .Sortable()
+        .Selectable()
+        .EnableEdit(Html)
+        .EnableFilter()
+        .Resizable(x => x.Columns(true))
+        .Pageable(x => x.Refresh(true))
+        .Excel(x => x.AllPages(true))
+        .DataSource(dataSource => dataSource
+        .Ajax().ServerOperation(true).PageSize(50)
+        .Read(read => read.Action("ReadSuppliers", "Procurements").Data("app.grid_Data"))
+        )
+        )
+</div>
+@{
+    var jsonData = Vue.Encode(new Supplier() { Type = "Local" });
+}
+@section Scripts {
+    @await Html.PartialAsync("DocumentsDialog", "")
+    <script type="text/javascript">
+        var app = new Vue({
+            el: '#app',
+            data: {
+                input: @(jsonData),
+                ServiceIds: [],
+                TabIndex: 0,
+            },
+            created: function () {
+                appDoc.init("@DocumentReference.Suppliers.ToString()", this.onSuccess);
+            },
+            methods: {
+                validateForm: function () {
+                    removeError();
+                    var isValid = true;
+                    var setError = function (cntrl, msg) {
+                        isValid = false;
+                        showError(cntrl, msg);
+                    };
+                    var item = this.input;
+                    if (!item.SupplierName)
+                        setError('SupplierName');
+                    if (!item.SupplierCode)
+                        setError('SupplierCode');
+                    if (!item.Type)
+                        setError('Type');
+                    if (!this.ServiceIds.length) {
+                        kendoAlert("Please select the supplier service");
+                        isValid = false;
+                    }
+                    if (!item.Currency)
+                        setError('Currency');
+
+                    //if (item.GSTIN && !item.GST)
+                    //    setError('GST');
+
+                    var data = $("#gridContacts").getKendoGrid().dataSource.data();
+                    if (data.length) {
+                        var primaryContacts = $.grep(data, function (x) {
+                            return x.IsPrimaryContact;
+                        });
+                        if (!primaryContacts.length) {
+                            kendoAlert("Please select Primary Contact", true);
+                            return false;
+                        }
+                        var invalidContactNames = $.grep(data, function (x) {
+                            return x.ContactName;
+                        });
+                        if (!invalidContactNames.length) {
+                            kendoAlert("Contact Name should not be empty", true);
+                            return false;
+                        }
+                        var invalidContactNos = $.grep(data, function (x) {
+                            return x.ContactNo;
+                        });
+                        if (!invalidContactNos.length) {
+                            kendoAlert("Contact No should not be empty", true);
+                            return false;
+                        }
+                    }
+
+                    return isValid;
+                },
+                submitForm: function () {
+                    if (!this.validateForm())
+                        return;
+
+                    this.input.GST = (!this.input.GST) ? 0 : this.input.GST;
+                    this.input.ServiceIds = [];
+
+                    $.postData("@Url.Action("SaveSupplier", "Procurements")", { data: this.input, SupplierCategoryIds: this.ServiceIds.join(";") }, function (res) {
+                        if (res.HasError) {
+                            kendoAlert(res.Message, res.HasError);
+                            return;
+                        }
+
+
+                        app.input.Id = res.Id;
+                        var $grid = $('#gridContacts').getKendoGrid();
+                        if ($grid.dataSource.hasChanges())
+                            $grid.saveChanges();
+
+                        var $grid = $('#gridBankDetails').getKendoGrid();
+                        if ($grid.dataSource.hasChanges())
+                            $grid.saveChanges();
+
+                        if (!appDoc.save(res.Id))
+                            app.onSuccess(res);
+                    });
+                },
+                selectItem: function (uid) {
+                    var dataItem = $('#grid').getKendoGrid().dataSource.getByUid(uid);
+                    this.input = cloneAndDecode(dataItem);
+
+                    this.ServiceIds = dataItem.ServiceIds;
+                },
+                editItem: function editItem(uid) {
+                    $('.toggle-btn.btn-minus').open();
+
+                    $('html,body').animate({
+                        scrollTop: $(".main-content").offset().top
+                    }, 10);
+
+                    this.selectItem(uid);
+                    $('#gridContacts').getKendoGrid().dataSource.read();
+                    $('#gridBankDetails').getKendoGrid().dataSource.read();
+                    if (this.input.Country)
+                        this.$refs.dsState.kendoWidget().read({ Country: this.input.Country });
+                    if (this.input.State)
+                        this.$refs.dsCity.kendoWidget().read({ State: this.input.State });
+                },
+                deleteItem: function (uid) {
+                    if (uid)
+                        this.selectItem(uid);
+                    kendoConfirm("Do you want to delete this Supplier?", function () {
+                        $.postData("@Url.Action("DeleteSupplier", "Procurements")", app.input, app.onSuccess);
+                    });
+                },
+                revertItem: function (uid) {
+                    if (uid)
+                        this.selectItem(uid);
+                    kendoConfirm("Do you want to Undo this Supplier?", function () {
+                        $.postData("@Url.Action("UndoSupplier", "Procurements")", app.input, app.onSuccess);
+                    });
+                },
+                onSuccess: function (res) {
+                    kendoAlert(res.Message, res.HasError);
+                    if (res.HasError)
+                        return;
+                    $('.toggle-btn.btn-minus').close();
+                    $('#grid').getKendoGrid().dataSource.read();
+                },
+                onCountryChange: function (e) {
+                    this.input.State = "";
+                    this.$refs.dsState.kendoWidget().data([]);
+                    if (e.sender.value())
+                        this.$refs.dsState.kendoWidget().read({ Country: e.sender.value() });
+                },
+                onStateChange: function (e) {
+                    this.input.City = "";
+                    this.$refs.dsCity.kendoWidget().data([]);
+                    if (e.sender.value())
+                        this.$refs.dsCity.kendoWidget().read({ State: e.sender.value() });
+                },
+                addContact: function () {
+                    var grid = $('#gridContacts').data('kendoGrid');
+
+                    var hasBlankRow = false;
+                    grid.tbody.find('tr').each(function () {
+                        var dataItem = grid.dataItem(this);
+                        if (!dataItem.ContactName || !dataItem.ContactNo) {
+                            hasBlankRow = true;
+                            $(this).addClass('highlight-empty-row');
+                            return false;
+                        }
+                    });
+
+                    if (!hasBlankRow) {
+                        grid.addRow();
+
+                        var firstRow = grid.tbody.find('tr:first');
+                        var firstRowDataItem = grid.dataItem(firstRow);
+                        var dataSource = $('#gridContacts').getKendoGrid().dataSource.data();
+                        if (dataSource.length == 1)
+                            firstRowDataItem.set('IsPrimaryContact', true);
+                    }
+
+                    // $('#gridContacts').getKendoGrid().addRow();
+                },
+                addBankDetails: function () {
+
+                    var grid = $('#gridBankDetails').data('kendoGrid');
+
+                    var hasBlankRow = false;
+                    grid.tbody.find('tr').each(function () {
+                        var dataItem = grid.dataItem(this);
+                        if (!dataItem.BankName || !dataItem.AccountName || !dataItem.AccountNo || !dataItem.Branch || !dataItem.SwiftCode) {
+                            hasBlankRow = true;
+                            $(this).addClass('highlight-empty-row');
+                            return false;
+                        }
+                    });
+
+                    if (!hasBlankRow) {
+                        grid.addRow();
+
+                            var firstRow = grid.tbody.find('tr:first');
+                            var firstRowDataItem = grid.dataItem(firstRow);
+                                var dataSource = $('#gridBankDetails').getKendoGrid().dataSource.data();
+                            if (dataSource.length == 1)
+                                firstRowDataItem.set('IsPrimary', true);
+                    }
+
+                    // $('#gridBankDetails').getKendoGrid().addRow();
+                },
+                deleteContact: function (uid) {
+                    var dataSource = $('#gridContacts').getKendoGrid().dataSource;
+                    var dataItem = dataSource.getByUid(uid);
+                    if (!dataItem.Id)
+                        dataSource.remove(dataItem);
+                    else {
+                        kendoConfirm("Do you want to delete this Contact?", function () {
+                            $.postData("@Url.Action("DeleteSupplierContact", "Procurements")", { Id: dataItem.Id }, function (res) {
+                                kendoAlert(res.Message, res.HasError);
+                                if (res.HasError)
+                                    return;
+                                $('#gridContacts').getKendoGrid().dataSource.read();
+                            });
+                        });
+                    }
+                },
+                deleteBankDetail: function (uid) {
+                    var dataSource = $('#gridBankDetails').getKendoGrid().dataSource;
+                    var dataItem = dataSource.getByUid(uid);
+                    if (!dataItem.ID)
+                        dataSource.remove(dataItem);
+                    else if(dataItem.IsPrimary){
+                            kendoAlert("Primary bank details should not be deleted",true);
+                            return;
+                    }
+                    else {
+                        kendoConfirm("Do you want to delete this Bank?", function () {
+                            $.postData("@Url.Action("DeleteSupplierBankDetails", "Procurements")", { Id: dataItem.ID }, function (res) {
+                                kendoAlert(res.Message, res.HasError);
+                                if (res.HasError)
+                                    return;
+                                $('#gridBankDetails').getKendoGrid().dataSource.read();
+                            });
+                        });
+                    }
+                },
+                addDoc: function () {
+                    appDoc.open(this.input.Id);
+                },
+                currencyChange: function (e) {
+                    this.input.Currency = e.sender.value();
+                },
+                changeStatus: function (value) {
+                    this.TabIndex = value;
+                    $("#grid").getKendoGrid().dataSource.read();
+                },
+                grid_Data: function () {
+                    return { status: this.TabIndex };
+                }
+            }
+        });
+    </script>
+    <script type="text/javascript">
+        $(function () {
+            $('#grid.grid-edit').on('dblclick', 'tbody tr', function () {
+                app.editItem($(this).attr('data-uid'));
+            });
+        });
+
+        function toggle_Change() {
+            app.input = @(jsonData);
+            $('#gridContacts').getKendoGrid().dataSource.data([]);
+            $('#gridBankDetails').getKendoGrid().dataSource.data([]);
+        }
+
+        function gridContacts_Data() {
+            return { SupplierId: app.input.Id };
+        }
+
+        function gridContacts_RequestEnd(e) {
+            if ((e.type == "create" || e.type == "update") && !e.response.Errors) {
+                if (!appDoc.save(app.input.Id))
+                    app.onSuccess({ Message: "Supplier contact details saved.", HasError: false });
+            }
+        }
+
+        function gridContacts_CellClose(e) {
+            var fieldName = this.columns[e.container.index()].field;
+            var item = e.model;
+            if (fieldName != "IsPrimaryContact" || !item.IsPrimaryContact)
+                return;
+
+            var data = $("#gridContacts").getKendoGrid().dataSource.data();
+            var primaryContacts = $.grep(data, function (x) {
+                return x.IsPrimaryContact && x.uid != item.uid;
+            });
+            $.each(primaryContacts, function () {
+                this.set("IsPrimaryContact", false);
+            });
+            $("#gridContacts").getKendoGrid().refresh();
+        }
+    </script>
+    <script type="text/javascript">
+
+        function gridBankDetails_Data() {
+            return { SupplierId: app.input.Id };
+        }
+
+        function gridBankDetails_SaveChanges(e) {
+            var data = $(e.sender.element).getKendoGrid().dataSource.data();
+            var editedItem = $.grep(data, function (item) {
+                return item.dirty || item.ID === 0;
+            });
+
+            var errors = [];
+            var emptyBankName = 0; var emptyAcccountName = 0; var emptyAccountNo = 0; var emptyBranchName = 0; var emptySwiftCode = 0;
+
+            if (editedItem && editedItem.length > 0) {
+                $.each(editedItem, function (i) {
+
+                    if (editedItem[i].BankId == 0) {
+                        emptyBankName++;
+                        return;
+                    }
+                    else if (editedItem[i].AccountName == "") {
+                        emptyAcccountName++;
+                        return;
+                    }
+                    else if (editedItem[i].AccountNo == "") {
+                        emptyAccountNo++;
+                        return;
+                    }
+                    else if (editedItem[i].Branch == "") {
+                        emptyBranchName++;
+                        return;
+                    }
+                    else if (editedItem[i].SwiftCode == "") {
+                        emptySwiftCode++;
+                        return;
+                    }
+                });
+            }
+
+            if (emptyBankName > 0)
+                errors.push("Please enter BankName");
+            if (emptyAcccountName > 0)
+                errors.push("Please enter AccountName");
+            if (emptyAccountNo > 0)
+                errors.push("Please enter Account No");
+            if (emptyBranchName > 0)
+                errors.push("Please enter Branch Name");
+            if (emptySwiftCode > 0)
+                errors.push("Please enter Swift Code");
+
+            if (errors.length) {
+                e.preventDefault();
+                kendoAlert(errors.join("\n"), true);
+            }
+        }
+        function gridBank_CellClose(e) {
+            // var fieldName = this.columns[e.container.index()].field;
+            // var item = e.model;
+            // if (fieldName != "IsPrimary" || !item.IsPrimary)
+            //     return;
+
+            var fieldName = this.columns[e.container.index()].field;
+            var item = e.model;
+            if (fieldName != "IsPrimary" || !item.IsPrimary)
+                return;
+
+                var data = $("#gridBankDetails").getKendoGrid().dataSource.data();
+            var primaryContacts = $.grep(data, function (x) {
+                return x.IsPrimary && x.uid != item.uid;
+            });
+            $.each(primaryContacts, function () {
+                    this.set("IsPrimary", false);
+            });
+                $("#gridBankDetails").getKendoGrid().refresh();
+      }
+    </script>
+}

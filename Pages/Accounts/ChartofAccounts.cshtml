@@ -1,0 +1,302 @@
+﻿@page
+@inject AppUser appUser
+@using BSOL.Core.Models.Accounts
+@using BSOL.Core.Entities
+@model Account
+@{
+    ViewData["Title"] = "Chart of Accounts";
+    Layout = "~/Pages/Shared/_Layout.cshtml";
+}
+@if (!await Html.HasAccess(Forms.Accounts.ChartOfAccounts))
+{
+    return;
+}
+@section BreadCrumb {
+    @await Html.PartialAsync("Tabs", "Finance/Chart of Accounts")
+}
+
+<div class="g-title">
+    <div class="g-left">
+        @*  @Html.AddButton() *@
+        @if (await Html.HasAccess(Forms.Accounts.ChartOfAccounts, Rights.Add))
+        {
+            <button type="button" style="padding: 4px 10px;border-radius: 0;background: #0F9D58;" onclick="app.addChartOfAccounts()" class="btn btn-primary">
+                <i class="fa fa-plus-circle"></i>Create
+            </button>
+        }
+    </div>
+    <span class="g-text">Chart of Accounts</span>
+    <div class="g-right">
+        @Html.ExcelButton("exportTreeList()")
+    </div>
+</div>
+<script type="text/javascript">
+    $(function () {
+        kendo.ui.FilterMenu.fn.options.operators.string = {
+            contains: "Contains",
+            doesnotcontain: "Does not contain",
+            endswith: "Ends with",
+            eq: "Is equal to",
+            isempty: "Is empty",
+            isnotempty: "Is not empty",
+            isnotnull: "Is not null",
+            isnotnullorempty: "Has value",
+            isnull: "Is null",
+            isnullorempty: "Has no value",
+            neq: "Is not equal to",
+            startswith: "Starts with"
+        };
+    });
+</script>
+@(Html.Kendo().TreeList<ChartOfAccountModel>()
+                .Name("treelist")
+                .Columns(columns =>
+                {
+                    columns.Add().Field(e => e.Id).Hidden(true);
+                    columns.Add().Field(e => e.AccountName);
+                    columns.Add().Field(e => e.Code).Width(100);
+                    columns.Add().Field(e => e.Currency).Width(100);
+                    columns.Add().Field(e => e.OpeningBalance).Format("{0:n2}").HtmlAttributes(new { style = "text-align:right;" }).Width(150);
+                    columns.Add().Field(e => e.BalanceOn).Format("{0:dd-MMM-yyyy}").Width(110);
+                    if (Html.HasAccess(Rights.Edit))
+                        columns.Add().Template("#if(Type=='Account'){#<a class='btn-grid btn-grid-edit fa fa-edit' href='javascript:app.editItem(#:ItemId#)' title='Edit'></a>#}#").HtmlAttributes(new { style = "text-align:center;" }).Width(41).Filterable(false).Sortable(false);
+                    if (Html.HasAccess(Rights.Delete))
+                        columns.Add().Template("#if(Type=='Account'){#<a class='btn-grid btn-grid-delete fa fa-trash-o' title='Delete' href=\"javascript:app.deleteItem('#:uid#')\"></a>#}#").HtmlAttributes(new { style = "text-align:center;" }).Width(45).Filterable(false).Sortable(false);
+                })
+                .Filterable(f => f.Extra(false))
+                .Sortable()
+                .DataSource(dataSource => dataSource
+                .Read(x => x.Action("ReadAccounts", "Accounts"))
+                .ServerOperation(false)
+                .Model(m =>
+                {
+                    m.Id(f => f.Id);
+                    m.ParentId(f => f.ParentId);
+                    m.Expanded(true);
+                    m.Field(f => f.AccountName);
+                    m.Field(f => f.OpeningBalance);
+                    m.Field(f => f.BalanceOn);
+
+                }))
+                .HtmlAttributes(new { @class = "h-grid v-grid" })
+)
+@{
+    var jsonData = Html.Raw(Vue.Encode(new Account() { Currency = appUser.BaseCurrency, ActualCurrency = appUser.BaseCurrency }));
+}
+@* @section Scripts{
+    @(Html.Kendo().Window()
+        .Name("wndAccounts")
+        .Title("Account")
+        .Content(@<text> *@
+<form id="app" v-on:submit.prevent="submitForm">
+    <div id="Account" class="modal fade right" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered modal-sm">
+            <div class="modal-content" style="border-radius:0px;">
+                <div class="header-modal">
+                    <h5 class="modal-title title-modal">ACCOUNT</h5>
+                    <button type="button" onclick="hideModal('Account')" class="btn-close close-btn close-modal-btn" data-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="form-group">
+                            @Html.LabelFor(x => x.AccountTypeId, "Account Type")
+                            <kendo-datasource ref="dsAccountTypes" :transport-read-url="'@Url.Action("ReadAccountTypes", "Common")'" :transport-read-type="'POST'"></kendo-datasource>
+                            <kendo-combobox ref="ddAccountType" v-model="input.AccountTypeId" :data-source-ref="'dsAccountTypes'" :data-text-field="'Text'" :data-value-field="'Id'" :filter="'contains'" style="width:100%" @@change="accountTypeChange"></kendo-combobox>
+                        </div>
+                        <div class="form-group">
+                            @Html.LabelFor(x => x.AccountDetailTypeId, "Detail Type")
+                            <kendo-hierarchicaldatasource ref="dsAccountDetailTypes"
+                                                          :transport-read-url="'@Url.Action("ReadAccountDetailTypes", "Common")'"
+                                                          :transport-read-data="onAccountDetailTypeRead"
+                                                          :transport-read-type="'Post'"
+                                                          schema-model-id="Id"
+                                                          schema-model-children="Items"
+                                                          schema-model-has-children="HasItems"
+                                                          :placeholder="'Select ...'"
+                                                          style="width: 100%;">
+                            </kendo-hierarchicaldatasource>
+                            <kendo-dropdowntree ref="ddDetailType"
+                                                data-source-ref="dsAccountDetailTypes"
+                                                data-text-field="Text"
+                                                data-value-field="Id"
+                                                :auto-bind="false"
+                                                :placeholder="'Select ...'"
+                                                style="width: 100%;"
+                                                :filter="'contains'"
+                                                @@change="onDetailTypeChange"
+                                                @@databound="onDetailTypeDataBound"
+                                                :value="input.AccountDetailTypeId"
+                                                :disabled="!input.AccountTypeId">
+                            </kendo-dropdowntree>
+
+                        </div>
+
+                        @*<kendo-datasource ref="dsAccountSubTypes" :transport-read-url="'@Url.Action("ReadSubTypes", "Common")'" :transport-read-type="'POST'"></kendo-datasource>*@
+                        @*<kendo-combobox ref="ddAccountSubType" v-model="input.AccountDetailTypeId" :data-source-ref="'dsAccountSubTypes'" :auto-bind="false" :data-text-field="'Text'" :data-value-field="'Id'" :filter="'contains'" style="width:100%" @@change="accountSubTypeChange"></kendo-combobox>*@
+                        @*<kendo-datasource ref="dsAccountDetailTypes" :transport-read-url="'@Url.Action("ReadAccountDetailTypes", "Common")'" :transport-read-type="'POST'"></kendo-datasource>
+                        <kendo-dropdowntree ref="ddAccountDetailType" v-model="input.AccountDetailTypeId" :data-source-ref="'dsAccountDetailTypes'" :placeholder="'Select ...'" style="width: 300px;"></kendo-dropdowntree>
+
+                        @*<div class="form-group col-md-6">
+                        @Html.LabelFor(x => x.DetailType, "Detail Type")
+                        <kendo-datasource ref="dsAccountDetailTypes" :transport-read-url="'@Url.Action("ReadAccountDetailTypes", "Common")'" :transport-read-type="'POST'"></kendo-datasource>
+                        <kendo-combobox ref="ddAccountDetailType" v-model="input.AccountDetailTypeId" :data-source-ref="'dsAccountDetailTypes'" :auto-bind="false" :data-text-field="'Text'" :data-value-field="'Id'" :filter="'contains'" style="width:100%"></kendo-combobox>
+                        </div>*@
+
+                        <div class="form-group">
+                            @Html.LabelFor(x => x.AccountName, "Account Name")
+                            <input type="text" v-model.trim="input.AccountName" class="k-textbox" />
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="form-group col-md-12">
+                            @Html.LabelFor(x => x.Code, "Code")
+                            <kendo-numerictextbox v-model="input.Code" :spinners="false" :format="'#'" style="text-align:left;width:100%"></kendo-numerictextbox>
+                            @*<input type="text" v-model.trim="input.Code" class="k-textbox" />*@
+                        </div>
+                        <div class="form-group col-md-6">
+                            @Html.LabelFor(x => x.Currency)
+                            <kendo-datasource ref="dsCurrency" :transport-read-url="'@Url.Action("ReadCurrencies", "Common")'" :transport-read-type="'POST'"></kendo-datasource>
+                            <kendo-dropdownlist v-model="input.Currency" :data-source-ref="'dsCurrency'" :data-text-field="'Currency'" :data-value-field="'Currency'" style="width:100%"></kendo-dropdownlist>
+                        </div>
+                        <div class="form-group col-md-6" v-show="input.DetailType == 'Cash In Bank'">
+                            @Html.LabelFor(x => x.ActualCurrency, "Actual Currency")
+                            <kendo-datasource ref="dtCurrency" :transport-read-url="'@Url.Action("ReadCurrencies", "Common")'" :transport-read-type="'POST'"></kendo-datasource>
+                            <kendo-dropdownlist v-model="input.ActualCurrency" :data-source-ref="'dtCurrency'" :data-text-field="'Currency'" :data-value-field="'Currency'" style="width:100%"></kendo-dropdownlist>
+                        </div>
+                        <div class="form-group col-md-6">
+                            @Html.LabelFor(x => x.OpeningBalance, "Balance")
+                            <kendo-numerictextbox :value="input.OpeningBalance" :spinners="false" :format="'n2'" :decimals="2" @@change="function(e){setModel(e,input,'OpeningBalance')}" style="text-align:right;width:100%"></kendo-numerictextbox>
+                        </div>
+                        <div class="form-group col-md-12">
+                            @Html.LabelFor(x => x.BalanceOn, "as of")
+                            <kendo-datepicker :value="input.BalanceOn" :format="'dd-MMM-yyyy'" @@change="function(e){setModel(e,input,'BalanceOn')}" style="width:100%;"></kendo-datepicker>
+                        </div>
+                    </div>
+                    @*   <div style="text-align:right;">
+                    @Html.SaveButton()
+                    </div> *@
+
+                </div>
+                <div class="modal-footer">
+                    @if (await Html.HasAccess(Forms.Accounts.ChartOfAccounts, Rights.Modify))
+                    {
+                        <button type="submit" title="Save" class="btn btn-save btn-cntrls"><i class="fa fa-check-circle"></i>Save</button>
+                    }
+                    <button type="button" class="btn btn-danger" onclick="hideModal('Account')" data-dismiss="modal"><i class="fa fa-times"></i>Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</form>
+@*         </text>)
+.Draggable()
+.Resizable()
+.Width(400)
+.Visible(false)
+    ) *@
+<script type="text/javascript">
+    var app = new Vue({
+        el: '#app',
+        data: {
+            input: @(jsonData),
+            DetailTypeList: []
+        },
+        methods: {
+            validateForm: function () {
+                removeError();
+                var isValid = true;
+                var setError = function (cntrl, msg) {
+                    isValid = false;
+                    showError(cntrl, msg);
+                };
+
+                if (this.$refs.ddAccountType && this.$refs.ddAccountType.kendoWidget().selectedIndex == -1)
+                    setError('AccountTypeId');
+                if (this.$refs.ddDetailType && !this.$refs.ddDetailType.kendoWidget().value())
+                    setError('AccountDetailTypeId');
+                if (!this.input.AccountName)
+                    setError('AccountName');
+                if (!this.input.Code)
+                    setError('Code');
+                if (this.input.OpeningBalance != 0 && !this.input.BalanceOn)
+                    setError('BalanceOn');
+
+                return isValid;
+            },
+            submitForm: function () {
+                if (!this.validateForm())
+                    return;
+                this.input.OpeningBalance = (this.input.OpeningBalance == null || this.input.OpeningBalance == "") ? 0.00 : this.input.OpeningBalance;
+                this.input.BalanceOn = (this.input.OpeningBalance == 0 ? null : this.input.BalanceOn);
+
+                $.postData('@Url.Action("SaveAccount", "Accounts")', this.input, this.onSuccess);
+            },
+            addItem: function () {
+                removeError();
+                this.input = @(jsonData);
+                this.$refs.ddDetailType.kendoWidget().value("");
+                $('#wndAccounts').getKendoWindow().open().center();
+            },
+            editItem: function (id) {
+                showModal('Account');
+                this.addItem();
+                $.postData('@Url.Action("GetAccount", "Accounts")', { Id: id }, function (res) {
+                    app.input = res;
+                    app.$refs.dsAccountDetailTypes.kendoWidget().read();
+                });
+            },
+            deleteItem: function (uid) {
+                var dataItem = $('#treelist').data("kendoTreeList").dataSource.getByUid(uid);
+                kendoConfirm("Do you want to delete this Account?", function () {
+                    $.post('@Url.Action("DeleteAccount", "Accounts")', { Id: dataItem.ItemId, AccountName: dataItem.AccountName }, app.onSuccess);
+                });
+            },
+            onSuccess: function (res) {
+                kendoAlert(res.Message, res.HasError);
+                if (res.HasError)
+                    return;
+                hideModal('Account');
+                $("#treelist").data("kendoTreeList").dataSource.read();
+                $('#wndAccounts').getKendoWindow().close();
+            },
+            addChartOfAccounts: function () {
+                showModal('Account');
+                this.input = @(jsonData);
+            },
+            accountTypeChange: function (e) {
+                this.input.AccountDetailTypeId = null;
+                this.$refs.ddDetailType.kendoWidget().value("");
+                if (!e.sender.value() || this.$refs.ddAccountType.kendoWidget().selectedIndex == -1)
+                    return;
+
+                this.input.AccountTypeId = e.sender.value();
+                this.$refs.dsAccountDetailTypes.kendoWidget().read();
+            },
+            onAccountDetailTypeRead: function () {
+                return { AccountTypeId: this.input.AccountTypeId };
+            },
+            onDetailTypeDataBound: function (e) {
+                this.$refs.ddDetailType.kendoWidget().treeview.expand(".k-item")
+                if (this.input.AccountDetailTypeId)
+                    e.sender.value(this.input.AccountDetailTypeId);
+            },
+            onDetailTypeChange: function (e) {
+                if (!e.sender.value()) {
+                    this.input.AccountDetailTypeId = null;
+                    return;
+                }
+
+                this.input.AccountDetailTypeId = e.sender.value();
+                this.input.DetailType = e.sender.text();
+
+            }
+        }
+    });
+</script>
+
+<script type="text/javascript">
+    function exportTreeList() {
+        $('#treelist').getKendoTreeList().saveAsExcel();
+    }
+</script>
+}

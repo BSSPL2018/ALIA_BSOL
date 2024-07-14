@@ -1,0 +1,108 @@
+﻿@page
+@using BSOL.Core.Entities
+@{
+    ViewData["Title"] = "Item Category Setting";
+    Layout = "~/Pages/Shared/_Layout.cshtml";
+}
+
+@section BreadCrumb {
+    @await Html.PartialAsync("Tabs", "Material Management/Control Panel")
+}
+
+@(Html.Kendo().Grid<ItemCategorySetting>().Name("grid")
+            .Columns(c =>
+            {
+                c.DeleteColumn(x => x.ID, "deleteItem('#:uid#')");
+                c.Bound(x => x.ItemCategoryId).ClientTemplate("#: ItemCategory ? ItemCategory : '' #").EditorTemplateName("ComboBoxEditor").EditorViewData(new { Data = new EditorData(Url.Action("ReadItemCategory", "ControlPanel"), "ItemCategory", "Text") }).Title("Item Category").Width(150);
+                c.Bound(p => p.OrderCategory).Width(150);
+                c.CheckedColumn(x => x.ABCRanking).Title("ABC Ranking").Width(150);
+                c.CheckedColumn(p => p.AnnualScheduledOrder).Title("Annual Scheduled Order").Width(190);
+                c.Bound(p => p.OrderFrequency).Width(150).EditorTemplateName("DropDownEditor").EditorViewData(new { Data = new[] { "Monthly", "Yearly" } });
+                c.NumberColumn(p => p.StockHoldingMonths).Title("Stock Holding Months").Width(190);
+                c.NumberColumn(p => p.InitialOrderQty).Width(120);
+                c.MoneyColumn(p => p.GST).Width(120);
+                c.CheckedColumn(x => x.Colour).Title("Colour").Width(80);
+                c.NumberColumn(p => p.SHRankA).Width(120);
+                c.NumberColumn(p => p.SHRankB).Width(120);
+                c.NumberColumn(p => p.SHRankC).Width(120);
+                c.NumberColumn(p => p.SHRankD).Width(120);
+                c.NumberColumn(p => p.OrderMinimum).Title("Order Minimum Qty").Width(150);
+            })
+            .DataSource(d => d.Ajax()
+            .Batch(true)
+            .ServerOperation(false)
+            .Create("UpdateItemCategory", "ControlPanel")
+            .Read("ReadItemCategorySettings", "ControlPanel")
+            .Model(model =>
+            {
+                model.Id(p => p.ID);
+                model.Field("ID", typeof(long)).Editable(false);
+            })
+            .Update("UpdateItemCategory", "ControlPanel")
+            .Events(e => e.Error("grid_ErrorHandler").RequestEnd("grid_RequestEnd"))
+            )
+            .Editable(Html, "Item Category Setting")
+            .Events(x => x.SaveChanges("grid_SaveChanges"))
+            .HtmlAttributes(new { @class = "h-grid v-grid" })
+            .Sortable()
+            .Scrollable()
+            .Navigatable()
+            .Resizable(x=> x.Columns(true))
+            )
+
+<script type="text/javascript">
+    function deleteItem(uid) {
+        var dataItem = $('#grid').getKendoGrid().dataSource.getByUid(uid);
+        if (dataItem.ID == 0) {
+            $('#grid').getKendoGrid().dataSource.cancelChanges(dataItem);
+            return;
+        }
+        kendoConfirm("Do you want to Delete this Item Category?", function () {
+            $.post("@Url.Action("DeleteItemCategory", "ControlPanel")", { ID: dataItem.ID, RefNo: dataItem.ItemCategory },
+                function (data) {
+                    kendoAlert(data.Message, data.HasError);
+                    if (!data.HasError)
+                        $('#grid').getKendoGrid().dataSource.read();
+                });
+        });
+    }
+
+    function grid_SaveChanges(e) {
+        var data = $(e.sender.element).getKendoGrid().dataSource.data();
+        var dirty = $.grep(data, function (item) {
+            return item.dirty || item.ID === 0;
+        });
+
+        var ItemCategoryIdEmpty = $.grep(dirty, function (item) {
+            return !item.ItemCategoryId || item.ItemCategoryId == 0;
+        });
+
+        var OrderCategoryEmpty = $.grep(dirty, function (item) {
+            return !item.OrderCategory;
+        });
+
+        var OrderFrequencyEmpty = $.grep(dirty, function (item) {
+            return !item.OrderFrequency;
+        });
+
+        var errors = [];
+
+        if (ItemCategoryIdEmpty && ItemCategoryIdEmpty.length)
+            errors.push("Item Category Should not be empty");
+
+        if (OrderCategoryEmpty && OrderCategoryEmpty.length)
+            errors.push("Order Category Should not be empty");
+
+        if (OrderFrequencyEmpty && OrderFrequencyEmpty.length)
+            errors.push("Order Frequency Should not be empty");
+
+        if (errors.length) {
+            e.preventDefault();
+            kendoAlert(errors.join("\n"), true);
+        }
+    }
+    function grid_RequestEnd(e) {
+        if ((e.type == "create" || e.type == "update") && !e.response.Errors)
+            kendoAlert("Saved Successfully.");
+    }
+</script>

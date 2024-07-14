@@ -1,0 +1,102 @@
+﻿@inject AppUser _appUser
+@{
+    BSOL.Helpers.Menu menu = new BSOL.Helpers.Menu();
+    var menus = menu.GetBreadCrumb(Html, Context.Request.Cookies["MAIN_MENU"]);
+}
+<div class="sidebar open preload">
+    <div class="logo-details">
+        <span class="sidebar-logo-holder">
+            <img src="~/images/Logo.png" height="38">
+            <span class="logo_name">BSOL ERP Suite</span>
+        </span>
+
+        <span class="material-symbols-outlined apps-btn">apps</span>
+
+        <div class="apps-dropdown">
+            <div class="apps-dropdown-search-wrapper">
+                <input type="text" class="menu-search" placeholder="Search for menu" ">
+            </div>
+            <div class=" apps-dropdown-nav">
+                @foreach (var mainMenu in menus)
+                {
+                    <a href="@Url.Page(mainMenu.Url)" class="nav-item">
+                        <span class="material-symbols-outlined nav-icon" style="color:@mainMenu.Color;">@mainMenu.ClassName</span>
+                        <span class="display-name">@mainMenu.MenuName</span>
+                    </a>
+                }
+            </div>
+
+            <div class="apps-dropdown-searchul-wrapper">
+                <ul>
+
+                @foreach (var mainMenu in menus)
+                {
+
+                        <li>
+                            <h4>
+                                <span class="material-symbols-outlined" style="color: @mainMenu.Color;">@mainMenu.ClassName</span>
+                            @mainMenu.MenuName
+                            </h4>
+
+                        @if (mainMenu.MenuItems.Any())
+                        {
+                                <ul class="searchable-ul">
+                                @foreach (var item in mainMenu.MenuItems)
+                                {
+                                        <li><a href="@Url.Page(item.Url)">@item.MenuName</a></li>
+                                }
+                                </ul>
+                        }
+
+
+
+                        </li>
+                }
+
+
+
+
+                </ul>
+            </div>
+
+        </div>
+    </div>
+
+    <ul class="nav-list">
+                @foreach (var mainMenu in menus)
+                {
+                    //if (mainMenu.MenuName == "Administration" && (!_appUser.IsPowerUser || !_appUser.IsAdmin))
+                    //{
+                    //    return;
+                    //}
+
+                    if (mainMenu.Url.IsValid() || mainMenu.MenuItems.Any())
+                    {
+
+                <li>
+                    <a href="@(mainMenu.Url.IsValid() ? Url.Page(mainMenu.Url) : "javascript:void(0);")">
+                        <span class="nav-name-left">
+
+                            <span class="material-symbols-outlined side-nav-icon" style="color:@mainMenu.Color;">@mainMenu.ClassName</span>
+
+                            <span class="links_name">@mainMenu.MenuName</span>
+                        </span>
+                                @*<span class="material-symbols-outlined add-new">add_circle</span>*@
+                    </a>
+                    <div class="tooltip-holder">
+                        <span class="tooltip">@mainMenu.MenuName</span>
+                    </div>
+
+                </li>
+                    }
+                }
+
+
+
+
+    </ul>
+
+</div>
+<script type="text/javascript">
+    HAS_SUB_MENU = @(Vue.Encode(menus.Any()));
+</script>

@@ -1,0 +1,158 @@
+﻿@using BSOL.Helpers
+@using BSOL.Web.Helpers
+@using BSOL.Core.Entities
+@using Kendo.Mvc.UI
+@model CallLog
+
+@Html.Kendo().Window().Name("wndCallLog").Content(@<text>
+        <form id="appCL" v-on:submit.prevent="submitForm">
+            <div class="g-title">
+                <div class="g-left">
+                    @Html.ToggleButton(Orientation.Vertical,"#editorCL","toggle_Change_CL")
+                </div>
+                <span class="g-text">Call Log</span>
+                <div class="g-right">
+                    @Html.SaveButton()
+                </div>
+            </div>
+            <div id="editorCL" class="components" style="display: none">
+                <div class="row">
+                    <div class="form-group col-md-2">
+                        @Html.LabelFor(x=>x.CallType,"Call Type :")
+                        <kendo-dropdownlist v-model="input.CallType" style="width:100%" :data-source="['INCOMING','OUTGOING']"></kendo-dropdownlist>
+                    </div>
+                    <div class="form-group col-md-2">
+                        @Html.LabelFor(x=>x.CallDate,"Call Date :")
+                        <kendo-datetimepicker :value="input.CallDate" style="width:100%" :max="maxDate" :format="'dd-MMM-yyyy hh:mm'" @@change="function(e){setModel(e,input,'CallDate')}"></kendo-datetimepicker>
+                    </div>
+                    <div class="form-group col-md-2">
+                        @Html.LabelFor(x=>x.Subject,"Subject :")
+                        <kendo-datasource ref="dsSubject" :transport-read-url="'@Url.Action("ReadSubject", "Sales")'" :transport-read-type="'POST'"></kendo-datasource>
+                        <kendo-combobox ref="ddSubject" v-model="input.Subject" :data-source-ref="'dsSubject'" :filter="'contains'" style="width:100%"></kendo-combobox>
+                    </div>
+                    <div class="form-group col-md-5">
+                        @Html.LabelFor(x=>x.Details,"Details :")
+                        <textarea class="k-textbox" v-model="input.Details" rows="2"></textarea>
+                    </div>
+                </div>
+            </div>
+        </form>
+        @(
+    Html.Kendo().Grid<CallLog>()
+    .Name("gridCL")
+    .Columns(c =>
+    {
+    c.EditButtonColumn("appCL.editItem('#:uid#')");
+    c.DeleteColumn(p => p.ID, "appCL.deleteItem('#:uid#')");
+    c.Bound(p=> p.CallType).Width(100);
+    c.DateColumn(p=> p.CallDate).Width(130);
+    c.Bound(p=> p.Subject).Width(150);
+    c.Bound(p=> p.Details).Width(250);
+    c.Bound(p=> p.EntryBy).Width(100);
+    c.DateColumn(p=> p.EntryDate).Width(100);
+    })
+    .HtmlAttributes(new { @class = "h-grid v-grid" })
+    .Scrollable()
+    .Sortable()
+    .Selectable()
+    .EnableFilter()
+    .AutoBind(false)
+    .Resizable(x => x.Columns(true))
+    .Pageable(x => x.Refresh(true))
+    .Excel(x => x.AllPages(true))
+    .DataSource(dataSource => dataSource
+    .Ajax().ServerOperation(true).PageSize(50)
+    .Read(read => read.Action("ReadCallLogs", "Sales").Data("appCL.grid_Data"))
+    .Sort(s => s.Add(x => x.ID).Descending())
+    )
+        )
+    </text>
+).Visible(false).Title("Add Call Log").Draggable().MaxWidth(1200)
+
+
+<script type="text/javascript">
+    var appCL = new Vue({
+        el: "#appCL",
+        data: {
+            input: @Vue.Encode(new CallLog(){CallType="INCOMING",CallDate=DateTime.Now}),
+            ReferenceId: 0,
+            QuotationNo: "",
+            maxDate: new Date(),
+        },
+        methods: {
+            open: function (ID, QuotationNo) {
+                this.ReferenceId = ID;
+                this.QuotationNo = QuotationNo;
+
+                $('#wndCallLog').getKendoWindow().open().center();
+                $('#gridCL').getKendoGrid().dataSource.read();
+            },
+            validateForm: function () {
+                var isValid = true;
+                removeError();
+                var setError = function (cntrl, msg) {
+                    isValid = false;
+                    showError(cntrl, msg, null, false);
+                };
+
+                var item = this.input;
+
+                if (!item.CallType)
+                    setError('CallType', '');
+                if (!item.CallDate)
+                    setError('CallDate', '');
+                if (!item.Subject)
+                    setError('Subject', '');
+                if (!item.Details)
+                    setError('Details', '');
+
+                return isValid;
+            },
+            submitForm: function () {
+                if (!this.validateForm())
+                    return;
+
+                this.input.CallDate = StdDate(this.input.CallDate);
+                this.input.ReferenceId = this.ReferenceId;
+                $.postData("@Url.Action("UpdateCallLog","Sales")", this.input, appCL.onSuccess);
+            },
+            grid_Data: function () {
+                return { RequestID: appCL.ReferenceId };
+            },
+            onSuccess: function (res) {
+                kendoAlert(res.Message, res.HasError);
+                if (res.HasError)
+                    return;
+                $('#appCL .toggle-btn.btn-minus').close();
+                $('#gridCL').getKendoGrid().dataSource.read();
+                this.$refs.dsSubject.kendoWidget().read();
+            },
+            selectItem: function (uid) {
+                var dataItem = $('#gridCL').getKendoGrid().dataSource.getByUid(uid);
+                this.input = cloneAndDecode(dataItem);
+            },
+            editItem: function editItem(uid) {
+                $('#appCL .toggle-btn.btn-minus').open();
+                this.selectItem(uid);
+            },
+            deleteItem: function (uid) {
+                var dataItem = $('#gridCL').getKendoGrid().dataSource.getByUid(uid);
+
+                kendoConfirm("Do you want to delete call log Details?", function () {
+                    $.postData("@Url.Action("DeleteCallLog", "Sales")", { ID: dataItem.ID, QuoataionNo: appCL.QuotationNo, Subject: dataItem.Subject, Details: dataItem.Details }, appCL.onSuccess);
+                });
+            }
+        }
+    });
+</script>
+<script type="text/javascript">
+    function toggle_Change_CL() {
+        appCL.input = @Vue.Encode(new CallLog(){CallType="INCOMING",CallDate=DateTime.Now});
+    }
+    $(function () {
+        $('#gridCL').on('dblclick', 'tbody tr', function () {
+            appCL.editItem($(this).attr('data-uid'));
+        });
+    });
+</script>
+

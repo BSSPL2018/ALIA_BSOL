@@ -1,0 +1,76 @@
+﻿@using BSOL.Core.Models.Procurement;
+
+@(Html.Kendo().Window()
+.Name("wndItems")
+.Title("Items")
+.Content(@<text>
+    <div id="appItem">
+        @(Html.Kendo().Grid<QuotationItemModel>()
+                .Name("gridItems")
+                .AutoBind(false)
+                .Columns(x =>
+                {
+                    x.Bound(x => x.ItemId).ClientTemplate("<i class='btn-grid btn-grid-plus fa fa-plus' title='Select Item'></i>").HtmlAttributes(new { onclick = "appItem.addItem(this)" }).Width(40).Filterable(false).Sortable(false).ClearTitle();
+                    x.Bound(c => c.SKUFormatted).Title("SKU").Width(140);
+                    x.Bound(c => c.UPC).Title("UPC").Width(140);
+                    x.Bound(c => c.ItemCode).Title("Item Name").Width(140);
+                    x.Bound(c => c.CustomerCode).Width(140);
+                    x.Bound(c => c.Description);
+                    x.MoneyColumn(c => c.Rate).Width(100);
+                    x.NumberColumn(c => c.ShopStock).Title("Stock").Width(80);
+                    x.NumberColumn(c => c.MasterStock).Width(120);
+                    x.Bound(c => c.Category).Width(160);
+                    x.Bound(c => c.ItemType).Width(160);
+                })
+                .Sortable()
+                .Scrollable()
+                .Pageable(x => x.Refresh(true))
+                .Resizable(x => x.Columns(true))
+                .EnableFilter()
+                .HtmlAttributes(new { @class = "h-grid v-grid" })
+                .Events(x => x.DataBound("appItem.gridItemsDataBound"))
+                .DataSource(d => d
+                .Ajax().ServerOperation(true).PageSize(50)
+                .Read(read => read.Action("ReadQuotationItems", "Quotation").Data("appItem.gridData"))))
+        </div>
+    </text>)
+.Draggable()
+.Resizable()
+.Visible(false)
+.MaxWidth(1000)
+)
+
+<script type="text/javascript">
+
+    var appItem = new Vue({
+        el: '#appItem',
+        data: {
+            addItemCallBack: null
+        },
+        methods: {
+            addItem: function (sender, uid) {
+                var $grid = $('#gridItems').getKendoGrid();
+                var item = sender ? $grid.dataItem($(sender).parent()) : $grid.dataSource.getByUid(uid);
+                if (this.addItemCallBack)
+                    this.addItemCallBack(item);
+            },
+            open: function () {
+                if (!$('#gridItems').getKendoGrid().dataSource.data().length)
+                    $('#gridItems').getKendoGrid().dataSource.read();
+                $('#wndItems').getKendoWindow().open().center();
+            },
+            gridItemsDataBound: function () {
+                $('#wndItems').getKendoWindow().center();
+            },
+            gridData: function () {
+                return { StatusFilter: this.StatusFilter, customerId: app.input.CustomerId };
+            }
+        }
+    });
+
+    $(function () {
+        $('#gridItems').on('dblclick', 'tbody tr', function () {
+            appItem.addItem(null, $(this).attr('data-uid'));
+        });
+    });
+</script>

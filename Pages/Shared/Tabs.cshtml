@@ -1,0 +1,20 @@
+﻿@model string
+@{
+    BSOL.Helpers.Menu menu = new BSOL.Helpers.Menu();
+    string[] arr = Model.Split('/');
+}
+
+<ul class="tab" id="userRightsTab">
+    @foreach (var item in menu.GetTabs(Html, arr.FirstOrDefault(), arr.LastOrDefault()))
+    {
+        <li>
+            <a href="@Url.Page(item.Url)">@item.MenuName</a>
+        </li>
+    }
+</ul>
+<script type="text/javascript">
+    $(function () {
+        $('.tab a[href="/@(string.Join("/", Context.Request.Path.ToString().Split('/').Where(x => x.IsValid()).Take(2)))"]').parent().addClass('selected');
+        $('.c-breadcrumbs a[href="' + $('.tab a:first').attr('href') + '"]').addClass('active');
+    });
+</script>

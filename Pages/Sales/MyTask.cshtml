@@ -1,0 +1,145 @@
+﻿@page
+@{
+    ViewData["Title"] = "My Task";
+    Layout = "~/Pages/Shared/_Layout.cshtml";
+}
+
+<style type="text/css">
+    .lst-vw {
+    }
+
+    .lst-vw-item {
+        padding: 5px;
+        margin-bottom: 10px;
+        background-color: #f7f7f7;
+    }
+
+    .lst-vw-icon {
+        font-size: 18px;
+        margin-right: 5px;
+    }
+
+    .cl-drn {
+        color: #bd1b1b;
+    }
+
+    .cl-date {
+        color: #00325e;
+    }
+</style>
+<div id="app">
+    <ul class="lst-vw">
+        <li class="lst-vw-item" v-for="x in DeliveryItems" @@click="updateDelivery(x.ID)">
+            <div class="row align-items-end">
+                <div class="col-6 col-md-4">
+                    <span class="cl-drn"># {{x.RefNoFormatted}}</span>
+                </div>
+                <div class="col-6 col-md-4">
+                    {{x.QuotationNo}}
+                </div>
+                <div class="col-12 col-md-4">
+                    {{x.CustomerName}}
+                </div>
+                <div class="col-4 col-md-4">
+                    {{x.VesselName}}
+                </div>
+                <div class="col-4 col-md-4">
+                    @*<span class="material-symbols-outlined lst-vw-icon">call</span>*@
+                    <span class="fa fa-phone"></span>
+                    {{x.VesselContact}}
+                </div>
+                <div class="col-4 col-md-4 cl-date">
+                    @*<span class="material-symbols-outlined lst-vw-icon">date_range</span>*@
+                    <span class="fa fa-calendar"></span>
+                    {{x.RequiredDeliveryOn}}
+                </div>
+                <div class="col-12">
+                    <span class="fa fa-map-marker"></span>
+                    {{x.ActualDeliveryTo}}
+                </div>
+            </div>
+        </li>
+    </ul>
+</div>
+@Html.Kendo().Window().Name("wndDeliveryUpdate").Content(@<text>
+        <form id="appDelivery" v-on:submit.prevent="submitForm">
+            <div class="form-group">
+                @Html.Label("Delivery Date")
+                <kendo-datetimepicker :value="params.DeliveryDate" :format="'dd-MMM-yyyy hh:mm'" :max="maxDate" @@change="function(e){setModel(e,params,'DeliveryDate')}" style="width:100%"></kendo-datetimepicker>
+            </div>
+            <div class="form-group" style="text-align:right;padding-top:5px;">
+                <button type="submit" class="btn btn-approve">Update</button>
+                <button type="button" class="btn btn-cancel" @@click="closeDeliveryUpdateWindow">Cancel</button>
+            </div>
+        </form>
+    </text>).Visible(false).Title("").Width(300).Draggable(true)
+@section Scripts{
+    <script type="text/javascript">
+        var app = new Vue({
+            el: '#app',
+            data: {
+                DeliveryItems: [],
+            },
+            created: function () {
+                $.postData("@Url.Action("GetPendingDelivery", "Sales")", null, function (res) {
+                    app.DeliveryItems = res;
+                });
+            },
+            methods: {
+                getPendingDelivery: function () {
+                    $.postData("@Url.Action("GetPendingDelivery", "Sales")", null, function (res) {
+                        app.DeliveryItems = res;
+                    });
+                },
+                updateDelivery: function (ID) {
+                    appDelivery.open(ID)
+                }
+            }
+        });
+    </script>
+    <script type="text/javascript">
+        var appDelivery = new Vue({
+            el: '#appDelivery',
+            data: {
+                params: {
+                    DeliveryDate: new Date(),
+                },
+                ID: 0,
+                maxDate: new Date(),
+            },
+            methods: {
+                open: function (ID) {
+                    $('#wndDeliveryUpdate').getKendoWindow().open().center();
+                    this.ID = ID;
+                },
+                submitForm: function () {
+                    if (!appDelivery.params.DeliveryDate) {
+                        kendoAlert("Please select the delivery date.");
+                        return;
+                    }
+                    var deliverylst = $.grep(app.DeliveryItems, function (item) {
+                        return item.ID == appDelivery.ID;
+                    });
+
+                    $.postData("@Url.Action("UpdateDeliveryStatus", "Sales")", { DeliveryDate: StdDate(appDelivery.params.DeliveryDate), DRN: deliverylst[0].RefNoFormatted, ID: deliverylst[0].ID }, appDelivery.onSuccess);
+
+                },
+                onSuccess: function (res) {
+                    if (res.HasError) {
+                        kendoAlert(res.Message, res.HasError);
+                        return;
+                    }
+
+                    kendoAlert(res.Message, res.HasError);
+                    this.closeDeliveryUpdateWindow();
+                    app.getPendingDelivery();
+                    lapp.resetCount()
+                },
+                closeDeliveryUpdateWindow: function () {
+                    $('#wndDeliveryUpdate').getKendoWindow().close();
+                }
+            }
+        });
+    </script>
+}
+

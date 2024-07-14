@@ -1,0 +1,304 @@
+﻿@using BSOL.Helpers
+@using BSOL.Web.Helpers
+@using BSOL.Core.Models.HirePurchase
+@using Kendo.Mvc.UI
+@model ChequeList
+
+@Html.Kendo().Window().Name("wndAddCheque").Content(@<text>
+        <form id="appCheque" v-on:submit.prevent="submitForm">
+            <div class="g-title">
+                <div class="g-right">
+                    <table>
+                        <tr>
+                            <td>
+                                @Html.AddButton("javascript:appCheque.addCheque()")
+                            </td>
+                            <td>
+                            </td>
+                            <td>
+                                @Html.LabelFor(x => x.CustomerID, "Customer Name")
+                            </td>
+                            <td>
+                                <kendo-datasource ref="dsCustomerID" :transport-read-url="'@Url.Action("ReadSearchCustomer", "Common")'" :server-filtering="true" :transport-read-data="onData" :transport-read-type="'POST'"></kendo-datasource>
+                                <kendo-autocomplete id="ddCustomerID" ref="ddCustomerID" v-model="CustName" :data-source-ref="'dsCustomerID'" :data-text-field="'Text'" :data-value-field="'Id'" :min-length="5" @@change="onCustomerChange" placeholder="Enter Customer Name" :filter="'contains'" style="width:400px"></kendo-autocomplete>
+                            </td>
+                            <td @@click="pickCustomer" class="pos-btn" style="width: 32px;">
+                                <i class="fa fa-address-book-o" aria-hidden="true" title="Pick Customer"></i>
+                            </td>
+                            <td>
+                                @Html.LabelFor(x => x.AgreementID, "Agreement No")
+                            </td>
+                            <td>
+                                <kendo-datasource ref="dsAgreementID" :transport-read-url="'@Url.Action("ReadAgreementNo", "HirePurchase")'" :transport-read-type="'POST'"></kendo-datasource>
+                                <kendo-combobox ref="ddAgreementID" v-model="input.AgreementID" :data-source-ref="'dsAgreementID'" :data-text-field="'Text'" :data-value-field="'Id'" :auto-bind="false" @@change="function(e){setModel(e,input,'AgreementID',onAgreementChange)}" :filter="'contains'" style="width:180px"></kendo-combobox>
+                            </td>
+                            <td>
+                                <span>Cheques: {{TotalCheques}}</span>
+                                &nbsp;
+                                <span>Amount: {{ChequeAmount}}</span>
+                            </td>
+                        </tr>
+                    </table>
+                </div>
+                <div class="g-left">
+                    @Html.SaveButton()
+                </div>
+            </div>
+        </form>
+
+        <div>
+            @(Html.Kendo().Grid<ChequeList>().Name("gridCheque")
+        .Columns(c =>
+        {
+        c.DeleteColumn(x => x.ID, "appCheque.deleteCheque('#:uid#')");
+        c.Bound(p => p.ChequeNo).Width(130);
+        c.Bound(p => p.Currency).ClientTemplate("#: Currency #").EditorTemplateName("ComboBoxEditor").EditorViewData(new { Data = new EditorData(Url.Action("ReadCurrency", "HirePurchase"), "Currency", "Value") }).Title("Currency").Width(120);
+        c.MoneyColumn(p => p.Amount).Width(100);
+        c.DateColumn(p => p.ChequeDate).EditorTemplateName("DateEditor").Format("{0:dd-MMM-yyyy}").Title("Cheque Date").Width(150);
+        c.DateColumn(p => p.SentToBank).EditorTemplateName("DateEditor").Format("{0:dd-MMM-yyyy}").Title("Deposit Date").Width(150);
+        c.Bound(x => x.BankID).ClientTemplate("#: BankName #").EditorTemplateName("ComboBoxEditor").EditorViewData(new { Data = new EditorData(Url.Action("ReadBank", "HirePurchase"), "BankName", "Text") }).Title("Bank Name").Width(200);
+        c.Bound(p => p.AccountName).Width(150);
+        c.NumberColumn(p => p.AccountNo).Width(150);
+        c.Bound(p => p.Remarks).Width(150);
+        c.Bound(p => p.ReferenceNo).Width(150);
+        c.NumberColumn(p => p.ReferenceDate).Title("Ref. Date").EditorTemplateName("DateEditor").Format("{0:dd-MMM-yyyy}").Width(120);
+        })
+        .Editable(editable => editable.Mode(GridEditMode.InCell))
+        .Events(x => x.DataBound("appCheque.gridCheque_DataBound").CellClose("appCheque.gridCheque_CellClose"))
+        .DataSource(dataSource => dataSource
+        .Ajax()
+        .Batch(true)
+        .ServerOperation(false)
+        .PageSize(50)
+        //.Read(read => read.Action("ReadChequeList", "HirePurchase"))
+        .Model(model =>
+        {
+        model.Id(p => p.ID);
+        model.Field(p => p.EntryBy).Editable(false);
+        model.Field(p => p.EntryDate).Editable(false);
+        model.Field(p => p.VerifiedBy).Editable(false);
+        model.Field(p => p.VerifiedDate).Editable(false);
+        model.Field(p => p.VerifiedDate).Editable(false);
+        model.Field(p => p.ID).Editable(false);
+        //model.Field(p => p.ChequeDate).DefaultValue(DateTime.Now);
+        //model.Field(p => p.SentToBank).DefaultValue(DateTime.Now);
+        })
+        )
+        .EnableFilter()
+        .Excel(x => x.AllPages(true))
+        .Resizable(x => x.Columns(true))
+        .Pageable(x => x.Refresh(true))
+        .Sortable()
+        .Scrollable()
+        .AutoBind(false)
+        .Navigatable()
+        .HtmlAttributes(new { @class = "h-grid v-grid" })
+            )
+
+        </div>
+    </text>).Visible(false).Title("Add Cheques").Draggable().MaxWidth(1200)
+
+@await Html.PartialAsync("../Pages/Shared/PickCustomer")
+<script type="text/javascript">
+    var appCheque = new Vue({
+        el: '#appCheque',
+        data: {
+            input: {
+                CustomerID: 0,
+                AgreementID: 0
+            },
+            TotalCheques: 0,
+            ChequeAmount: 0.0,
+            CustName: "",
+            AgreementNo: "",
+        },
+        created: function () {
+            appCustomer.onSelectCallBack = this.onCustomerSelected;
+        },
+        methods: {
+            open: function () {
+                $('#wndAddCheque').getKendoWindow().open().center();
+                CustName = null;
+            },
+            submitForm: function () {
+                var dataItem = $('#gridCheque').getKendoGrid().dataSource.data();
+
+                if (!dataItem.length) {
+                    kendoAlert("Please enter the cheque details", true);
+                    return;
+                }
+                if (this.input.CustomerID == 0) {
+                    kendoAlert("Please select the customer", true);
+                    return;
+                }
+                var chequeList = [];
+                var errors = [];
+
+                $.each(dataItem, function (i, item) {
+                    if (!item.ChequeNo)
+                        errors.push("Cheque no Should not be empty");
+
+                    var reg = /^[a-z0-9]+$/i;
+                    var numeric = /^[0-9]+$/;
+                    var character = /^[A-Za-z\s]*$/;
+
+                    if (item.ChequeNo && (item.ChequeNo.replace(/[^A-Z]+/gi, "").length > 2 || item.ChequeNo.length > 15 || !reg.test(item.ChequeNo)))
+                        errors.push("Cheque No format 12345XX and length should not be grater than 15");
+
+                    if (!item.Currency)
+                        errors.push("Currency Should not be empty");
+
+                    if (!item.BankID)
+                        errors.push("Please select the bank Name");
+
+                    if (!item.AccountName)
+                        errors.push("Account Name Should not be empty");
+
+                    //if (item.AccountName && !character.test(item.AccountName))
+                    //    errors.push("Account Name should not be numeric");
+
+                    if (!item.AccountNo)
+                        errors.push("Account no Should not be empty");
+
+                    if (item.AccountNo && !validateNumeric(item.AccountNo))
+                        errors.push("Account no Should be numeric..");
+
+                    if (item.Amount <= 0)
+                        errors.push("Cheque Amount should be greater than zero");
+
+                    if (!item.SentToBank)
+                        errors.push("Deposited date Should not be empty");
+
+                    if (!item.ChequeDate)
+                        errors.push("Cheque date Should not be empty");
+
+
+                    if (item.SentToBank && item.ChequeDate && item.SentToBank < item.ChequeDate)
+                        errors.push("Deposit Date shall be greater than or Equal to Cheque Date.");
+
+                    if (!appCheque.input.AgreementID && !item.ReferenceNo)
+                        errors.push("Please enter the Reference No.");
+
+                    if (!appCheque.input.AgreementID && !item.ReferenceDate)
+                        errors.push("Please select the Reference date.");
+
+                    chequeList.push({ ID: item.ID, ChequeNo: item.ChequeNo, BankID: item.BankID, BankName: item.BankName, AccountName: item.AccountName, AccountNo: item.AccountNo, ChequeNo: item.ChequeNo, Amount: item.Amount, Currency: item.Currency, SentToBank: item.SentToBank, ChequeDate: item.ChequeDate, Remarks: item.Remarks, CustomerID: appCheque.input.CustomerID, AgreementID: appCheque.input.AgreementID > 0 ? appCheque.input.AgreementID : 0, ReferenceNo: item.ReferenceNo, ReferenceDate: item.ReferenceDate });
+                });
+
+                if (errors.length) {
+                    kendoAlert(errors.join("\n"), true);
+                    return;
+                }
+
+                $.postData("@Url.Action("AddCheques", "HirePurchase")", { datas: chequeList, ID: 0, CustomerName: this.CustName, AgreementNo: this.AgreementNo }, this.onSuccess);
+            },
+            addCheque: function (e) {
+                var data = $('#gridCheque').getKendoGrid().dataSource.data();
+                var datalength = $('#gridCheque').getKendoGrid().dataSource.data().length;
+
+                if (datalength <= 0) {
+                    var dataSource = $('#gridCheque').getKendoGrid().dataSource;
+                    dataSource.add();
+                }
+                else {
+                    var newItem = @(Vue.Encode(new ChequeList()));
+                    var dataItem = $('#gridCheque').getKendoGrid().dataSource.data()[0];
+                    newItem.BankID = dataItem.BankID
+                    newItem.AccountName = dataItem.AccountName
+                    newItem.AccountNo = dataItem.AccountNo
+                    newItem.Amount = dataItem.Amount
+                    newItem.BankName = dataItem.BankName
+                    newItem.Currency = dataItem.Currency
+
+                    if (this.input.AgreementID > 0) {
+                        var dt = new Date(dataItem.SentToBank);
+                        dt.setMonth(dt.getMonth() + 1);
+                        newItem.SentToBank = dt
+
+                        var dtt = new Date(dataItem.ChequeDate);
+                        dtt.setMonth(dtt.getMonth() + 1);
+                        newItem.ChequeDate = dtt
+                    }
+                    else {
+                        newItem.SentToBank = dataItem.SentToBank
+                        newItem.ChequeDate = dataItem.ChequeDate
+                    }
+
+                    var dataSource = $('#gridCheque').getKendoGrid().dataSource;
+                    dataSource.insert(0, newItem)
+                }
+                this.TotalCheques = $('#gridCheque').getKendoGrid().dataSource.data().length;
+                this.gridCheque_DataBound;
+            },
+            onSuccess: function (res) {
+                kendoAlert(res.Message, res.HasError);
+                if (res.HasError)
+                    return;
+
+                $('#gridCheque').getKendoGrid().dataSource.data([]);
+                $('#grid').getKendoGrid().dataSource.read();
+                this.TotalCheques = 0;
+                this.ChequeAmount = 0.0;
+                $('#wndAddCheque').getKendoWindow().close();
+                this.$refs.dsCustomerID.kendoWidget().data([]);
+                this.$refs.dsAgreementID.kendoWidget().data([]);
+                this.input.AgreementID = 0;
+                //this.input.CustomerID=0;
+            },
+            onCustomerChange: function (e) {
+                var item = e.sender.dataItem(e.sender.selectedIndex);
+
+                if (!item) {
+                    this.input.CustomerID = 0;
+                    this.CustName = "";
+                }
+                else {
+                    this.CustName = item.Text;
+                    this.input.CustomerID = item.Id;
+                    this.$refs.dsAgreementID.kendoWidget().read({ CustomerID: item.Id });
+                }
+            },
+            onAgreementChange: function (e) {
+                if (e.sender.selectedIndex == -1) {
+                    this.input.AgreementID = 0;
+                    this.AgreementNo = "";
+                }
+                else
+                    this.AgreementNo = e.sender.text();
+            },
+            deleteCheque: function (uid) {
+                var dataSource = $('#gridCheque').getKendoGrid().dataSource;
+                var dataItem = dataSource.getByUid(uid);
+                dataSource.remove(dataItem)
+                this.TotalCheques = $('#gridCheque').getKendoGrid().dataSource.data().length;
+                this.gridCheque_DataBound;
+            },
+            gridCheque_DataBound: function () {
+                var sum = 0;
+                var dataItem = $('#gridCheque').getKendoGrid().dataSource.data();
+                $.each(dataItem, function (i, item) {
+                    sum += item.Amount;
+                })
+                this.ChequeAmount = kendo.toString(sum,'n2');
+            },
+            onData: function () {
+                return { SearchText: $("#ddCustomerID").val() };
+            },
+            pickCustomer: function () {
+                appCustomer.open();
+            },
+            onCustomerSelected: function (item) {
+                this.input.CustomerID = item.tbl_ID;
+                this.CustName = item.Cust_Name_EN + ' - ' + item.Cust_Ref;
+            },
+            gridCheque_CellClose: function (e) {
+                var fieldName = e.sender.columns[e.container.index()].field;
+                var item = e.model;
+
+                if (fieldName == "ChequeDate" && item.ChequeDate) {
+                    item.set("SentToBank", item.ChequeDate);
+                }
+            }
+        }
+    });
+</script>

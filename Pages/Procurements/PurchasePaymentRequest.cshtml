@@ -1,0 +1,407 @@
+﻿@using BSOL.Core.Entities;
+@using Core.Models.Accounts
+@inject AppUser _appUser
+@inject ICommonHelper _commonHelper
+@model PaymentRequest
+
+@Html.Kendo().Window().Name("wndAddPayment").Content(@<text>
+                                        <form id="appEdit" v-on:submit.prevent="submitForm">
+                                            <div id="editor" class="g-content">
+                                                <div class="row">
+                                                    <div id="displayContainer">
+                                                        <div class="row">
+                                                            <div class="form-group col-md-3">
+                                                                @Html.LabelFor(x => x.BusinessUnitId, "Business Unit")
+                                                                <kendo-datasource ref="dsBusinessUnit" :transport-read-url="'@Url.Action("ReadShopGroup", "Common")'" :transport-read-type="'POST'"></kendo-datasource>
+                                                                <kendo-combobox ref="ddBusinessUnit" :disabled="true" v-model="input.BusinessUnitId" :data-source-ref="'dsBusinessUnit'" :data-text-field="'Text'" :data-value-field="'Id'" :filter="'contains'" style="width:100%"></kendo-combobox>
+                                                            </div>
+                                                            <div class="form-group col-md-3">
+                                                                @Html.LabelFor(x => x.PayeeName, "Payment To")
+                                                                <input type="text" v-model.trim="input.PayeeName" readonly class="k-textbox" />
+                                                            </div>
+                                                            <div class="form-group col-md-3">
+                                                                @Html.LabelFor(x => x.SupplierId, "Supplier")
+                                                                <kendo-datasource ref="dsSupplier" :transport-read-url="'@Url.Action("ReadSuppliers", "Common")'" :transport-read-type="'POST'"></kendo-datasource>
+                                                                <kendo-combobox ref="ddSupplier" :disabled="true" v-model="input.SupplierId" :data-source-ref="'dsSupplier'" :data-text-field="'Text'" :data-value-field="'Id'" :filter="'contains'" style="width:100%"></kendo-combobox>
+                                                            </div>
+                                                            <div class="form-group col-md-3">
+                                                                @Html.LabelFor(x => x.Category, "Payment Based On")
+                                                                <input type="text" v-model.trim="input.Category" class="k-textbox" readonly />
+                                                            </div>
+                                                            <div class="form-group col-md-3">
+                                                                @Html.LabelFor(x => x.PaymentType, "Mode")
+                                                                <input type="text" v-model.trim="input.PaymentType" class="k-textbox" readonly />
+                                                            </div>
+                                                            <div class="form-group col-md-3">
+                                                                @Html.LabelFor(x => x.Currency, "Currency")
+                                                                <input type="text" v-model.trim="input.Currency" class="k-textbox" readonly />
+                                                            </div>
+                                                            <div class="form-group col-md-3" v-show="input.Category!='Without PO Invoice'">
+                                                                @Html.LabelFor(x => x.InvoiceNo, "Invoice No")
+                                                                <input type="text" v-model.trim="input.InvoiceNo" class="k-textbox" />
+                                                            </div>
+                                                            <div class="form-group col-md-3" v-show="input.Category!='Without PO Invoice'">
+                                                                @Html.LabelFor(x => x.InvoiceDate, "Invoice Date")
+                                                                <kendo-datepicker :value="input.InvoiceDate" :format="'dd-MMM-yyyy'" :max=maxDate @@change="function(e){setModel(e,input,'InvoiceDate')}" style="width:100%;"></kendo-datepicker>
+                                                            </div>
+                                                            <div class="form-group col-md-3">
+                                                                @Html.LabelFor(x => x.Balance, "Balance")
+                                                                <kendo-numerictextbox :value="input.Balance" :min="0" :spinners="false" :disabled="true" readonly :format="'n2'" style="text-align:right;width:100%;"></kendo-numerictextbox>
+                                                            </div>
+                                                            <div class="form-group col-md-3">
+                                                                @Html.LabelFor(x => x.Amount, "Amount Without GST")
+                                                                <kendo-numerictextbox :value="input.Amount" :min="0" :spinners="false" :disabled="true" :format="'n2'" style="text-align:right;width:100%;" @@change="function(e){setModel(e,input,'Amount',onchangeAmount)}"></kendo-numerictextbox>
+                                                            </div>
+                                                            <div class="form-group col-md-3">
+                                                                @Html.LabelFor(x => x.GST, "GST Amount")
+                                                                <kendo-numerictextbox :value="input.GST" :min="0" :spinners="false" :format="'n2'" style="text-align:right;width:100%;" @@change="function(e){setModel(e,input,'GSTAmount',onchangeAmount)}" :disabled="true"></kendo-numerictextbox>
+                                                            </div>
+                                                            <div class="form-group col-md-3">
+                                                                @Html.LabelFor(x => x.TotalAmount, "Total Amount")
+                                                                <kendo-numerictextbox :value="input.TotalAmount" :min="0" :spinners="false" readonly :format="'n2'" style="text-align:right;width:100%;" :disabled="true"></kendo-numerictextbox>
+                                                            </div>
+
+                            <div class="form-group col-md-3" v-show="input.PaymentType!='Cash' && input.PaymentType!='Credit-Cash'">
+                                @Html.LabelFor(x => x.BankId, "Bank")
+                                <kendo-datasource ref="dsBankId" :transport-read-url="'@Url.Action("ReadBank", "PaymentMaster")'" :transport-read-type="'POST'"></kendo-datasource>
+                                <kendo-combobox ref="ddBankId" v-model="input.BankId" :data-source-ref="'dsBankId'" :filter="'contains'" :data-text-field="'Text'" :data-value-field="'Id'" :auto-bind="false" style="width:100%" @@change="function(e){setModel(e,input,'BankId',changeBank)}"></kendo-combobox>
+                            </div>
+
+                            <div class="form-group col-md-3" v-show="input.PaymentType!='Cash' && input.PaymentType!='CASH' && input.PaymentType!='Credit-Cash'">
+                                @Html.LabelFor(x => x.AccountNo,"Account No")
+                                <kendo-datasource ref="dsAccountNo" :transport-read-url="'@Url.Action("ReadSupplierAccountNoList", "PaymentMaster")'" :transport-read-type="'POST'"></kendo-datasource>
+                                <kendo-combobox ref="ddAccountNo" :value="input.AccountNo" :data-source-ref="'dsAccountNo'" :filter="'contains'" :data-text-field="'Id'" :data-value-field="'Id'" :auto-bind="false" style="width:100%" @@change="function(e){setModel(e,input,'AccountNo',changeAccount)}"></kendo-combobox>
+                            </div>
+
+
+                            <div class="form-group col-md-3" v-show="input.PaymentType!='Cash' && input.PaymentType!='CASH' && input.PaymentType!='Credit-Cash'">
+                                @Html.LabelFor(x => x.AccountName,"Account Name")
+                                <input type="text" v-model.trim="input.AccountName" class="k-textbox" readonly />
+                            </div>
+                                                             <div class="form-group col-md-12">
+                                                                @Html.LabelFor(x => x.Remarks, "Remarks")
+                                                                <textarea v-model.trim="input.Remarks" class="k-textbox" style="resize:none;" rows="1" placeholder="Comments"></textarea>
+                                                            </div>
+                                                        </div>
+                                                        <div style="g-title">
+                                                            <div class="g-left">
+                                                                <a href="javascript:appEdit.addDoc()" class="c-lnk"><i class="fa fa-paperclip"></i> Attachments</a>
+                                                            </div>
+                                                            <div class="g-right">
+                                                                <div style="text-align:right;padding-top:5px;" v-show="input.ApprovedDate == null">
+                                                                    @Html.SaveButton()
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </form>
+                                    </text>).Events(events => events.Close("onWindowClose")).Visible(false).Draggable().MaxWidth(1000)
+
+@{
+    var jsonData = Vue.Encode(new PaymentRequest() { PaymentType = "Cash", Currency = _appUser.BaseCurrency, InvoiceDate = DateTime.Now });
+}
+
+@await Html.PartialAsync("DocumentsDialog", "")
+<script type="text/javascript">
+    var appEdit = new Vue({
+        el: '#appEdit',
+        data: {
+            input: @(jsonData),
+            PORefNo: [],
+            IsPOVisible: false,
+            Documents: [],
+            Amount: 0,
+            InvoiceId: 0,
+            IsShipment: false,
+            maxDate: new Date(),
+            IsWOP: false,
+            PurchaseOrderId: null
+        },
+        created: function () {
+            appDoc.init("@DocumentReference.SupplierInvoices.ToString()", this.onSuccess);
+        },
+        methods: {
+            open: function (uid) {
+                var dataItem = $('#grid').getKendoGrid().dataSource.getByUid(uid);
+                this.PurchaseOrderId = dataItem.Id;
+                $.getData("@Url.Action("GetPaymentRequestDetails", "Procurements")", { Id: dataItem.Id }, function (res) {
+
+                    if (res) {
+                        // if (res.Balance <= 0) {
+                        //     kendoAlert("There is no Balance available to fulfill the payment request");
+                        //     return;
+                        // }
+                        dataItem.AccountName = null;
+                        copyToObject(appEdit.input, cloneAndDecode(dataItem));
+                        // appEdit.input = cloneAndDecode(dataItem);
+                        appEdit.input.BusinessUnitId = dataItem.ShopGroupID;
+                        appEdit.input.PayeeName = "Supplier";
+                        appEdit.input.SupplierId = dataItem.SupplierId;
+                        appEdit.input.Category = "Purchase Order";
+                        appEdit.input.Balance = res.Balance;
+                        appEdit.input.PaymentType = dataItem.PaymentType;
+                        appEdit.input.Amount = res.Amount - res.GSTAmount
+                        appEdit.input.GST = res.GSTAmount;
+                        appEdit.input.GSTPercent = dataItem.GSTPercent;
+                        appEdit.input.TotalAmount = res.Balance;
+                        appEdit.input.RefNoFormatted = res.RefNoFormatted;
+                        appEdit.input.InvoiceNo = null;
+                        appEdit.input.Remarks = null;
+                        appEdit.IsPOVisible = res.IsPOVisible;
+                        appEdit.IsShipment = res.IsShipment;
+                        appEdit.paymentTypeChange();
+
+                    }
+                    else {
+                        copyToObject(appEdit.input, cloneAndDecode(dataItem));
+                       // appEdit.input = cloneAndDecode(dataItem);
+                        appEdit.input.BusinessUnitId = dataItem.ShopGroupID;
+                        appEdit.input.PayeeName = "Supplier";
+                        appEdit.input.SupplierId = dataItem.SupplierId;
+                        appEdit.input.Category = "Purchase Order";
+                        appEdit.input.Balance = dataItem.TotalAmount;
+                        appEdit.input.PaymentType = dataItem.PaymentType;
+                        appEdit.input.Amount = dataItem.TotalAmount - dataItem.GSTAmount;
+                        appEdit.input.GST = dataItem.GSTAmount;
+                        appEdit.input.GSTPercent = dataItem.GSTPercent;
+                        appEdit.input.RefNoFormatted = dataItem.RefNoFormatted;
+                        appEdit.input.InvoiceNo = null;
+                        appEdit.input.Remarks = null;
+                        appEdit.paymentTypeChange();
+                    }
+                });
+
+                this.IsShipment = false;
+                this.IsPOVisible = false;
+                this.IsPOVisible = this.input.Category == 'Purchase Order' ? true : false;
+                this.IsShipment = this.input.Category == 'Shipment' ? true : false;
+                this.IsWOP = this.input.Category == 'Without Purchase Order' ? true : false;
+
+                if (!this.IsShipment) {
+                    this.input.ShipmentId = null;
+                }
+
+                // if (this.input.Category == 'Without PO Invoice') {
+                //     this.input.InvoiceNo = null;
+                //     this.input.InvoiceDate = null;
+                // }
+
+                onWindowOpen(); // for bg opacity..
+
+                var wndAddPaymentWindow = $("#wndAddPayment").data("kendoWindow");
+                wndAddPaymentWindow.title("Payment Request - " + this.input.RefNoFormatted);
+                $('#wndAddPayment').getKendoWindow().open().center();
+
+                setTimeout(function () {
+                    var bankId = [];
+                    bankId = appEdit.$refs.dsBankId.kendoWidget().data();
+
+                    var primaryBank = $.grep(bankId, function (x) { return x.IsPrimary == true });
+
+                    if (primaryBank.length > 0) {
+                        appEdit.input.BankId = primaryBank[0].Id;
+                        appEdit.input.AccountName = primaryBank[0].AccountName;
+                        appEdit.input.AccountNo = primaryBank[0].AccountNo;
+                        appEdit.$refs.dsAccountNo.kendoWidget().read({ SupplierId: appEdit.input.SupplierId, BankId: appEdit.input.BankId });
+                    }
+
+                }, 500);
+
+            },
+            validateForm: function () {
+                removeError();
+                var isValid = true;
+                var setError = function (cntrl, msg) {
+                    isValid = false;
+                    showError(cntrl, msg);
+                };
+
+                if (this.$refs.ddBusinessUnit && this.$refs.ddBusinessUnit.kendoWidget().selectedIndex == -1)
+                    setError('BusinessUnitId', 'Invalid');
+
+                if (this.$refs.ddSupplier && this.$refs.ddSupplier.kendoWidget().selectedIndex == -1)
+                    setError('SupplierId', 'Invalid');
+
+                if (!this.input.PayeeName)
+                    setError('PayeeName');
+
+                if (!this.input.Category)
+                    setError('Category');
+
+                if (!this.input.InvoiceNo) {
+                    setError('InvoiceNo');
+                } else if (/\s/.test(this.input.InvoiceNo)) {
+                    setError('InvoiceNo','Invalid');
+                    kendoAlert('Invoice number cannot contain spaces');
+                }
+
+
+
+                if (!this.input.InvoiceDate)
+                    setError('InvoiceDate');
+
+
+
+                if (this.$refs.ddReferenceNo && this.$refs.ddReferenceNo.kendoWidget().selectedIndex == -1 && this.IsShipment)
+                    setError('ReferenceId', 'Invalid');
+
+                if (this.$refs.ddParentId && this.$refs.ddParentId.kendoWidget().selectedIndex == -1 && this.input.ParentId && this.input.Category == 'Without PO Invoice')
+                    setError('ParentId', 'Invalid');
+
+                if (!this.input.Amount)
+                    setError('Amount');
+
+                if (this.input.PaymentType.toLowerCase() != "cash") {
+                    if (this.$refs.ddBankId && this.$refs.ddBankId.kendoWidget().selectedIndex == -1)
+                        setError('BankId', 'Invalid');
+                    if (!this.input.AccountName)
+                        setError('AccountName');
+                    if (!this.input.AccountNo && (this.input.PaymentType.toLowerCase() == 'banktransfer' || this.input.PaymentType.toLowerCase() == 'tt' || this.input.PaymentType.toLowerCase() == 'remittance'))
+                        setError('AccountNo');
+                }
+
+                if (this.IsShipment) {
+                    var emptyAmount = 0;
+                    $('#gridShipExpenses').find(".rw-err").removeClass("rw-err");
+                    var items = $('#gridShipExpenses').getKendoGrid().dataSource.data();
+                    var editedRows = $.grep(items, function (item) {
+                        return item.Amount !== 0;
+                    });
+
+                    if (editedRows.length == 0) {
+                        kendoAlert('Please enter atleast one expense detail.', true);
+                        return;
+                    }
+
+                    $.each(editedRows, function (i, x) {
+                        var setRowError = function () {
+                            $('#gridShipExpenses').find("[data-uid=" + x.uid + "]:not('.rw-err')").addClass("rw-err");
+                        };
+
+                        if (!x.Amount) {
+                            zeroAmount++;
+                            setRowError();
+                        }
+                    });
+
+                    var errors = [];
+                    if (zeroAmount > 0)
+                        errors.push("Amount should not be zero");
+
+                    if (errors.length) {
+                        isValid = false;
+                        kendoAlert(errors.join("\n"), true);
+                    }
+                }
+                return isValid;
+            },
+
+            onSuccess: function (res) {
+                kendoAlert(res.Message, res.HasError);
+                if (res.HasError)
+                    return;
+                $('#wndAddPayment').getKendoWindow().close();
+                $('#grid').getKendoGrid().dataSource.read();
+            },
+            submitForm: function () {
+                if (!this.validateForm())
+                    return;
+
+                if (this.input.PaymentType == "Cash" || this.input.PaymentType == "CASH" || this.input.PaymentType == "Credit-Cash"){
+                    this.input.BankId = null;
+                    this.input.AccountName = null;
+                    this.input.AccountNo = null;
+                }
+                this.input.Id = 0;
+                $.postData("@Url.Action("SavePurchasedPaymentRequest", "Procurements")",
+                    {
+                        data: this.input,
+                        PurchaseOrderId: this.PurchaseOrderId,
+                    }, function (res) {
+                        if (res.HasError) {
+                            kendoAlert(res.Message, res.HasError);
+                            return;
+                        }
+
+                        if (!appDoc.save(res.Id))
+                            appEdit.onSuccess(res);
+                    });
+            },
+
+            onchangeAmount: function () {
+                var self = this;
+                if (this.input.Amount > this.input.Balance) {
+                    kendoAlert("Amount (" + this.input.Amount + ") should not be greater than balance amount (" + this.input.Balance + ")", true);
+                    this.input.Amount = 0.00;
+                    this.input.Amount = this.input.Balance;
+                    // setTimeout(function () {
+                    //     self.input.Amount = self.input.Balance;
+                    // },300)
+                }
+                setTimeout(function () {
+                    self.input.GST = parseFloat(self.input.Amount) - parseFloat((self.input.Amount * 100) / (100 + self.input.GST));
+                    self.input.AmountWOGST = parseFloat(self.input.Amount * 100) / parseFloat(100 + self.input.GSTPercent);
+                    self.input.TotalAmount = self.input.Amount + self.input.GST;
+                }, 300);
+            },
+
+            addDoc: function () {
+                appDoc.open(0);
+            },
+
+            changeBank: function (e) {
+                if (e.sender.selectedIndex != -1) {
+                   
+                    this.$refs.dsAccountNo.kendoWidget().read({ SupplierId: this.input.SupplierId, BankId: this.input.BankId });
+                    this.input.AccountNo = null;
+                    this.input.AccountName = null;
+                }
+                else {
+                    //this.$refs.dsSupplierAccount.kendoWidget().data([]);
+                    this.input.BankName = null;
+                    this.input.BankId = null;
+                    this.input.AccountName = null;
+                    this.input.AccountNo = null;
+                }
+            },
+
+            changeAccount: function (e) {
+                if (e.sender.selectedIndex != -1) {
+                    // this.input.AccountNo = e.sender.text();
+                    //this.$refs.dsSupplierAccount.kendoWidget().read({ SupplierId: this.input.SupplierId, BankId: this.input.BankId, AccountNo: this.input.AccountNo });
+                    //this.input.AccountName = null;
+                   // setTimeout(function () {
+                        var accDetails = [];
+                        accDetails = this.$refs.dsAccountNo.kendoWidget().data();
+
+                        var primaryBank = $.grep(accDetails, function (x) { return x.Id == appEdit.input.AccountNo });
+
+                        if (primaryBank.length > 0)
+                        this.input.AccountName = primaryBank[0].Text;
+
+                   // }, 500);
+                }
+                else {
+                    //this.$refs.dsSupplierAccount.kendoWidget().data([]);
+                    this.input.AccountName = null;
+                }
+            },
+
+            paymentTypeChange: function () {
+                this.$refs.dsBankId.kendoWidget().data([]);
+                // this.$refs.dsParentId.kendoWidget().data([]);
+                this.input.AccountName = null;
+                this.input.AccountNo = null;
+                this.input.BankId = null;
+                this.input.ParentId = null;
+
+                if (this.input.SupplierId && appEdit.input.PaymentType != 'CASH') {
+                    this.$refs.dsBankId.kendoWidget().read({ SupplierId: this.input.SupplierId });
+                    //this.$refs.dsParentId.kendoWidget().read({ SupplierId: this.input.SupplierId });
+                }
+            }
+        }
+    });
+</script>

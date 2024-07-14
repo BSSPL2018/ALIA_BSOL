@@ -1,0 +1,185 @@
+﻿@page
+@using Core.Entities
+@model ShopEmployee
+@{
+    ViewData["Title"] = "Shop Employees";
+    Layout = "~/Pages/Shared/_Layout.cshtml";
+}
+@section BreadCrumb{
+    @await Html.PartialAsync("Tabs", "Procurement/Shops")
+}
+@if (!await Html.HasAccess(Forms.Procurement.Shops))
+{
+    return;
+}
+
+<style>
+    .ghit {
+        height: 300px !important;
+    }
+</style>
+<div class="g-title">
+    <div class="g-left">
+        @(Html.Kendo().ComboBoxFor(x => x.ShopId)
+            .AutoBind(false)
+            .DataSource(x => x.Read(r => r.Action("ReadShops", "Common").Type(HttpVerbs.Post)))
+            .DataTextField("Text")
+            .DataValueField("Id")
+            .Events(x => x.Change("Shop_Change"))
+            .Placeholder("Select Shop")
+            .HtmlAttributes(new { style = "width:100%" }))
+    </div>
+    <div class="g-left">
+        <button type='button' class='btn btn-save btn-cntrls' id='btnShopEmployees' value='Assign Shop Employees' onclick='AssignShopEmployees()'>Assign Shop Employees</button>
+    </div>
+    <span>Shop Employees Details</span>
+    <div class="g-right">
+        @Html.ExcelButton()
+    </div>
+</div>
+
+@(Html.Kendo().Grid<ShopEmployee>()
+            .Name("grid")
+            .Columns(c =>
+            {
+                if (Html.HasAccess(Rights.Delete))
+                    c.DeleteColumn(x => x.ShopId, "DeleteItem('#:uid#')");
+                c.Bound(x => x.CommonEmpNo).Title("Employee Name");
+                c.Bound(x => x.Division).Width(200);
+                c.Bound(x => x.Department).Width(200);
+                c.Bound(x => x.Designation).Width(200);
+            })
+            .HtmlAttributes(new { @class = "h-grid v-grid" })
+            .Scrollable()
+            .Sortable()
+            .EnableFilter()
+            .EnableEdit(Html)
+            .Resizable(x => x.Columns(true))
+            .Pageable(x => x.Refresh(true))
+            .Excel(x => x.AllPages(true))
+            .DataSource(dataSource => dataSource
+            .Ajax().ServerOperation(false).PageSize(50)
+            .Read(read => read.Action("ReadShopEmployees", "Procurements").Data("gridEmployees_Data")))
+)
+
+@section Scripts
+    {
+    @(Html.Kendo().Window().Name("window").Content(@<text>
+
+        <div style="text-align:right;">
+            @Html.SaveButton("SaveShopEmployees()")
+        </div>
+        <div>
+            @(Html.Kendo().Grid<EmployeeDetail>().Name("gridEmployees")
+                    .Columns(c =>
+                    {
+                        c.Bound("").ClientTemplate("<input type='checkbox' id='chk_#:uid#' #:Selected ? 'checked=checked' : '' # onchange='onSelected(\"#:uid#\")' />")
+                        .HtmlAttributes(new { style = "text-align:center;" }).Width(40).Filterable(false).Sortable(false)
+                        .ClientHeaderTemplate("<input class='k-checkbox' id='chkSelectAll' name='chkSelectAll' onchange='selectAll(this)' type='checkbox' value='true'><label class='k-checkbox-label' for='chkSelectAll'></label>")
+                        .HeaderHtmlAttributes(new { style = "text-align:center;" });
+
+                        c.Bound(p => p.EmpID).Width(150);
+                        c.Bound(p => p.CommonEmpNo).Width(150);
+                        c.Bound(p => p.Division).Width(100);
+                        c.Bound(p => p.Department).Width(100);
+                        c.Bound(p => p.Designation).Width(100);
+
+                    })
+                    //.Editable(Html, "", false, false)
+                    .HtmlAttributes(new { @class = "h-grid v-grid" })
+                    .Scrollable()
+                    .Sortable()
+                    .EnableFilter()
+                    //.EnableEdit(Html)
+                    .Resizable(x => x.Columns(true))
+                    .Pageable(x => x.Refresh(true))
+                    .Events(x => x.DataBound("gridEmployees_DataBound"))
+                    .Excel(x => x.AllPages(true))
+                    .DataSource(dataSource => dataSource
+                    .Ajax().ServerOperation(true).PageSize(50)
+                    .Read(read => read.Action("ReadEmployees", "Procurements").Data("gridEmployees_Data"))
+                    ))
+            </div>
+
+        </text>).Visible(false).Title("Please Select Employees").Draggable(true).Resizable().Width(1000)
+                            )
+
+    <script type="text/javascript">
+        function AssignShopEmployees() {
+            if ($("#ShopId").getKendoComboBox().value() == '' || $("#ShopId").getKendoComboBox().selectedIndex == -1) {
+                kendoAlert('Please select shop name', true);
+                return;
+            }
+            $('#window').getKendoWindow().open().center();
+            $('#gridEmployees').getKendoGrid().dataSource.read();
+            $('#chkSelectAll').prop('checked', false);
+        }
+
+        function Shop_Change() {
+            if ($('#ShopId').getKendoComboBox().value() != '')
+                $('#grid').getKendoGrid().dataSource.read();
+        }
+        function gridEmployees_DataBound() {
+            $('#window').getKendoWindow().center();
+        }
+
+        function gridEmployees_Data() {
+            return {
+                shopId: $('#ShopId').getKendoComboBox().value() != "" ? $('#ShopId').getKendoComboBox().value() : 0
+            };
+        }
+
+        function onSelected(uid) {
+            var item = $('#gridEmployees').getKendoGrid().dataSource.getByUid(uid);
+            item.set('Selected', $('#chk_' + uid).prop('checked'));
+        }
+        function SaveShopEmployees() {
+            removeError();
+
+            var employees = [];
+            var datas = $('#gridEmployees').getKendoGrid().dataSource.data();
+            var selected = $.grep(datas, function (x) {
+                return x.Selected;
+            });
+            if (selected.length == 0) {
+                kendoAlert("Please select employees", true);
+                return;
+            }
+
+            var ShopId = $('#ShopId').getKendoComboBox().value();
+            $(selected).each(function () {
+                employees.push(this.EmployeeId);
+            });
+            $.postData('@Url.Action("SaveShopEmployees","Procurements")', { shopEmployees: employees.toString(), shopId: ShopId },
+                function (data) {
+                    kendoAlert(data.Message, data.HasError);
+                    if (!data.HasError)
+                        $('#window').getKendoWindow().close();
+                    $('#grid').getKendoGrid().dataSource.read();
+                });
+        }
+        function DeleteItem(uid) {
+            var dataItem = $('#grid').getKendoGrid().dataSource.getByUid(uid);
+            kendoConfirm("Do you want to delete this shop employee?", function () {
+                $.postData("/Procurements/DeleteShopEmployee", { ShopId: dataItem.ShopId, EmployeeId: dataItem.EmployeeId, ShopName: dataItem.ShopName, CommonEmpNo: dataItem.CommonEmpNo },
+                    function (data) {
+                        kendoAlert(data.Message, data.HasError);
+                        if (!data.HasError)
+                            $('#grid').getKendoGrid().dataSource.read();
+                    });
+            });
+        }
+        function selectAll(ele) {
+            var state = $(ele).is(':checked');
+            var grid = $('#gridEmployees').data('kendoGrid');
+            $.each(grid.dataSource.view(), function () {
+                if (this['Selected'] != state) {
+                    this.dirty = true;
+                }
+                this['Selected'] = state;
+            });
+            grid.refresh();
+        }
+    </script>
+}
+

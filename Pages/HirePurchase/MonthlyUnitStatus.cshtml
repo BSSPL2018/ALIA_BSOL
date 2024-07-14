@@ -1,0 +1,573 @@
+﻿@page
+@using BSOL.Core.Models.HirePurchase
+@{
+    ViewBag.IsFolded = true;
+    ViewBag.Title = "HP Monthly Status";
+    Layout = "~/Pages/Shared/_Layout.cshtml";
+}
+
+@section BreadCrumb {
+    @await Html.PartialAsync("Tabs", "Hire Purchase/Dashboard")
+}
+<style type="text/css">
+    .col-dynamic {
+        vertical-align: middle !important;
+        text-align: center;
+    }
+
+        .col-dynamic .k-link {
+            justify-content: center;
+        }
+
+        .col-dynamic .k-column-title {
+            white-space: normal !important;
+            font-size: 10px;
+            text-align: center;
+        }
+
+    .col-main {
+        vertical-align: middle !important;
+    }
+
+    .color-row {
+        background-color: white;
+    }
+
+    .k-grouping-header {
+        background-color: white;
+    }
+
+    .k-footer-template td {
+        background-color: white;
+        text-align: right;
+    }
+
+    .grp-filter {
+        display: flex;
+        align-items: center;
+    }
+
+        .grp-filter li {
+            padding: 5px;
+        }
+
+    .chk-cls-report li:not(:first-child) {
+        margin-left: 20px;
+    }
+
+    .page-template {
+        font-family: "DejaVu Sans", "Arial", sans-serif;
+        position: absolute;
+        width: 100%;
+        height: 100%;
+        top: 0;
+        left: 0;
+    }
+
+        .page-template .header {
+            position: absolute;
+            top: 30px;
+            left: 30px;
+            right: 30px;
+            border-bottom: 1px solid #888;
+            color: #888;
+        }
+
+        .page-template .footer {
+            position: absolute;
+            bottom: 30px;
+            left: 30px;
+            right: 30px;
+            border-top: 1px solid #888;
+            text-align: center;
+            color: #888;
+        }
+
+        .page-template .watermark {
+            font-weight: bold;
+            font-size: 400%;
+            text-align: center;
+            margin-top: 30%;
+            color: #aaaaaa;
+            opacity: 0.1;
+            transform: rotate(-35deg) scale(1.7, 1.5);
+        }
+
+    /* Content styling */
+    .customer-photo {
+        display: inline-block;
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        background-size: 32px 35px;
+        background-position: center center;
+        vertical-align: middle;
+        line-height: 32px;
+        box-shadow: inset 0 0 1px #999, inset 0 0 10px rgba(0,0,0,.2);
+        margin-left: 5px;
+    }
+
+    .customer-name {
+        display: inline-block;
+        vertical-align: middle;
+        line-height: 32px;
+        padding-left: 3px;
+    }
+
+    .chg-cus-clr.cus-all-sel {
+        border: 1px solid gray;
+    }
+
+    .chg-cus-sh.cus-all-sel {
+        border: 1px solid gray;
+    }
+
+    .chg-cus-in.cus-all-sel {
+        border: 1px solid gray;
+    }
+
+    .chg-cus-ca.cus-all-sel {
+        border: 1px solid gray;
+    }
+
+    .chg-cus-co.cus-all-sel {
+        border: 1px solid gray;
+    }
+
+    .chg-cus-br.cus-all-sel {
+        border: 1px solid gray;
+    }
+
+    .chg-cus-ve.cus-all-sel {
+        border: 1px solid gray;
+    }
+
+    fieldset.default {
+        width: 100%;
+        border: 1px solid #c0c0c0;
+        margin: 2px 0;
+        padding: 3px 5px;
+    }
+
+    .default legend {
+        all: unset;
+        padding: 0 5px;
+    }
+
+    .rpt-g-content {
+        position: relative !important;
+    }
+
+        .rpt-g-content .g-content-a {
+            position: absolute;
+            top: 7px;
+            right: 10px;
+            z-index: 1;
+        }
+
+        .rpt-g-content .g-content-i {
+            font-size: 30px !important;
+            color: green;
+        }
+</style>
+<div id="app" style="margin-top:36px">
+    @await Html.PartialAsync("Loader")
+    <div class="g-left">
+        <ul class="grp-filter">
+            <li v-show="SearchBy == SearchBy">
+                <label for="rdoCustomer" class="k-radio-label">Search By</label><br />
+                <kendo-dropdownlist v-model="SearchBy" :data-source="['Date Range','Month','Year']" style="width:125px"></kendo-dropdownlist>
+            </li>
+            <li v-show="SearchBy == 'Month'">
+                <br />
+                <kendo-datepicker :format="'MMM-yyyy'" v-model="input.Month" :start="'year'" :depth="'year'" style="width:130px" @@change="function(e){setModel(e,input,'Month')}"></kendo-datepicker>
+            </li>
+            <li v-show="SearchBy == 'Year'">
+                <br />
+                <kendo-datepicker :value="input.Year" :format="'yyyy'" :start="'decade'" :depth="'decade'" style="width:130px" @@change="function(e){setModel(e,input,'Year')}"></kendo-datepicker>
+            </li>
+            <li v-show="SearchBy == 'Date Range'">
+                <label class="k-radio-label">From Date</label><br />
+                <kendo-datepicker :format="'dd-MMM-yyyy'" v-model="input.FromMonth" style="width:130px" @@change="function(e){setModel(e,input,'FromMonth')}"></kendo-datepicker>
+            </li>
+            <li v-show="SearchBy == 'Date Range'">
+                <label class="k-radio-label">To Date</label><br />
+                <kendo-datepicker :format="'dd-MMM-yyyy'" v-model="input.ToMonth" style="width:130px" @@change="function(e){setModel(e,input,'ToMonth')}"></kendo-datepicker>
+            </li>
+            <li style="margin: 17px 0px -3px 0px;">
+                <button @@click="load" class="btn btn-save"><i class="fa fa-search"></i>View</button>
+            </li>
+            <li style="margin-top: 22px;">
+                <label></label>
+                <a onclick="app.Eeventchange()" class="c-lnk" style="cursor:pointer;"><i class="fa fa-search"></i>  Advanced Search</a>
+            </li>
+        </ul>
+    </div>
+    <div id="adv-search" style="display:none;">
+        <div>
+            <ul class="grp-filter">
+                <li>
+                    <label class="k-radio-label">Product</label>
+                    <kendo-datasource ref="dsProduct" :transport-read-url="'@Url.Action("ReadSalesProduct", "Common")'" :transport-read-type="'POST'"></kendo-datasource>
+                    <kendo-multiselect ref="ddProduct" class="chg-cus-ca" v-model="input.Product" :data-source-ref="'dsProduct'" style="width:200px" placeholder="Select Product" :filter="'contains'"></kendo-multiselect>
+                </li>
+                <li>
+                    <label class="k-radio-label">Customer Name</label>
+                    <kendo-datasource ref="dsCustomer" :transport-read-url="'@Url.Action("ReadCustomers", "Common")'" :transport-read-type="'POST'"></kendo-datasource>
+                    <kendo-multiselect ref="ddCustomer" class="chg-cus-co" v-model="input.CustomerId" :data-source-ref="'dsCustomer'" :data-text-field="'Text'" :data-value-field="'Id'" placeholder="Select customer" :filter="'contains'" style="width:454px"></kendo-multiselect>
+                </li>
+            </ul>
+
+            <fieldset class="default">
+                <legend>Exclude Filter</legend>
+                <ul class="grp-filter">
+                    <li>
+                        <input type="checkbox" id="chkProforma" v-model="input.Proforma" class="k-checkbox" @@change="onGroupByChange" />
+                        <label for="chkProforma" class="k-checkbox-label">Proforma</label>
+                    </li>
+                    <li>
+                        <input type="checkbox" id="chkAdvanceBooking" v-model="input.AdvanceBooking" class="k-checkbox" @@change="onGroupByChange" />
+                        <label for="chkAdvanceBooking" class="k-checkbox-label">Advance Booking</label>
+                    </li>
+                    <li>
+                        <input type="checkbox" id="chkCreditEvaluation" v-model="input.CreditEvaluation" class="k-checkbox" @@change="onGroupByChange" />
+                        <label for="chkCreditEvaluation" class="k-checkbox-label">Credit Evaluation</label>
+                    </li>
+                    <li>
+                        <input type="checkbox" id="chkAgreement" v-model="input.Agreement" class="k-checkbox" @@change="onGroupByChange" />
+                        <label for="chkAgreement" class="k-checkbox-label">Agreement</label>
+                    </li>
+                    <li>
+                        <input type="checkbox" id="chkSales" v-model="input.Sales" class="k-checkbox" @@change="onGroupByChange" />
+                        <label for="chkSales" class="k-checkbox-label">Sales</label>
+                    </li>
+                </ul>
+            </fieldset>
+        </div>
+    </div>
+</div>
+@* <div id="gridContent"></div> *@
+
+<div class="g-content rpt-g-content">
+    <a class="g-content-a" onclick="app.export()" style="cursor:pointer;"><i class="fa fa-file-excel-o g-content-i" style="font-size: 15px;"></i></a>
+    @(
+        Html.Kendo().Grid<MonthlyHPStatusModel>()
+        .Name("grid")
+        .Columns(c =>
+        {
+            c.Bound(p => p.ProformaCNT).Title("Proforma No").ClientTemplate("#:ProformaNo==null?'':ProformaNo#").Title("Proforma No").ClientGroupHeaderColumnTemplate("Total : #=formatNumber(sum)#").ClientFooterTemplate("Total : #=formatNumber(sum)#");
+            c.Bound(p => p.Product).Title("Product").Width(250);
+            c.Bound(p => p.ItemCode);
+            c.Bound(p => p.CustomerName);
+            c.Bound(p => p.ProformaStatus).Title("Status");
+
+            c.DateColumn(p => p.ProformaDate).Title("Proforma Date");
+            c.Bound(p => p.ProformaType).Title("ProformaType");
+            c.MoneyColumn(p => p.TotalCashPrice).Title("Cash Price");
+            c.MoneyColumn(p => p.TotalAmount).Title("HP Price");
+
+            c.Bound(p => p.FormNo);
+            c.Bound(p => p.FrameNo);
+            c.Bound(p => p.BookedCNT).Title("Booked By").ClientTemplate("#:BookedBy==null?'':BookedBy#").ClientGroupHeaderColumnTemplate("Total : #=formatNumber(sum)#").ClientFooterTemplate("Total : #=formatNumber(sum)#");
+            c.DateColumn(p => p.BookedOn);
+
+            c.Bound(p => p.CreditEvaluationCNT).Title("Evaluated By").ClientTemplate("#:EvaluatedBy==null?'':EvaluatedBy#").ClientGroupHeaderColumnTemplate("Total : #=formatNumber(sum)#").ClientFooterTemplate("Total : #=formatNumber(sum)#");
+            c.DateColumn(p => p.EvaluatedOn);
+            c.Bound(p => p.VerifiedBy);
+            c.DateColumn(p => p.VerifiedOn);
+
+            c.Bound(p => p.AgreementCNT).Title("Agreement No").ClientTemplate("#:AgreementNo==null?'':AgreementNo#").ClientGroupHeaderColumnTemplate("Total : #=formatNumber(sum)#").ClientFooterTemplate("Total : #=formatNumber(sum)#");
+            c.Bound(p => p.AgreementType);
+            c.Bound(p => p.AGREntyBy);
+            c.DateColumn(p => p.AGREntryOn);
+
+            c.Bound(p => p.BilledCNT).Title("Billed By").ClientTemplate("#:BilledBy==null?'':BilledBy#").ClientGroupHeaderColumnTemplate("Total : #=formatNumber(sum)#").ClientFooterTemplate("Total : #=formatNumber(sum)#");
+            c.DateColumn(p => p.SoldDate);
+            c.NumberColumn(p => p.No_Payment).Title("No Of Payment");
+            c.MoneyColumn(p => p.DueAmount);
+            c.MoneyColumn(p => p.TotalPrice).Title("Billed Amount").ClientGroupHeaderColumnTemplate("Total : #=formatNumber(sum)#").ClientFooterTemplate("Total : #=formatNumber(sum)#");
+            c.MoneyColumn(p => p.BalanceAmount).Title("Balance").ClientGroupHeaderColumnTemplate("Total : #=formatNumber(sum)#").ClientFooterTemplate("Total : #=formatNumber(sum)#");
+            c.Bound(p => p.SoldBy);
+            c.Bound(p => p.BilledUnits).Title("Frame/Engine No");
+        })
+        .Pageable(x => x.Refresh(true))
+        .Sortable()
+        .Groupable()
+        .Scrollable()
+        .HtmlAttributes(new { @class = "h-grid v-grid" })
+        .Excel(excel => excel
+        .FileName("Unit Status.xlsx")
+        .Filterable(true)
+        .AllPages(true)
+        )
+        .Reorderable(r => r.Columns(true))
+        .Resizable(r => r.Columns(true))
+        .ColumnMenu()
+        .Filterable()
+        .Selectable(selectable => selectable
+        .Mode(GridSelectionMode.Multiple)
+        .Type(GridSelectionType.Cell))
+        .Events(x => x.DataBound("gridDataBound"))
+        .DataSource(dataSource => dataSource
+        .Ajax().ServerOperation(false)
+        .PageSize(50)
+        .Events(x => x.RequestEnd("app.gridRequestEnd"))
+        .Aggregates(aggregates =>
+        {
+            aggregates.Add(p => p.ProformaCNT).Sum();
+            aggregates.Add(p => p.BookedCNT).Sum();
+            aggregates.Add(p => p.CreditEvaluationCNT).Sum();
+            aggregates.Add(p => p.AgreementCNT).Sum();
+            aggregates.Add(p => p.BilledCNT).Sum();
+            aggregates.Add(p => p.TotalPrice).Sum();
+            aggregates.Add(p => p.BalanceAmount).Sum();
+        })
+        .Read(read => read.Action("ReadHPMonthlyStatus", "HirePurchase").Data("app.gridData"))
+        )
+        )
+</div>
+@section Scripts {
+    <script type="text/javascript">
+        var dt = new Date();
+        var year = dt.getFullYear();
+        var month = dt.getMonth();
+        var date = dt.getDate();
+
+        var app = new Vue({
+            el: '#app',
+            data: {
+                input: {
+                    FromMonth: new Date(year, month - 1, date),
+                    ToMonth: new Date(),
+                    Product: [],
+                    CustomerId: [],
+                    Search: true,
+                    Proforma: false,
+                    AdvanceBooking: false,
+                    CreditEvaluation: false,
+                    Agreement: false,
+                    Sales: false,
+                    Month: ToMonthStart(new Date()),
+                    Year: ToMonthStart(new Date()),
+                },
+                SearchBy: "Date Range",
+                isLoaded: true
+            },
+            methods: {
+                load: function () {
+                    if (this.input.Product.length > 0)
+                        this.input.Product = this.input.Product.join(",");
+
+                    if (this.input.CustomerId.length > 0)
+                        this.input.CustomerId = this.input.CustomerId.join(",");
+
+                    var $grid = $('#grid').getKendoGrid();
+                    if ($grid.dataSource.page() != 1) {
+                        $grid.dataSource.page(1);
+                    }
+
+                    $grid.dataSource.read();
+                },
+                gridData: function () {
+                    return {
+                        FromMonth: this.input.FromMonth, ToMonth: this.input.ToMonth, Product: (this.input.Product == null ? '' : this.input.Product.toString()), CustomerId: (this.input.CustomerId == null ? '' : this.input.CustomerId.toString()), Proforma: this.input.Proforma, AdvanceBooking: this.input.AdvanceBooking, CreditEvaluation: this.input.CreditEvaluation, Agreement: this.input.Agreement, Sales: this.input.Sales, Month: this.SearchBy == 'Month' ? this.input.Month : null, Year: this.SearchBy == 'Year' ? this.input.Year : null
+                    };
+                },
+                Eeventchange: function () {
+                    if (!this.input.Search) {
+                        $('#adv-search').css('display', 'none');
+                        this.input.Search = true;
+                    }
+                    else {
+                        $('#adv-search').css('display', 'block');
+                        this.input.Search = false;
+                    }
+                    this.input.Product = [];
+                    this.input.CustomerId = [];
+                },
+                onGroupByChange: function () {
+                    var $grid = $("#grid").getKendoGrid();
+
+                    if (this.input.Proforma && this.input.AdvanceBooking && this.input.CreditEvaluation && this.input.Agreement && this.input.Sales) {
+                        $grid.hideColumn("ProformaNo");
+                        $grid.hideColumn("CustomerName");
+                        $grid.hideColumn("Product");
+                        $grid.hideColumn("ItemCode");
+                        $grid.hideColumn("ProformaCNT");
+                        $grid.hideColumn("BilledCNT");
+                    }
+                    else {
+                        $grid.showColumn("ProformaNo");
+                        $grid.showColumn("CustomerName");
+                        $grid.showColumn("Product");
+                        $grid.showColumn("ItemCode");
+                        $grid.showColumn("ProformaCNT");
+                        $grid.showColumn("BilledCNT");
+                    }
+                    if (!this.input.Proforma) {
+                        $grid.showColumn("ProformaNo");
+                        $grid.showColumn("ProformaDate");
+                        // $grid.showColumn("CustomerName");
+                        $grid.showColumn("ProformaType");
+                        // $grid.showColumn("Product");
+                        // $grid.showColumn("ItemCode");
+                        $grid.showColumn("TotalCashPrice");
+                        $grid.showColumn("TotalAmount");
+                        $grid.showColumn("ProformaStatus");
+                        $grid.showColumn("FormNo");
+                    }
+                    else {
+                        // $grid.hideColumn("ProformaNo");
+                        $grid.hideColumn("ProformaDate");
+                        // $grid.hideColumn("CustomerName");
+                        $grid.hideColumn("ProformaType");
+                        // $grid.hideColumn("Product");
+                        // $grid.hideColumn("ItemCode");
+                        $grid.hideColumn("TotalCashPrice");
+                        $grid.hideColumn("TotalAmount");
+                        $grid.hideColumn("ProformaStatus");
+                        $grid.hideColumn("FormNo");
+                        // $grid.hideColumn("ProformaCNT");
+                    }
+                    if (!this.input.AdvanceBooking) {
+                        // $grid.showColumn("ADVProduct");
+                        // $grid.showColumn("ADVItemCode");
+                        // $grid.showColumn("ADVPoformaNo");
+                        $grid.showColumn("FrameNo");
+                        $grid.showColumn("BookedBy");
+                        $grid.showColumn("BookedOn");
+                        $grid.showColumn("BookedCNT");
+                    }
+                    else {
+                        // $grid.hideColumn("ADVProduct");
+                        // $grid.hideColumn("ADVItemCode");
+                        // $grid.hideColumn("ADVPoformaNo");
+                        $grid.hideColumn("FrameNo");
+                        $grid.hideColumn("BookedBy");
+                        $grid.hideColumn("BookedOn");
+                        $grid.hideColumn("BookedCNT");
+                    }
+                    if (!this.input.CreditEvaluation) {
+                        // $grid.showColumn("EVLProduct");
+                        // $grid.showColumn("EVLItemCode");
+                        // $grid.showColumn("EVLProformaNo");
+                        $grid.showColumn("EvaluatedBy");
+                        $grid.showColumn("EvaluatedOn");
+                        $grid.showColumn("VerifiedBy");
+                        $grid.showColumn("VerifiedOn");
+                        $grid.showColumn("CreditEvaluationCNT");
+                    }
+                    else {
+                        // $grid.hideColumn("EVLProduct");
+                        // $grid.hideColumn("EVLItemCode");
+                        // $grid.hideColumn("EVLProformaNo");
+                        $grid.hideColumn("EvaluatedBy");
+                        $grid.hideColumn("EvaluatedOn");
+                        $grid.hideColumn("VerifiedBy");
+                        $grid.hideColumn("VerifiedOn");
+                        $grid.hideColumn("CreditEvaluationCNT");
+                    }
+
+                    if (!this.input.Agreement) {
+                        // $grid.showColumn("AGRProduct");
+                        // $grid.showColumn("AGRItemCode");
+                        $grid.showColumn("AgreementType");
+                        $grid.showColumn("AgreementNo");
+                        $grid.showColumn("AGREntyBy");
+                        $grid.showColumn("AGREntryOn");
+                        $grid.showColumn("AgreementCNT");
+                    }
+                    else {
+                        // $grid.hideColumn("AGRProduct");
+                        // $grid.hideColumn("AGRItemCode");
+                        $grid.hideColumn("AgreementType");
+                        $grid.hideColumn("AgreementNo");
+                        $grid.hideColumn("AGREntyBy");
+                        $grid.hideColumn("AGREntryOn");
+                        $grid.hideColumn("AgreementCNT");
+                    }
+
+                    if (!this.input.Sales) {
+                        // $grid.showColumn("AGRProduct");
+                        // $grid.showColumn("AGRItemCode");
+                        $grid.showColumn("BilledBy");
+                        $grid.showColumn("SoldDate");
+                        $grid.showColumn("No_Payment");
+                        $grid.showColumn("DueAmount");
+                        $grid.showColumn("TotalPrice");
+                        $grid.showColumn("SoldBy");
+                        $grid.showColumn("BilledUnits");
+                        $grid.showColumn("tbl_Id");
+                        // $grid.showColumn("BilledCNT");
+                    }
+                    else {
+                        // $grid.hideColumn("AGRProduct");
+                        // $grid.hideColumn("AGRItemCode");
+                        $grid.hideColumn("BilledBy");
+                        $grid.hideColumn("SoldDate");
+                        $grid.hideColumn("No_Payment");
+                        $grid.hideColumn("DueAmount");
+                        $grid.hideColumn("TotalPrice");
+                        $grid.hideColumn("SoldBy");
+                        $grid.hideColumn("BilledUnits");
+                        $grid.hideColumn("tbl_Id");
+                        // $grid.hideColumn("BilledCNT");
+                    }
+
+                    $grid.dataSource.read();
+                },
+                export: function () {
+                    this.isLoaded = false;
+                    ExportToExcel('grid');
+                }
+            },
+            gridRequestEnd: function (e) {
+                this.isLoaded = true;
+            }
+        })
+    </script>
+    <script type="text/javascript">
+        function gridDataBound() {
+            for (var i = 0; i < this.columns.length; i++) {
+                this.autoFitColumn(i);
+            }
+        }
+        function formatNumber(number) {
+            return kendo.toString(number, "#,###.###");
+        }
+        function getDistinctValues(colName) {
+            var dataItem = $("#grid").getKendoGrid().dataSource.view();
+            var appliedFilters = $("#grid").getKendoGrid().dataSource.filter();
+            var aggregateResult = 0;
+
+            if (appliedFilters != null) {
+                var dataQuery = new kendo.data.Query(dataItem);
+                var filteredData = dataQuery.filter(appliedFilters).data;
+                aggregateResult = getAggregates(filteredData, colName);
+            }
+            else
+                aggregateResult = getAggregates(dataItem, colName);
+
+            return `Total: ${aggregateResult}`;
+        }
+        function getAggregates(dataItem, colName) {
+            var distinctValues = [];
+            $.each(dataItem, function (i, el) {
+                console.log(el.items)
+                if (distinctValues.indexOf(el[colName]) == -1 && colName == "ProformaNo" && el.ProformaNo) {
+                    distinctValues.push(el[colName]);
+                }
+                if (colName == "BookedBy" && el.BookedBy) {
+                    distinctValues.push(el[colName]);
+                }
+                if (colName == "EvaluatedBy" && el.EvaluatedBy) {
+                    distinctValues.push(el[colName]);
+                }
+                if (colName == "AgreementNo" && el.AgreementNo) {
+                    distinctValues.push(el[colName]);
+                }
+            });
+            return distinctValues.length;
+        }
+    </script>
+}

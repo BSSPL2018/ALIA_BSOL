@@ -1,0 +1,1093 @@
+@using BSOL.Core.Entities;
+@using Core.Models.Accounts
+@inject AppUser _appUser
+@inject ICommonHelper _commonHelper
+@model PaymentRequest
+
+@Html.Kendo().Window().Name("wndAddPayment").Content(@<text>
+        <form id="appEdit" v-on:submit.prevent="submitForm">
+            
+            <div id="editor" class="g-content">
+                <div class="row">
+                    <div id="displayContainer">
+                        <div class="row">
+                            <div class="form-group col-md-3">
+                                @Html.LabelFor(x => x.BusinessUnitId, "Business Unit")
+                                <kendo-datasource ref="dsBusinessUnit" :transport-read-url="'@Url.Action("ReadShopGroup", "Common")'" :transport-read-type="'POST'"></kendo-datasource>
+                                <kendo-combobox ref="ddBusinessUnit" v-model="input.BusinessUnitId" :data-source-ref="'dsBusinessUnit'" @@change="function(e){setModel(e,input,'BusinessUnitId',changeBusinessUnit)}" :data-text-field="'Text'" :data-value-field="'Id'" :filter="'contains'" style="width:100%"></kendo-combobox>
+                            </div>
+                            <div class="form-group col-md-3">
+                                @Html.LabelFor(x => x.PayeeName, "Payment To")
+                                <kendo-combobox v-model="input.PayeeName" :data-source='@Vue.Encode(Utilities.EnumToString<PayeeType>())' @@change="function(e){setModel(e,input,'PayeeName',changePayeeName)}" style="width:100%"></kendo-combobox>
+                            </div>
+                            <div class="form-group col-md-3">
+                                @Html.LabelFor(x => x.SupplierId, "Supplier")
+                                <kendo-datasource ref="dsSupplier" :transport-read-url="'@Url.Action("ReadSuppliers", "Common")'" :transport-read-type="'POST'"></kendo-datasource>
+                                <kendo-combobox ref="ddSupplier" v-model="input.SupplierId" :data-source-ref="'dsSupplier'" :data-text-field="'Text'" :data-value-field="'Id'" :filter="'contains'" @@change="function(e){setModel(e,input,'SupplierId',supplierChange)}" style="width:100%" placeholder="Select Supplier"></kendo-combobox>
+                            </div>
+                            <div class="form-group col-md-3" v-show="input.PayeeName != 'Staff'">
+                                @Html.LabelFor(x => x.Category, "Payment Based On")
+                                <kendo-combobox v-model="input.Category" :data-source='@Vue.Encode(Utilities.EnumToDescription<PaymentCategory>())' @@change="function(e){setModel(e,input,'Category',changeCategory)}" style="width:100%"></kendo-combobox>
+                            </div>
+                            <div class="form-group col-md-3" v-show="input.PayeeName == 'Staff'">
+                                @Html.LabelFor(x => x.Category, "Payment Based On")
+                                <kendo-combobox v-model="input.Category" :data-source='@Vue.Encode(Utilities.EnumToDescription<StaffPaymentCategory>())' @@change="function(e){setModel(e,input,'Category',changeCategory)}" style="width:100%"></kendo-combobox>
+                            </div>
+
+                            <div class="form-group col-md-3" v-show="input.Category!='Without PO Invoice'">
+                                @Html.LabelFor(x => x.InvoiceNo, "Invoice No")
+                                <input type="text" v-model.trim="input.InvoiceNo" class="k-textbox" />
+                            </div>
+                            <div class="form-group col-md-3" v-show="input.Category!='Without PO Invoice'">
+                                @Html.LabelFor(x => x.InvoiceDate, "Invoice Date")
+                                <kendo-datepicker :value="input.InvoiceDate" :format="'dd-MMM-yyyy'" :max=maxDate @@change="function(e){setModel(e,input,'InvoiceDate')}" style="width:100%;"></kendo-datepicker>
+                            </div>
+                            <div class="form-group col-md-3" v-show="input.Category=='With PO Invoice'">
+                                @Html.LabelFor(x => x.ParentId, "Payment Ref No")
+                                <kendo-datasource ref="dsParentId" :transport-read-url="'@Url.Action("ReadWithoutPO", "PaymentMaster")'" :transport-read-type="'POST'"></kendo-datasource>
+                                <kendo-combobox ref="ddParentId" v-model="input.ParentId" :data-text-field="'Text'" :data-value-field="'Id'" :data-source-ref="'dsParentId'" :auto-bind="false" :filter="'contains'" @@change="function(e){setModel(e,input,'ParentId',onchangeParentId)}" style="width:100%"></kendo-combobox>
+                            </div>
+                            <div class="form-group col-md-3" v-show="IsShipment">
+                                @Html.LabelFor(x => x.ReferenceId, "Shipment")
+                                <kendo-datasource ref="dsReferenceNo" :transport-read-url="'@Url.Action("ReadShipments", "PaymentMaster")'" :transport-read-type="'POST'"></kendo-datasource>
+                                <kendo-combobox ref="ddReferenceNo" v-model="input.ReferenceId" :data-text-field="'Text'" :data-value-field="'Id'" :data-source-ref="'dsReferenceNo'" :auto-bind="false" :filter="'contains'" @@change="function(e){setModel(e,input,'ReferenceId',referenceChange)}" style="width:100%"></kendo-combobox>
+                            </div>
+                            <div class="form-group col-md-3">
+                                @Html.LabelFor(x => x.PaymentType, "Mode")
+                                <kendo-dropdownlist v-model="input.PaymentType" :data-source='@Vue.Encode(Utilities.EnumToDescription<ReceiptPaymentMode>())' @@change="function(e){setModel(e,input,'PaymentType',supplierChange)}" style="width:100%"></kendo-dropdownlist>
+                            </div>
+                            <div class="form-group col-md-3">
+                                @Html.LabelFor(x => x.Currency, "Currency")
+                                <kendo-datasource ref="dsCurrency" :transport-read-url="'@Url.Action("ReadCurrencies", "Common")'" :transport-read-type="'POST'"></kendo-datasource>
+                                <kendo-dropdownlist v-model="input.Currency" :data-source-ref="'dsCurrency'" :data-text-field="'Currency'" :data-value-field="'Currency'" :filter="'contains'" style="width:100%"></kendo-dropdownlist>
+                            </div>
+                            <div class="form-group col-md-3">
+                                @Html.LabelFor(x => x.Amount, "Amount")
+                                <kendo-numerictextbox :value="input.Amount" :min="0" :spinners="false" :format="'n2'" style="text-align:right;width:100%;" @@change="function(e){setModel(e,input,'Amount',onchangeAmount)}"></kendo-numerictextbox>
+                            </div>
+                            <div class="form-group col-md-3">
+                                @Html.LabelFor(x => x.AmountWOGST, "Amount Without GST")
+                                <kendo-numerictextbox :value="input.AmountWOGST" :min="0" :spinners="false" :format="'n2'" style="text-align:right;width:100%;" :disabled="true"></kendo-numerictextbox>
+                            </div>
+                            <div class="form-group col-md-3">
+                                @Html.LabelFor(x => x.GST, "GST Amount")
+                                <kendo-numerictextbox :value="input.GST" :min="0" :spinners="false" :format="'n2'" style="text-align:right;width:100%;" @@change="function(e){setModel(e,input,'GSTAmount',onchangeAmount)}" :disabled="true"></kendo-numerictextbox>
+                            </div>
+                            <div class="form-group col-md-3">
+                                @Html.LabelFor(x => x.TotalAmount, "Total Amount")
+                                <kendo-numerictextbox :value="input.TotalAmount" :min="0" :spinners="false" :format="'n2'" style="text-align:right;width:100%;" :disabled="true"></kendo-numerictextbox>
+                            </div>
+
+                            <div class="form-group col-md-3" v-show="input.PaymentType!='Cash' && input.PaymentType!='Credit-Cash'">
+                                @Html.LabelFor(x => x.BankId, "Bank")
+                                <kendo-datasource ref="dsBankId" :transport-read-url="'@Url.Action("ReadBank", "PaymentMaster")'" :transport-read-type="'POST'"></kendo-datasource>
+                                <kendo-combobox ref="ddBankId" v-model="input.BankId" :data-source-ref="'dsBankId'" :filter="'contains'" :data-text-field="'Text'" :data-value-field="'Id'" :auto-bind="false" style="width:100%" @@change="function(e){setModel(e,input,'BankId',changeBank)}"></kendo-combobox>
+                            </div>
+
+                            <div class="form-group col-md-3" v-show="input.PaymentType!='Cash' && input.PaymentType!='CASH' && input.PaymentType!='Credit-Cash'">
+                                @Html.LabelFor(x => x.AccountNo,"Account No")
+                                <kendo-datasource ref="dsAccountNo" :transport-read-url="'@Url.Action("ReadSupplierAccountNoList", "PaymentMaster")'" :transport-read-type="'POST'"></kendo-datasource>
+                                <kendo-combobox ref="ddAccountNo" :value="input.AccountNo" :data-source-ref="'dsAccountNo'" :filter="'contains'" :data-text-field="'Id'" :data-value-field="'Id'" :auto-bind="false" style="width:100%" @@change="function(e){setModel(e,input,'AccountNo',changeAccount)}"></kendo-combobox>
+                            </div>
+
+
+                            <div class="form-group col-md-3" v-show="input.PaymentType!='Cash' && input.PaymentType!='CASH' && input.PaymentType!='Credit-Cash'">
+                                @Html.LabelFor(x => x.AccountName,"Account Name")
+                                <input type="text" v-model.trim="input.AccountName" class="k-textbox" readonly />
+                            </div>
+
+                            <div class="form-group col-md-12" v-show="IsPOVisible || IsShipment">
+                                @Html.LabelFor(x => x.Remarks, "Remarks")
+                                <textarea v-model.trim="input.Remarks" class="k-textbox" style="resize:none;" rows="1" placeholder="Comments"></textarea>
+                            </div>
+                        </div>
+                        <div style="g-title">
+                            <div class="g-left">
+                                <a href="javascript:appEdit.addDoc()" class="c-lnk"><i class="fa fa-paperclip"></i> Attachments</a>
+                            </div>
+                            <div>
+                                <div style="text-align:right;padding-top:5px;" v-show="input.ApprovedDate == null">
+                                    <button type="button" class="btn btn-danger" onclick="appEdit.resetData()">Reset</button>
+                                    @Html.SaveButton()
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div v-show="IsPOVisible">
+                    <div class="wt-box">
+                        <div class="wt-box-header">
+                            Purchase Orders
+                            <a href="javascript:appEdit.selectPO()" class="c-lnk" style="float: right;text-decoration:underline !important">Select Purchase Order</a>
+                        </div>
+                        @(Html.Kendo().Grid<SupplierPurchaseOrderModel>()
+                    .Name("gridPO")
+                    .Editable(Html, "", false, false)
+                    .Columns(c =>
+                    {
+                    c.DeleteColumn(x => x.PaymentDetailsId, "appEdit.deletePO('#:uid#')", childEdit: true);
+                    c.Bound(p => p.PORefNo).Title("Ref No").Width(40).Editable("disableEditor");
+                    // c.MoneyColumn(p => p.Amount).Width(100).Editable("disableEditor");
+                    // c.MoneyColumn(p => p.GSTAmount).Width(100).Editable("disableEditor");
+                    c.MoneyColumn(p => p.TotalAmount).Width(100).Editable("disableEditor");
+                    c.MoneyColumn(p => p.Balance).Width(100).HtmlAttributes(new { @class = "editable" }).Editable("disableEditor");
+                    c.MoneyColumn(p => p.InvoiceAmount).Width(100);
+                    })
+                    .Sortable()
+                    .Resizable(x => x.Columns(true))
+                    .HtmlAttributes(new { @class = "inl-grid" })
+                    .AutoBind(false)
+                    .NoRecords()
+                    .Navigatable()
+                    .DataSource(d => d
+                    .Ajax().Batch(true)
+                    .ServerOperation(false)
+                    .Read(read => read.Action("ReadSupplierInvoiceDetails", "PaymentMaster").Data("appEdit.gridData"))
+                    .Model(m =>
+                    {
+                    m.Id(p => p.PaymentDetailsId);
+                    m.Field(p => p.PaymentDetailsId).Editable(false);
+                    }))
+                    .Events(x => x.CellClose("appEdit.gridCellClose").DataBound("appEdit.gridPODataBound"))
+                        )
+                    </div>
+                </div>
+                <div v-show="IsWOP">
+                    <div class="g-title">
+                        <div class="g-left">
+                            <a class='i-button b-icon' href='javascript:appEdit.addRow()'><i class='fa fa-plus'></i></a>
+                        </div>
+                    </div>
+                    @(Html.Kendo().Grid<PaymentDetails>()
+                .Name("gridWOP")
+                .Editable(Html, "", false, false, GridInsertRowPosition.Bottom)
+                .Columns(c =>
+                {
+                c.DeleteColumn(p => p.ID, "appEdit.deleteWOPItem('#:uid#')");
+                c.Bound(p => p.ExpenseCode).Title("Expense Name").Width(180);
+                c.Bound(p => p.Details).Width(300);
+                c.MoneyColumn(p => p.Amount).EditorTemplateName("MoneyEditor").Title("Amount").Width(100);
+                c.Bound(p => p.GSTPercent).ClientTemplate("#: GSTPercent==null?'':GSTPercent #").EditorTemplateName("ComboBoxEditor").EditorViewData(new { Data = new EditorData(Url.Action("ReadGSTPercent", "PaymentMaster"), "Value", "Value", OnChange: "appEdit.gstOnChange") }).Title("GST%").Width(120);
+                c.MoneyColumn(p => p.GSTAmount).EditorTemplateName("MoneyEditor").Title("GST Amount").Width(100).Editable("disableEditor");
+                c.MoneyColumn(p => p.TotalAmount).Width(100).Editable("disableEditor");
+                })
+                .Sortable()
+                .Resizable(x => x.Columns(true))
+                .HtmlAttributes(new { @class = "h-grid cb-grid" })
+                .NoRecords()
+                .Navigatable()
+                .AutoBind(false)
+                .Events(x => x.CellClose("appEdit.gridWOPCellClose").DataBound("appEdit.gridWOPDataBound"))
+                .DataSource(dataSource => dataSource
+                .Ajax()
+                .Batch(true)
+                .ServerOperation(false)
+                .Read(read => read.Action("ReadWOPSupplierInvoices", "PaymentMaster").Data("appEdit.gridWOPData"))
+                .Model(model =>
+                {
+                model.Id(p => p.ID);
+                model.Field(p => p.ID).Editable(false);
+                })))
+                </div>
+                <div v-show="IsShipment">
+                    @(Html.Kendo().Grid<PaymentDetails>()
+                .Name("gridShipExpenses")
+                .Editable(Html, "Shipment Settings", AllowAdd: false, AllowSave: false)
+                .AutoBind(false)
+                .Columns(c =>
+                {
+                c.Bound(x => x.ID).ClientTemplate(@"#if(ID>0){# <a class='btn-grid btn-grid-delete fa fa-trash-o' title='Delete' href=""javascript:appShipExpense.deleteShipmentExpenseItem('#:uid#')""></a>
+                #}#").Width(50).ClearTitle().Filterable(false).Sortable(false).HtmlAttributes(new { style = "text-align:center;" }).HeaderHtmlAttributes(new { style = "text-align:center;" });
+                c.Bound(p => p.ExpenseCode).Title("Expense Name").Width(150);
+                c.Bound(p => p.Details).Title("Description").Width(220);
+                c.MoneyColumn(p => p.Amount).Width("150");
+                c.MoneyColumn(p => p.GSTPercent).ClientTemplate("#: GSTPercent==null?'':GSTPercent #").EditorTemplateName("ComboBoxEditor").EditorViewData(new { Data = new EditorData(Url.Action("ReadGSTPercent", "PaymentMaster"), "Value","Value", OnChange: "appEdit.gstOnChange") }).Title("GST%").Width(120);
+                c.MoneyColumn(p => p.GSTAmount).Title("GST").Width("120").Editable("disableEditor");
+                c.MoneyColumn(p => p.TotalAmount).Title("Total").Width("120").Editable("disableEditor");
+                })
+                .Events(x => x.DataBound("appShipExpense.gridShipExpenses_DataBound").CellClose("appShipExpense.gridShipExpenses_Cellclose"))
+                .DataSource(d => d.Ajax()
+                .Batch(true)
+                .ServerOperation(false)
+                .Read(read => read.Action("ReadShipmentExpenses", "PaymentMaster").Data("appShipExpense.gridData"))
+                .Model(m =>
+                {
+                m.Id(f => f.ID);
+                m.Field(x => x.ID).Editable(false);
+                m.Field(x => x.ExpenseCode).Editable(false);
+                m.Field(x => x.Details).Editable(false);
+                })
+                .Create("UpdateShipmentExpenses", "Shipment")
+                .Update("UpdateShipmentExpenses", "Shipment")
+                .Events(events => events.Error("grid_ErrorHandler")))
+                .Sortable()
+                .AutoBind(false)
+                .Navigatable()
+                    )
+                </div>
+            </div>
+        </form>
+    </text>).Events(events => events.Close("onWindowClose")).Visible(false).Title("Payment Request").Draggable().MaxWidth(1000)
+
+@{
+    var jsonData = Vue.Encode(new PaymentRequest() { PaymentType = "Cash", Currency = _appUser.BaseCurrency, InvoiceDate = DateTime.Now });
+}
+
+@(Html.Kendo().Window()
+    .Name("wndPOItem")
+    .Title("Purchase Orders")
+    .Content(@<text>
+    <div id="appPO">
+        @(Html.Kendo().Grid<SupplierPurchaseOrderModel>()
+        .Name("gridPOItem")
+        .AutoBind(false)
+        .Columns(x =>
+        {
+        x.Bound(c => c.PurchaseOrderId).ClientTemplate("<i class='btn-grid btn-grid-plus fa fa-plus' title='Select Item'></i>").Center().HtmlAttributes(new { onclick = "appPO.addItem(this)" }).Width(10).Filterable(false).Sortable(false).ClearTitle();
+        x.Bound(c => c.PORefNo).Title("Ref No").Width(40);
+        x.MoneyColumn(c => c.Amount).Width(20);
+        x.MoneyColumn(c => c.GSTAmount).Width(20);
+        x.MoneyColumn(c => c.TotalAmount).Width(20);
+        x.MoneyColumn(c => c.Balance).Width(20);
+        x.Bound(c => c.Mode).Width(40);
+        x.Bound(c => c.PaymentType).Width(40);
+        x.Bound(c => c.Currency).Width(40);
+        })
+        .Sortable()
+        .EnableFilter()
+        .Scrollable()
+        .Pageable(x => x.Refresh(true))
+        .Resizable(x => x.Columns(true))
+        .HtmlAttributes(new { @class = "h-grid v-grid" })
+        .Events(x => x.DataBound("appPO.gridPOItemDataBound"))
+        .DataSource(d => d
+        .Ajax().ServerOperation(true).PageSize(50)
+        .Read(read => read.Action("ReadPurchaseOrders", "PaymentMaster").Data("appEdit.grid_POItemData"))
+        ))
+    </div>
+</text>)
+    .Draggable()
+    .Resizable()
+    .Visible(false)
+    .MaxWidth(950)
+    )
+
+@await Html.PartialAsync("DocumentsDialog", "")
+<script type="text/javascript">
+    var appPO = new Vue({
+        el: '#appPO',
+        data: {
+            addPOCallBack: null
+            
+        },
+        methods: {
+            addItem: function (sender) {
+                var $grid = $('#gridPOItem').getKendoGrid();
+                var item = $grid.dataItem($(sender).parent());
+                if (item.Currency != appEdit.input.Currency) {
+                    kendoAlert("Please make sure Currency should be " + appEdit.input.Currency, true);
+                    return;
+                }
+                if (item.PaymentType != appEdit.input.PaymentType) {
+                    kendoAlert("Please make sure Payment Mode should be " + appEdit.input.PaymentType, true);
+                    return;
+                }
+                $(sender).find('i').removeClass("fa-plus").addClass("fa-spinner fa-spin");
+                $grid.dataSource.remove(item);
+                if (this.addPOCallBack)
+                    this.addPOCallBack(item);
+            },
+            open: function () {
+                $('#gridPOItem').getKendoGrid().dataSource.read();
+                $('#wndPOItem').getKendoWindow().open().center();
+            },
+            gridPOItemDataBound: function () {
+                $('#wndPOItem').getKendoWindow().center();
+            }
+        }
+    });
+</script>
+<script type="text/javascript">
+    var appEdit = new Vue({
+        el: '#appEdit',
+        data: {
+            input: @(jsonData),
+            PORefNo: [],
+            IsPOVisible: false,
+            Documents: [],
+            Amount: 0,
+            InvoiceId: 0,
+            IsShipment: false,
+            maxDate: new Date(),
+            IsWOP: false,
+        },
+        created: function () {
+            appPO.addPOCallBack = this.addItem;
+            appDoc.init("@DocumentReference.SupplierInvoices.ToString()", this.onSuccess);
+        },
+        methods: {
+            open: function (id) {
+                onWindowOpen(); // for bg opacity..
+                $('#wndAddPayment').getKendoWindow().open().center();
+
+                if (!id) {
+                    toggle_Change();
+                }
+                else {
+                    $.getData("@Url.Action("GetSupplierInvoices", "PaymentMaster")", { ID: id }, function (res) {
+                        appEdit.input = res ? res : @(jsonData);
+                        if (res) {
+                            appEdit.IsPOVisible = res.IsPOVisible;
+                            appEdit.IsShipment = res.IsShipment;
+                            appEdit.$refs.dsBankId.kendoWidget().read({ supplierId: res.SupplierId })
+
+                        }
+
+                        $(function () {
+                            appEdit.changeCategory();
+                            appEdit.editItem();
+                        })
+                    });
+                }
+
+                setTimeout(function () {
+                    var bankId = [];
+                    bankId = appEdit.$refs.dsBankId.kendoWidget().data();
+
+                    var primaryBank = $.grep(bankId, function (x) { return x.IsPrimary == true });
+
+                    if (primaryBank.length > 0) {
+                        appEdit.input.BankId = primaryBank[0].Id;
+                        appEdit.input.AccountName = primaryBank[0].AccountName;
+                        appEdit.input.AccountNo = primaryBank[0].AccountNo;
+                        appEdit.$refs.dsAccountNo.kendoWidget().read({ SupplierId: appEdit.input.SupplierId, BankId: appEdit.input.BankId });
+                    }
+
+                }, 500);
+
+
+
+
+
+
+            },
+
+            resetData() {
+                this.input = @(jsonData);
+                $('#gridPO').getKendoGrid().dataSource.data([]);
+            },
+            validateForm: function () {
+                removeError();
+                var isValid = true;
+                var setError = function (cntrl, msg) {
+                    isValid = false;
+                    showError(cntrl, msg);
+                };
+
+                if (this.IsPOVisible) {
+                    var items = $('#gridPO').getKendoGrid().dataSource.data();
+                    if (!items.length) {
+                        kendoAlert("Select purchase order", true);
+                        return;
+                    }
+                }
+                if (this.IsShipment) {
+                    var items = $('#gridShipExpenses').getKendoGrid().dataSource.data();
+                    if (!items.length) {
+                        kendoAlert("Please update the shipment expense", true);
+                        return;
+                    }
+                }
+                if (!this.IsPOVisible && !this.IsShipment) {
+                    var items = $('#gridWOP').getKendoGrid().dataSource.data();
+                    if (!items.length) {
+                        kendoAlert("Please enter expense details", true);
+                        return;
+                    }
+                }
+
+                if (this.$refs.ddBusinessUnit && this.$refs.ddBusinessUnit.kendoWidget().selectedIndex == -1)
+                    setError('BusinessUnitId', 'Invalid');
+
+                if (this.$refs.ddSupplier && this.$refs.ddSupplier.kendoWidget().selectedIndex == -1)
+                    setError('SupplierId', 'Invalid');
+
+                if (!this.input.PayeeName)
+                    setError('PayeeName');
+                if (!this.input.Category)
+                    setError('Category');
+
+                if (!this.input.InvoiceNo) {
+                    setError('InvoiceNo');
+                } else if (/\s/.test(this.input.InvoiceNo)) {
+                    setError('InvoiceNo', 'Invalid');
+                    kendoAlert('Invoice number cannot contain spaces');
+                } //No space Validation
+
+                if (this.$refs.ddReferenceNo && this.$refs.ddReferenceNo.kendoWidget().selectedIndex == -1 && this.IsShipment)
+                    setError('ReferenceId', 'Invalid');
+
+                if (this.$refs.ddParentId && this.$refs.ddParentId.kendoWidget().selectedIndex == -1 && this.input.ParentId && this.input.Category == 'Without PO Invoice')
+                    setError('ParentId', 'Invalid');
+
+                if (!this.input.InvoiceNo && !this.input.Category == 'Without PO Invoice')
+                    setError('InvoiceNo');
+                if ((!this.input.InvoiceDate || !this.input.InvoiceDate.isValid()) && !this.input.Category == 'Without PO Invoice')
+                    setError('InvoiceDate');
+                if (!this.input.Amount)
+                    setError('Amount');
+
+                if (this.input.PaymentType != "Cash") {
+                    if (this.$refs.ddBankId && this.$refs.ddBankId.kendoWidget().selectedIndex == -1)
+                        setError('BankId', 'Invalid');
+                    if (!this.input.AccountName)
+                        setError('AccountName');
+                    if (!this.input.AccountNo && (this.input.PaymentType.toLowerCase() == 'banktransfer' || this.input.PaymentType.toLowerCase() == 'tt' || this.input.PaymentType.toLowerCase() == 'remittance'))
+                        setError('AccountNo');
+                }
+
+
+                if (!this.IsPOVisible && !this.IsShipment) {
+                    var emptyInvoiceNo = "", emptyDescriptions = 0, zeroAmount = 0;
+                    $('#gridWOP').find(".rw-err").removeClass("rw-err");
+                    var items = $('#gridWOP').getKendoGrid().dataSource.data();
+                    var editedRows = $.grep(items, function (item) {
+                        return item.ExpenseCode != "" || item.Details != '' || item.Amount !== 0;
+                    });
+
+                    if (editedRows.length == 0) {
+                        kendoAlert('Please enter atleast one invoice detail.', true);
+                        return;
+                    }
+
+                    $.each(editedRows, function (i, x) {
+                        var setRowError = function () {
+                            $('#gridWOP').find("[data-uid=" + x.uid + "]:not('.rw-err')").addClass("rw-err");
+                        };
+
+                        if (!x.Details || !x.Details.trim().length) {
+                            emptyDescriptions++;
+                            setRowError();
+                        }
+                        if (!x.ExpenseCode || !x.ExpenseCode.trim().length) {
+                            emptyInvoiceNo++;
+                            setRowError();
+                        }
+                        if (!x.Amount) {
+                            zeroAmount++;
+                            setRowError();
+                        }
+                    });
+
+                    var errors = [];
+                    if (emptyInvoiceNo > 0)
+                        errors.push("Invoice No shoud not be empty");
+
+                    if (emptyDescriptions > 0)
+                        errors.push("Description should not be empty");
+
+                    if (zeroAmount > 0)
+                        errors.push("Amount should not be zero");
+
+                    if (errors.length) {
+                        isValid = false;
+                        kendoAlert(errors.join("\n"), true);
+                    }
+                }
+
+                if (this.IsShipment) {
+                    var emptyAmount = 0;
+                    $('#gridShipExpenses').find(".rw-err").removeClass("rw-err");
+                    var items = $('#gridShipExpenses').getKendoGrid().dataSource.data();
+                    var editedRows = $.grep(items, function (item) {
+                        return item.Amount !== 0;
+                    });
+
+                    if (editedRows.length == 0) {
+                        kendoAlert('Please enter atleast one expense detail.', true);
+                        return;
+                    }
+
+                    $.each(editedRows, function (i, x) {
+                        var setRowError = function () {
+                            $('#gridShipExpenses').find("[data-uid=" + x.uid + "]:not('.rw-err')").addClass("rw-err");
+                        };
+
+                        if (!x.Amount) {
+                            zeroAmount++;
+                            setRowError();
+                        }
+                    });
+
+                    var errors = [];
+                    if (zeroAmount > 0)
+                        errors.push("Amount should not be zero");
+
+                    if (errors.length) {
+                        isValid = false;
+                        kendoAlert(errors.join("\n"), true);
+                    }
+                }
+                return isValid;
+            },
+            selectPO: function () {
+                if (!this.input.SupplierId) {
+                    kendoAlert('Please select supplier before selecting purchase order', true);
+                    return;
+                }
+                appPO.open();
+            },
+            addItem: function (items) {
+                var newPO = @(Vue.Encode(new SupplierPurchaseOrderModel()));
+                var dataSource = $('#gridPO').getKendoGrid().dataSource;
+                var extItem = $.grep(dataSource.data(), function (x) { return x.PurchaseOrderId == items.PurchaseOrderId });
+
+                if (extItem.length) {
+                    return;
+                }
+                else {
+
+                    newPO.PurchaseOrderId = items.PurchaseOrderId;
+                    newPO.PORefNo = items.PORefNo;
+                    newPO.Balance = items.Balance;
+                    newPO.TotalAmount = items.TotalAmount;
+                    newPO.GSTPercent = items.GSTPercent;
+                    newPO.PaymentDetailsId = items.PaymentDetailsId;
+                    newPO.Mode = items.Mode;
+                    newPO.GSTAmount = items.GSTAmount;
+                    newPO.Amount = items.Amount;
+                    dataSource.add(newPO);
+                }
+
+            },
+            onSuccess: function (res) {
+                kendoAlert(res.Message, res.HasError);
+                if (res.HasError)
+                    return;
+
+                location.href = "@Url.Page("/Accounts/EditPaymentRequest")";
+            },
+            submitForm: function () {
+                if (!this.validateForm())
+                    return;
+
+                if (this.input.PaymentType == "Cash" || this.input.PaymentType == "CASH" || this.input.PaymentType == "Credit-Cash") {
+                    this.input.BankId = null;
+                    this.input.AccountName = null;
+                    this.input.AccountNo = null;
+                }
+                var paymentDetails = [];
+
+                if (this.IsPOVisible) {
+                    var selectPOItems = $('#gridPO').getKendoGrid().dataSource.data();
+                    $.each(selectPOItems, function (i, item) {
+                        paymentDetails.push({
+                            ID: item.PaymentDetailsId, ReferenceId: item.PurchaseOrderId, GSTAmount: item.GSTAmount, Amount: item.Amount, GSTPercent: item.GSTPercent, ExpenseCode: item.PORefNo, Details: item.Mode, ReferenceNo: item.PORefNo, MaxAmount: item.InvoiceAmount, GSTSettingId: item.GSTSettingId
+                        });
+                    });
+                }
+
+                if (!this.IsPOVisible && !this.IsShipment) {
+                    var selectWOPitems = $('#gridWOP').getKendoGrid().dataSource.data();
+                    $.each(selectWOPitems, function (i, item) {
+                        paymentDetails.push({
+                            ID: item.ID, ReferenceId: 0, GSTAmount: item.GSTAmount, Amount: item.Amount, GSTPercent: item.GSTPercent > 0 ? item.GSTPercent : 0.0, ExpenseCode: item.ExpenseCode, Details: item.Details, ReferenceNo: item.ReferenceNo, MaxAmount: 0.0, GSTSettingId: item.GSTSettingId
+                        });
+                    });
+                }
+
+                if (this.IsShipment) {
+                    var data = $('#gridShipExpenses').getKendoGrid().dataSource.data();
+
+                    var expenses = $.grep(data, function (item) {
+                        return item.Amount > 0 || item.Id > 0;
+                    });
+
+                    $.each(expenses, function (i, item) {
+                        paymentDetails.push({
+                            ID: item.ID, ReferenceId: item.ReferenceId, GSTAmount: item.GSTAmount, Amount: item.Amount, GSTPercent: item.GSTPercent > 0 ? item.GSTPercent : 0.0, ExpenseCode: item.ExpenseCode, Details: item.Details, ReferenceNo: item.ReferenceNo, MaxAmount: item.MaxAmount, GSTSettingId: item.GSTSettingId
+                        });
+                    });
+                }
+                this.input.Amount = this.input.AmountWOGST;
+                $.postData("@Url.Action("SavePaymentRequest", "PaymentMaster")",
+                    {
+                        datas: this.input,
+                        paymentDetails: paymentDetails
+                    }, function (res) {
+                        if (res.HasError) {
+                            kendoAlert(res.Message, res.HasError);
+                            return;
+                        }
+
+                        if (!appDoc.save(res.Id))
+                            appEdit.onSuccess(res);
+                    });
+            },
+            editItem: function () {
+                if (this.IsPOVisible)
+                    $('#gridPO').getKendoGrid().dataSource.read();
+                else if (this.IsShipment)
+                    $('#gridShipExpenses').getKendoGrid().dataSource.read();
+                else
+                    $('#gridWOP').getKendoGrid().dataSource.read();
+            },
+            onchangeAmount: function () {
+
+                var data = $('#gridPO').getKendoGrid().dataSource.data();
+                this.input.TotalAmount = parseFloat(this.input.Amount) + parseFloat(this.input.GST);
+                var amount = this.input.Amount;
+                this.Amount = this.input.TotalAmount;
+
+                if (!data.length && this.IsPOVisible) {
+                    kendoAlert("Please select purchase order", true);
+                    return;
+                }
+                var totalBalanceAmount = 0;
+                if (data.length > 0) {
+                    $.each(data, function (i, x) {
+                        var TotalAmt = Math.abs(x.ActualInvoiceAmount - x.TotalAmount) == x.Balance ? x.TotalAmount : x.Balance;
+                        // totalBalanceAmount += x.Balance > 0 ? x.Balance : (x.Balance + x.TotalAmount);
+                        totalBalanceAmount += x.Balance > 0 ? TotalAmt : (x.Balance + x.TotalAmount);
+
+                        appEdit.setPOInvoiceAmount(x, appEdit.Amount);
+                    });
+                    if (amount > totalBalanceAmount) {
+                        kendoAlert("Amount (" + amount + ") should not be greater than purchase order balance amount (" + toCurrency(totalBalanceAmount) + ")", true);
+                        var self = this;
+                        setTimeout(function () {
+                            self.input.Amount = toCurrency(totalBalanceAmount);
+                        }, 300);
+                        // this.input.TotalAmount = toCurrency(totalBalanceAmount);
+                    }
+                }
+            },
+            addRow: function () {
+                $('#gridWOP').getKendoGrid().addRow();
+            },
+            gstOnChange: function (ddItem, gridItem, ddControl) {
+
+                if (!ddItem && !ddControl.text()) {
+                    gridItem.set('GSTAmount', 0);
+                    gridItem.GSTPercent = null;
+                    return;
+                }
+
+                if (gridItem.Amount > 0) {
+                    var amountGST = parseFloat(parseFloat(gridItem.Amount * (gridItem.GSTPercent / 100), 2).toFixed(2));
+                    gridItem.GSTAmount = amountGST;
+                }
+                else
+                    gridItem.GSTAmount = 0;
+
+                gridItem.TotalAmount = gridItem.Amount + gridItem.GSTAmount;
+
+                if (!this.IsPOVisible && !this.IsShipment)
+                    this.calculateAmount();
+                else if (this.IsShipment)
+                    appShipExpense.calculateMainTotal();
+            },
+            setPOInvoiceAmount: function (data, amount) {
+                console.log(data.Balance, data.TotalAmount, amount)
+                if (amount > data.Balance) {
+                    // data.set("InvoiceAmount", data.Balance);
+                    //var partialAmount = data.TotalAmount > amount ? amount : data.TotalAmount;
+
+                    var TotalAmt = Math.abs(data.InvoiceAmount - data.TotalAmount) == data.Balance ? data.TotalAmount : data.Balance;
+                    data.set("InvoiceAmount", data.Balance <= 0 ? data.TotalAmount : TotalAmt);
+                    this.Amount = this.Amount - data.Balance;
+                }
+                else {
+                    data.set("InvoiceAmount", amount);
+                    this.Amount = this.Amount - amount;
+                }
+            },
+            deletePO: function (uid) {
+                var dataSource = $('#gridPO').getKendoGrid().dataSource;
+                var dataItem = dataSource.getByUid(uid);
+                if (dataItem.ParentId > 0) {
+                    return;
+                }
+
+                if (!dataItem.PaymentDetailsId)
+                    dataSource.cancelChanges(dataItem);
+                else {
+                    kendoConfirm("Do you want to delete this supplier invoice?", function () {
+                        $.postData("@Url.Action("DeletePaymentInvoiceDetails", "PaymentMaster")", { ID: this.input.ID, PaymentDetailsID: dataItem.PaymentDetailsId, RefNo: dataItem.ExpenseCode }, function (res) {
+                            kendoAlert(res.Message, res.HasError);
+                            if (res.HasError)
+                                return;
+                            $('#gridPO').data('kendoGrid').dataSource.read();
+                            $('#grid').data('kendoGrid').dataSource.read();
+                        });
+                    });
+                }
+            },
+            deleteWOPItem: function (uid) {
+                var dataSource = $('#gridWOP').getKendoGrid().dataSource;
+                var dataItem = dataSource.getByUid(uid);
+                if (!dataItem.ID)
+                    dataSource.cancelChanges(dataItem);
+                else {
+                    kendoConfirm("Do you want to delete this supplier invoice?", function () {
+                        $.postData("@Url.Action("DeletePaymentInvoiceDetails", "PaymentMaster")", { ID: this.input.ID, PaymentDetailsID: dataItem.ID, RefNo: dataItem.ExpenseCode }, function (res) {
+                            kendoAlert(res.Message, res.HasError);
+                            if (res.HasError)
+                                return;
+                            $('#gridWOP').data('kendoGrid').dataSource.read();
+                            $('#grid').data('kendoGrid').dataSource.read();
+                        });
+                    });
+                }
+            },
+            addDoc: function () {
+                appDoc.open(this.input.ID);
+            },
+            gridCellClose: function (e) {
+                var fieldName = e.sender.columns[e.container.index()].field;
+                var item = e.model;
+                if (fieldName == "InvoiceAmount") {
+                    var TotalAmt = Math.abs(item.TotalAmount - item.ActualInvoiceAmount) == item.Balance ? item.TotalAmount : item.Balance;
+                    // var TotalAmt = Math.abs(item.InvoiceAmount - item.ActualInvoiceAmount) == item.Balance ? item.TotalAmount : item.Balance;
+                    // if (item.InvoiceAmount > item.Balance && item.Balance > 0) {
+                    if (item.InvoiceAmount > TotalAmt && item.Balance > 0) {
+                        kendoAlert("Invoice amount (" + toCurrency(item.InvoiceAmount) + ") should not be greater than balance amount (" + toCurrency(item.Balance == TotalAmt ? item.Balance : TotalAmt) + ")", true);
+                        item.set("InvoiceAmount", item.Balance == TotalAmt ? item.Balance : TotalAmt);
+                    }
+                    appEdit.calculatePOAmount();
+                }
+            },
+            gridPODataBound: function () {
+                appEdit.calculatePOAmount();
+            },
+            calculatePOAmount: function () {
+                var data = $('#gridPO').getKendoGrid().dataSource.data();
+                var amount = 0; var tGST = 0; var amountwithoutGST = 0; var tAmount = 0;
+                $.each(data, function (i, x) {
+                    amount += x.InvoiceAmount;
+                    amountwithoutGST += parseFloat(parseFloat((x.InvoiceAmount * 100) / (100 + x.GSTPercent), 2).toFixed(2));
+
+                    tGST = parseFloat(x.InvoiceAmount) - parseFloat((x.InvoiceAmount * 100) / (100 + x.GSTPercent));
+                    tAmount = parseFloat(x.InvoiceAmount * 100) / parseFloat(100 + x.GSTPercent);
+
+                    x.set("GSTAmount", parseFloat(tGST));
+                    x.set("Amount", parseFloat(tAmount));
+                });
+
+                this.input.AmountWOGST = amountwithoutGST;
+                this.input.GST = amount - amountwithoutGST;
+                this.input.TotalAmount = this.input.AmountWOGST + this.input.GST;
+                setTimeout(function () {
+                    appEdit.input.Amount = appEdit.input.AmountWOGST + appEdit.input.GST;
+                }, 300);
+            },
+            gridData: function () {
+                return { ID: this.input.ID, paymentType: this.input.PaymentType };
+            },
+            grid_POItemData: function () {
+                return { supplierId: this.input.SupplierId, currency: this.input.Currency, PayeeName: this.input.PayeeName, SupplierName: this.input.SupplierName, BusinessUnitId: this.input.BusinessUnitId, paymentType: this.input.PaymentType };
+            },
+            gridWOPData: function () {
+                return { ID: this.input.ID };
+            },
+            gridWOPCellClose: function (e, sender) {
+                var fieldName = e.sender.columns[e.container.index()].field;
+                var item = e.model;
+
+                if (fieldName == "Amount") {
+                    if (item.Amount > 0) {
+                        item.set("GSTAmount", ((item.GSTPercent / 100.0) * item.Amount));
+                        item.set("TotalAmount", (item.Amount + item.GSTAmount));
+                    }
+                    else {
+                        item.set("GSTAmount", 0);
+                        item.set("TotalAmount", 0);
+                    }
+                }
+
+                $('#gridWOP').data('kendoGrid').refresh();
+                if (fieldName == "Amount")
+                    this.calculateAmount();
+            },
+            gridWOPDataBound: function () {
+                appEdit.calculateAmount();
+            },
+            calculateAmount: function () {
+                var items = $('#gridWOP').getKendoGrid().dataSource.data();
+                var totalDebit = 0;
+                var totalGST = 0;
+                $.each(items, function (i, x) {
+                    totalDebit += x.Amount;
+                });
+                $.each(items, function (i, x) {
+                    totalGST += x.GSTAmount;
+                });
+                // this.input.Amount = totalDebit;
+                // this.input.GST = totalGST;
+                // this.input.TotalAmount = this.input.Amount + this.input.GST;
+
+                this.input.AmountWOGST = totalDebit;
+                this.input.GST = amount - totalGST;
+                this.input.TotalAmount = this.input.Amount + this.input.GST;
+            },
+            refreshPOGrid: function () {
+                $('#gridPO').getKendoGrid().dataSource.data([]);
+            },
+            supplierChange: function (e) {
+                $('#gridPO').getKendoGrid().dataSource.data([])
+                this.$refs.dsBankId.kendoWidget().data([]);
+                this.$refs.dsParentId.kendoWidget().data([]);
+                this.input.AccountName = null;
+                this.input.AccountNo = null;
+                this.input.BankId = null;
+                this.input.ParentId = null;
+                if (this.input.SupplierId != null)
+                    this.input.SupplierName = e.sender.text();
+                else
+                    this.input.SupplierName = null;
+
+                if (this.input.SupplierId && (appEdit.input.PaymentType != 'CASH' || appEdit.input.PaymentType != 'Cash' || appEdit.input.PaymentType != 'Credit-Cash')) {
+                    this.$refs.dsBankId.kendoWidget().read({ SupplierId: this.input.SupplierId });
+                    this.$refs.dsParentId.kendoWidget().read({ SupplierId: this.input.SupplierId });
+                }
+                if (this.input.SupplierId != null) {
+                    setTimeout(function () {
+                        var bankId = [];
+                        bankId = appEdit.$refs.dsBankId.kendoWidget().data();
+
+                        var primaryBank = $.grep(bankId, function (x) { return x.IsPrimary == true });
+
+                        if (primaryBank.length > 0) {
+                            appEdit.input.BankId = primaryBank[0].Id;
+                            appEdit.input.AccountName = primaryBank[0].AccountName;
+                            appEdit.input.AccountNo = primaryBank[0].AccountNo;
+                            appEdit.$refs.dsAccountNo.kendoWidget().read({ SupplierId: appEdit.input.SupplierId, BankId: appEdit.input.BankId });
+                        }
+
+                    }, 500);
+                }
+
+                appEdit.getShipment();
+            },
+            getShipment: function () {
+                if (this.input.SupplierId && this.input.Category == 'Shipment') {
+                    this.$refs.dsReferenceNo.kendoWidget().read({ SupplierId: this.input.SupplierId });
+                }
+                else {
+                    this.$refs.dsReferenceNo.kendoWidget().data([]);
+                }
+            },
+            // changeBank: function (e) {
+            //     if (e.sender.selectedIndex != -1) {
+            //         appEdit.input.BankName = e.sender.text();
+            //         $.getData("@Url.Action("ReadSupplierAccountList", "PaymentMaster")", { SupplierId: this.input.SupplierId, BankId: this.input.BankId }, function (res) {
+            //             appEdit.input.AccountName = res.Value1 != null ? appEdit.input.SupplierName : res.Value1;
+            //             appEdit.input.AccountNo = res.Value2;
+            //         });
+            //     }
+            //     else {
+            //         appEdit.input.AccountName = null;
+            //         appEdit.input.AccountNo = null;
+            //         appEdit.input.BankName = null;
+            //     }
+            // },
+
+            changeBank: function (e) {
+                if (e.sender.selectedIndex != -1) {
+
+                    this.$refs.dsAccountNo.kendoWidget().read({ SupplierId: this.input.SupplierId, BankId: this.input.BankId });
+                    this.input.AccountNo = null;
+                    this.input.AccountName = null;
+                }
+                else {
+                    //this.$refs.dsSupplierAccount.kendoWidget().data([]);
+                    this.input.BankName = null;
+                    this.input.BankId = null;
+                    this.input.AccountName = null;
+                    this.input.AccountNo = null;
+                }
+            },
+
+            changeAccount: function (e) {
+                if (e.sender.selectedIndex != -1) {
+                    // this.input.AccountNo = e.sender.text();
+                    //this.$refs.dsSupplierAccount.kendoWidget().read({ SupplierId: this.input.SupplierId, BankId: this.input.BankId, AccountNo: this.input.AccountNo });
+                    //this.input.AccountName = null;
+                    // setTimeout(function () {
+                    var accDetails = [];
+                    accDetails = this.$refs.dsAccountNo.kendoWidget().data();
+
+                    var primaryBank = $.grep(accDetails, function (x) { return x.Id == appEdit.input.AccountNo });
+
+                    if (primaryBank.length > 0)
+                        this.input.AccountName = primaryBank[0].Text;
+
+                    // }, 500);
+                }
+                else {
+                    //this.$refs.dsSupplierAccount.kendoWidget().data([]);
+                    this.input.AccountName = null;
+                }
+            },
+
+
+
+            changeBusinessUnit: function (e) {
+                if (this.input.BusinessUnitId == null || this.input.BusinessUnitId == 0) {
+                    this.input.PayeeName = null;
+                    this.input.Category = null;
+                    this.input.SupplierId = null;
+                    $('#gridPO').getKendoGrid().dataSource.data([]);
+                }
+            },
+            changeCategory: function (e) {
+                this.IsShipment = false;
+                this.IsPOVisible = false;
+                // this.IsPOVisible = this.input.Category == 'With PO Invoice' || this.input.Category == 'Without PO Invoice' ? true : false;
+                this.IsPOVisible = this.input.Category == 'Purchase Order' ? true : false;
+                this.IsShipment = this.input.Category == 'Shipment' ? true : false;
+                this.IsWOP = this.input.Category == 'Without Purchase Order' ? true : false;
+
+                if (!this.IsShipment) {
+                    this.input.ShipmentId = null;
+                }
+
+                if (this.input.Category == 'Without PO Invoice') {
+                    this.input.InvoiceNo = null;
+                    this.input.InvoiceDate = null;
+                }
+                if (!this.IsPOVisible && !this.IsShipment)
+                    $("#gridWOP").getKendoGrid().dataSource.read();
+
+                this.getShipment();
+            },
+            changePayeeName: function (e) {
+                if (this.input.PayeeName == null || this.input.PayeeName == "") {
+                    this.input.Category = null;
+                    this.input.SupplierId = null;
+                    $('#gridPO').getKendoGrid().dataSource.data([]);
+                }
+                this.$refs.dsSupplier.kendoWidget().read({ payeeName: this.input.PayeeName });
+            },
+            referenceChange: function (e) {
+                if (e.sender.selectedIndex != -1)
+                    this.input.ReferenceNo = e.sender.text();
+                else
+                    this.input.ReferenceNo = null;
+
+                $("#gridShipExpenses").getKendoGrid().dataSource.read();
+            },
+            onchangeParentId: function (e) {
+                $('#gridPO').getKendoGrid().dataSource.data([]);
+
+                if (e.sender.selectedIndex != -1) {
+                    $.getData("@Url.Action("GetParentInvoiceList", "PaymentMaster")", { ID: this.input.ParentId }, function (res) {
+
+                        var newPO = @(Vue.Encode(new SupplierPurchaseOrderModel()));
+                        var dataSource = $('#gridPO').getKendoGrid().dataSource;
+
+                        $.grep(res, function (x) {
+                            var extItem = $.grep(dataSource.data(), function (x) { return x.PurchaseOrderId == x.PurchaseOrderId });
+                            if (extItem.length) {
+                                return;
+                            }
+                            else {
+                                newPO.PurchaseOrderId = x.PurchaseOrderId;
+                                newPO.PORefNo = x.PORefNo;
+                                newPO.Balance = x.Balance;
+                                newPO.TotalAmount = x.TotalAmount;
+                                newPO.GSTPercent = x.GSTPercent;
+                                newPO.PaymentDetailsId = x.PaymentDetailsId;
+                                newPO.Mode = x.Details;
+                                dataSource.add(newPO);
+                            }
+                        });
+                    });
+                }
+                appEdit.calculatePOAmount();
+            }
+        }
+    });
+</script>
+<script type="text/javascript">
+    function toggle_Change() {
+        appEdit.input = @(jsonData);
+
+        appEdit.IsPOVisible = false;
+        appEdit.IsShipment = false;
+
+        $("#gridShipExpenses").getKendoGrid().dataSource.data([]);
+        $("#gridWOP").getKendoGrid().dataSource.data([]);
+        $("#gridPO").getKendoGrid().dataSource.data([]);
+    }
+    function printItem(uid) {
+        var dataItem = $('#grid').getKendoGrid().dataSource.getByUid(uid);
+        $('#frmDoc [name=RPT_Id]').val(dataItem.Id);
+        $('#frmDoc').submit();
+    }
+
+</script>
+<script type="text/javascript">
+    var appShipExpense = new Vue({
+        el: '#appShipExpense',
+        methods: {
+            editAmount: function () {
+                return false;
+            },
+            gridShipExpenses_Cellclose: function (e) {
+                var fieldName = e.sender.columns[e.container.index()].field;
+                var item = e.model;
+
+                if (fieldName == "Amount") {
+                    if (item.Amount && item.Amount > 0) {
+                        item.set("GSTAmount", parseFloat((item.GSTPercent / 100.0) * item.Amount));
+                        item.set("TotalAmount", item.Amount + item.GSTAmount);
+                    }
+
+                    else {
+                        item.set("GSTAmount", 0);
+                        item.set("TotalAmount", 0);
+                    }
+                }
+
+                $('#gridShipExpenses').data('kendoGrid').refresh();
+                this.calculateMainTotal();
+            },
+            calculateMainTotal: function () {
+                var data = $('#gridShipExpenses').getKendoGrid().dataSource.data();
+                var amount = 0; var GST = 0;
+                $.each(data, function (i, x) {
+                    amount += x.Amount;
+                    GST += x.GSTAmount;
+                });
+
+                appEdit.input.Amount = amount;
+                appEdit.input.GST = GST;
+                appEdit.input.TotalAmount = parseFloat(appEdit.input.Amount) + parseFloat(appEdit.input.GST);
+            },
+            gridShipExpenses_DataBound: function () {
+                this.calculateMainTotal();
+            },
+            gridData: function () {
+                return { shipmentId: appEdit.input.ReferenceId, ID: appEdit.input.ID };
+            },
+            deleteShipmentExpenseItem: function (uid) {
+                var dataSource = $('#gridShipExpenses').getKendoGrid().dataSource;
+                var dataItem = dataSource.getByUid(uid);
+                if (!dataItem.ID)
+                    dataSource.cancelChanges(dataItem);
+                else {
+                    kendoConfirm("Do you want to delete this supplier invoice?", function () {
+                        $.postData("@Url.Action("DeletePaymentInvoiceDetails", "PaymentMaster")", { ID: this.input.ID, PaymentDetailsID: dataItem.ID, RefNo: dataItem.ExpenseCode }, function (res) {
+                            kendoAlert(res.Message, res.HasError);
+                            if (res.HasError)
+                                return;
+                            $('#gridShipExpenses').data('kendoGrid').dataSource.read();
+                            $('#grid').data('kendoGrid').dataSource.read();
+                        });
+                    });
+                }
+            }
+        }
+    });
+</script>

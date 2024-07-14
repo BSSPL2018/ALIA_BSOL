@@ -1,0 +1,246 @@
+﻿@page
+@using BSOL.Core.Entities
+@model StockRepacking
+@{
+    ViewData["Title"] = "Repacking";
+    Layout = "~/Pages/Shared/_Layout.cshtml";
+}
+@if (!await Html.HasAccess(Forms.Procurement.Repacking))
+{
+    return;
+}
+@section BreadCrumb{
+    @await Html.PartialAsync("BreadCrumb", "Procurement")
+    @await Html.PartialAsync("Tabs", "Procurement/Stock")
+}
+@{
+    string statusFilter = Request.Query["q"] == "1" ? "Verified" : "Pending";
+}
+<div id="app">
+    <div class="g-title v-edit">
+        <div class="g-left">
+            @Html.ToggleButton(Orientation.Vertical)
+            <ul class="tg-btn tg-fixed" style="float: right; margin-left: 15px; margin-top: 1px;">
+                <li @(statusFilter == "Pending" ? "class=tg-active" : "")>
+                    <a href="@Url.Page("/Stock/Repacking")?q=0">Pending</a>
+                </li>
+                <li @(statusFilter == "Verified" ? "class=tg-active" : "")>
+                    <a href="@Url.Page("/Stock/Repacking")?q=1">Verified</a>
+                </li>
+            </ul>
+        </div>
+        <span class="g-text">Stock Repacking</span>
+        <div class="g-right">
+            <button type='submit' class='btn btn-save btn-cntrls' id='btnSave' @@click='submitForm' title='Save'><i class='fa fa-check'></i>Save</button>
+            <div v-if="input.Id" class="cntrl-inline">
+                @Html.DeleteButton()
+            </div>
+            @Html.ExcelButton()
+        </div>
+    </div>
+    <div id="editor" class="components" style="display: none;">
+        <div class="row">
+            <div class="col-md-5">
+                <div class="row">
+                    <div class="form-group col-md-6">
+                        @Html.LabelFor(x => x.FromItemId, "Item From")<a v-if="!input.Id" class="c-lnk" style="margin-left:10px;" href="javascript:app.pickItem('FromItem')">Pick Item</a>
+                        <input type="text" :value="input.FromSKU" class="k-textbox" readonly />
+                    </div>
+                    <div class="form-group col-md-3">
+                        @Html.LabelFor(x => x.FromStock, "Stock")
+                        <input type="text" :value="input.FromStock" class="k-textbox" readonly style="text-align: center" />
+                    </div>
+                    <div class="form-group col-md-3">
+                        @Html.LabelFor(x => x.FromItemQty, "Qty")
+                        <kendo-numerictextbox :value="input.FromItemQty" :min="0" :spinners="false" :format="'n0'" @@change="function(e){setModel(e,input,'FromItemQty')}" style="text-align:center;width:100%"></kendo-numerictextbox>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="row">
+            <div class="col-md-5">
+                <div class="row">
+                    <div class="form-group col-md-6">
+                        @Html.LabelFor(x => x.ToItemId, "Item To")<a v-if="!input.Id" class="c-lnk" style="margin-left:10px;" href="javascript:app.pickItem('ToItem')">Pick Item</a>
+                        <input type="text" :value="input.ToSKU" class="k-textbox" readonly />
+                    </div>
+                    <div class="form-group col-md-3">
+                        @Html.LabelFor(x => x.ToStock, "Stock")
+                        <input type="text" :value="input.ToStock" class="k-textbox" readonly style="text-align: center" />
+                    </div>
+                    <div class="form-group col-md-3">
+                        @Html.LabelFor(x => x.ToItemQty, "Qty")
+                        <kendo-numerictextbox :value="input.ToItemQty" :min="0" :spinners="false" :format="'n0'" @@change="function(e){setModel(e,input,'ToItemQty')}" style="text-align:center;width:100%"></kendo-numerictextbox>
+                    </div>
+                </div>
+            </div>
+            <div class="form-group col-md-5">
+                @Html.LabelFor(x => x.Notes)
+                <textarea v-model.trim="input.Notes" class="k-textbox" rows="1"></textarea>
+            </div>
+        </div>
+    </div>
+</div>
+@(Html.Kendo().Grid<StockRepacking>()
+      .Name("grid")
+      .Columns(x =>
+          {
+              x.VerifyColumn(x => x.VerifiedDate);
+              x.Group(g =>
+              {
+                  g.Columns(y =>
+                  {
+                      y.Bound(c => c.FromSKU).Title("SKU").Width(150);
+                  y.DescriptionColumn(c => c.FromItemDescription).Title("Description").Width(200);
+                  y.NumberColumn(c => c.FromItemQty).Title("Qty").Width(100);
+              }).Title("From").HeaderHtmlAttributes(new { style = "text-align:center" });
+          });
+          x.Group(g =>
+              {
+                  g.Columns(y =>
+                  {
+                      y.Bound(c => c.ToSKU).Title("SKU").Width(150);
+                  y.DescriptionColumn(c => c.ToItemDescription).Title("Description").Width(200);
+                  y.NumberColumn(c => c.ToItemQty).Title("Qty").Width(100);
+              }).Title("To").HeaderHtmlAttributes(new { style = "text-align:center" });
+          });
+          x.DescriptionColumn(x => x.Notes).Width(160);
+          if (statusFilter == "Verified")
+          {
+              x.Bound(c => c.VerifiedBy).Width(160);
+              x.DateColumn(c => c.VerifiedDate).Width(150);
+          }
+          x.Bound(c => c.CreatedBy).Width(160);
+          x.DateColumn(c => c.CreatedOn).Width(150);
+      })
+      .Sortable()
+      .Scrollable()
+      .Pageable(x => x.Refresh(true))
+      .Resizable(x => x.Columns(true))
+      .EnableFilter()
+      .EnableEdit(Html)
+      .DataSource(d => d
+      .Ajax().ServerOperation(true).PageSize(50)
+      .Read(read => read.Action("ReadRepacking", "Stock", new { StatusFilter = statusFilter == "Pending" ? 0 : 1 }).Data("app.gridData"))))
+@{
+    var jsonData = Vue.Encode(new StockRepacking());
+}
+@section Scripts{
+    @await Html.PartialAsync("PickItems")
+    <script type="text/javascript">
+    var app = new Vue({
+            el: '#app',
+            data: {
+                input:@(jsonData),
+                ItemMode: ""
+            },
+            created: function () {
+                appItem.onSelect = this.onItemSelect;
+            },
+            methods: {
+                validateForm: function () {
+                    removeError();
+                    var isValid = true;
+                    var setError = function (cntrl, msg) {
+                        isValid = false;
+                        showError(cntrl, msg);
+                    };
+                    var item = this.input;
+                    if (!item.FromItemId)
+                        setError('FromItemId');
+
+                    if (!item.FromItemQty)
+                        setError('FromItemQty');
+                    else if (item.FromItemQty > item.FromStock)
+                        setError('FromItemQty', 'Should not be greater than ' + item.FromStock);
+
+                    if (!item.ToItemId)
+                        setError('ToItemId');
+                    else if (item.FromItemId == item.ToItemId)
+                        setError('ToItemId', 'Should not be same as From Item');
+
+                    if (!item.ToItemQty)
+                        setError('ToItemQty');
+
+                    return isValid;
+                },
+                submitForm: function () {
+                    if (!this.validateForm())
+                        return;
+
+                    $.postData("@Url.Action("SaveRepacking", "Stock")", this.input, this.onSuccess);
+                },
+                selectItem: function (uid) {
+                    var dataItem = $('#grid').getKendoGrid().dataSource.getByUid(uid);
+                    this.input = cloneAndDecode(dataItem);
+                },
+                editItem: function editItem(uid) {
+                    $('.toggle-btn.btn-minus').open();
+                    this.selectItem(uid);
+                },
+                deleteItem: function (uid) {
+                    if (uid)
+                        this.selectItem(uid);
+                    kendoConfirm("Do you want to delete this Repacking?", function () {
+                        $.postData("@Url.Action("DeleteRepacking", "Stock")", app.input, app.onSuccess);
+                    });
+                },
+                verifyItem: function (uid) {
+                    if (uid)
+                        this.selectItem(uid);
+                    $.postData("@Url.Action("VerifyRepacking", "Stock")", this.input, this.onSuccess);
+                },
+                revertItem: function (uid) {
+                    if (uid)
+                        this.selectItem(uid);
+                    kendoConfirm("Do you want to Un-Verify this Repacking?", function () {
+                        $.postData("@Url.Action("RevertRepacking", "Stock")", app.input, app.onSuccess);
+                    });
+                },
+                onSuccess: function (res) {
+                    kendoAlert(res.Message, res.HasError);
+                    if (res.HasError)
+                        return;
+                    $('.toggle-btn.btn-minus').close();
+                    $('#grid').getKendoGrid().dataSource.read();
+                },
+                gridData: function () {
+
+                },
+                pickItem: function (e) {
+                    this.ItemMode = e;
+                    appItem.open();
+                },
+                onItemSelect: function (item) {
+                    if (this.ItemMode == "FromItem") {
+                        if (item.Stock <= 0) {
+                            kendoAlert("Stock not available", true);
+                            return;
+                        }
+                        this.input.FromItemId = item.Id;
+                        this.input.FromStock = item.Stock;
+                        this.input.FromSKU = item.SKU;
+                    }
+                    else {
+                        this.input.ToItemId = item.Id;
+                        this.input.ToStock = item.Stock;
+                        this.input.ToSKU = item.SKU;
+                    }
+                }
+            }
+        });
+    </script>
+
+    <script type="text/javascript">
+    $(function () {
+        $('#grid.grid-edit').on('dblclick', 'tbody tr', function () {
+            app.editItem($(this).attr('data-uid'));
+        });
+    });
+
+    function toggle_Change()
+    {
+        app.input = @(jsonData);
+    }
+    </script>
+}

@@ -1,0 +1,404 @@
+﻿@page
+@using Core.Models.Accounts
+@{
+    ViewData["Title"] = "Payment Return";
+    Layout = "~/Pages/Shared/_Layout.cshtml";
+}
+
+<style type="text/css">
+    #gridPO .k-grid-content {
+        height: 80px !important;
+    }
+
+    .na-border {
+        border: 1px solid #ccc;
+    }
+
+    .grp-btn .dropdown-btn-content .fa {
+        margin-right: 10px;
+        font-size: 15px;
+    }
+
+    .grp-btn .fa-cloud-download {
+        color: #45459f;
+    }
+
+    .grp-btn .fa-cloud-upload {
+        color: #2bd5e2;
+    }
+
+    .grp-btn .fa-trash-o {
+        color: #d9534f;
+    }
+
+    .dropbtn {
+        /*background-color: #4CAF50;*/
+        color: white;
+        padding: 16px;
+        font-size: 16px;
+        border: none;
+        cursor: pointer;
+    }
+
+    .dropdown-btn {
+        /*position: relative;*/
+        display: inline-block;
+        /*background-color: #c01c79;*/
+        padding: 3px 5px;
+        color: white;
+        cursor: pointer;
+    }
+
+    .dropdown-btn-content {
+        display: none;
+        position: absolute;
+        background-color: #f9f9f9;
+        min-width: 160px;
+        box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2);
+        z-index: 1;
+        text-align: left;
+    }
+
+        .dropdown-btn-content a {
+            color: #5A738E;
+            padding: 8px 16px;
+            text-decoration: none;
+            display: block;
+            border: 1px solid #ececec;
+        }
+
+            .dropdown-btn-content a:hover {
+                background-color: #f1f1f1
+            }
+
+    .dropdown-btn:hover .dropdown-btn-content {
+        display: block;
+    }
+
+    /* Change the background color of the dropdown-btn button when the dropdown-btn content is shown */
+    .dropdown-btn:hover .dropbtn {
+        background-color: #3e8e41;
+    }
+
+    .dropdown-btn .fa-caret-down {
+        margin-left: 5px;
+        font-size: 10px;
+    }
+
+    #ddTag_listbox .k-selected {
+        display: none;
+    }
+</style>
+<form id="app">
+    <div class="g-title">
+        <div class="g-left">
+            <ul class="rdc-tab">
+                <li :class="{'active': TabIndex == 0}">
+                    <a href="javascript:app.tabChange(0)">Pending For Received</a>
+                </li>
+                <li :class="{'active': TabIndex == 1}">
+                    <a href="javascript:app.tabChange(1)">Processing</a>
+                </li>
+                <li :class="{'active': TabIndex == 2}">
+                    <a href="javascript:app.tabChange(2)">Completed</a>
+                </li>
+            </ul>
+        </div>
+        <span class="g-text">Payments Return</span>
+        <div class="g-right">
+            @Html.ExcelButton()
+        </div>
+    </div>
+</form>
+<div>
+    @(
+        Html.Kendo().Grid<PaymentReturnModel>()
+        .Name("grid")
+        .Columns(x =>
+        {
+            x.Bound("").ClientTemplate(@"<div class='grp-btn dropdown-btn'>"
+            + "<i style='color:black;' class='fa fa-ellipsis-v'></i>"
+            + "<div class='dropdown-btn-content'>"
+            + @"<a  href='javascript:app.viewPaymentDetails(""#:uid#"")'> View</a>"
+            + @"#if(CanReceive){#<a  href='javascript:app.markAsReceived(""#:uid#"")'> Mark As Received</a>" + "#}#"
+            + @"#if(UndoReceive){#<a  href='javascript:app.revertReceivedBy(""#:uid#"")'> Mark As Un-Received</a>" + "#}#"
+            + @"#if(UndoReceive){#<a  href='javascript:app.markAsPaid(""#:uid#"")'> Mark As Paid</a>" + "#}#"
+            + @"#if(UndoPaid){#<a  href='javascript:app.revertPaymentCreation(""#:uid#"")'> Mark As Un-Paid</a>" + "#}#"
+            + "</div>"
+            + "</div>").Title("Actions").Editable("disableEditor").Width(70);
+            x.Bound(c => c.RefNo).Width(160);
+            x.Bound(c => c.Division).Title("Payment To").Width(160);
+            x.DateColumn(c => c.DepartureDate).Title("Departure On").Width(180);
+            x.DateColumn(c => c.ReturnDate).Title("Return Date").Width(100);
+            x.MoneyColumn(c => c.Amount).Title("Amount").Width(100);
+            x.MoneyColumn(c => c.Balance).Title("Balance").Width(100);
+            x.MoneyColumn(c => c.ReturnAmount).Width(100);
+
+            x.Bound(c => c.ApprovedBy).Width(110);
+            x.DateColumn(c => c.ApprovedDate).Width(150);
+            x.Bound(c => c.ReceivedBy).Width(150);
+            x.DateColumn(c => c.ReceivedDate).Width(150);
+            x.Bound(c => c.PaidBy).Width(180);
+            x.DateColumn(c => c.PaidDate).Width(150);
+            x.Bound(c => c.HandOverTo).Width(180);
+            x.DateColumn(c => c.HandOverDate).Width(150);
+        })
+        .Scrollable()
+        .Sortable()
+        .EnableEdit(Html)
+        .EnableFilter()
+        .Resizable(x => x.Columns(true))
+        .Pageable(x => x.Refresh(true))
+        .Excel(x => x.AllPages(true))
+        .DataSource(dataSource => dataSource
+        .Ajax().ServerOperation(true).PageSize(50)
+        .Read(read => read.Action("ReadPaymentReturnList", "Accounts").Data("app.grid_Data"))
+        )
+        )
+</div>
+
+@Html.Kendo().Window().Name("wndPaymentReceived").Content(@<text>
+        <form id="appRec" v-on:submit.prevent="submitForm">
+            <div class="form-group">
+                @Html.Label("Received By")
+                <kendo-datasource ref="dsReceivedby" :transport-read-url="'@Url.Action("ReadAccountsStaff", "Common")'" :transport-read-type="'POST'"></kendo-datasource>
+                <kendo-combobox id="ddReceivedby" ref="ddReceivedby" v-model="input.Receivedby" :data-source-ref="'dsReceivedby'" :filter="'contains'" style="width:100%" @@change="function(e){setModel(e,input,'Receivedby')}"></kendo-combobox>
+            </div>
+            <div class="form-group">
+                @Html.Label("Received On")
+                <kendo-datepicker :value="input.ReceivedOn" :format="'dd-MMM-yyyy'" :max="maxDate" @@change="function(e){setModel(e,input,'ReceivedOn')}" style="width:100%"></kendo-datepicker>
+            </div>
+            <div class="form-group" style="text-align:right;padding-top:5px;">
+                <button type="submit" class="btn btn-approve">Received</button>
+            </div>
+        </form>
+    </text>).Visible(false).Title("Received Payment").Width(300).Draggable(true)
+@Html.Kendo().Window().Name("wndPaymentReturn").Content(@<text>
+        <form id="appPC" v-on:submit.prevent="submitForm">
+            <div class="row">
+                <div class="form-group col-md-3">
+                    @Html.Label("Currency")
+                    <input type="text" v-model.trim="input.Currency" readonly class="k-textbox" />
+                </div>
+                <div class="form-group col-md-3">
+                    @Html.Label("Requested Amount")
+                    <input type="number" v-model.trim="input.RequestedAmount" readonly class="k-textbox" />
+                </div>
+                <div class="form-group col-md-3">
+                    @Html.Label("Settled")
+                    <input type="number" v-model.trim="input.Settled" readonly class="k-textbox" />
+                </div>
+                <div class="form-group col-md-3">
+                    @Html.Label("Balance")
+                    <input type="number" v-model.trim="input.Balance" readonly class="k-textbox" />
+                </div>
+                <div class="form-group col-md-3">
+                    @Html.Label("Cheque No")
+                    <input type="text" v-model.trim="input.ChequeNo" :disabled="input.PaymentMode!='Cheque'" class="k-textbox" />
+                </div>
+                <div class="form-group col-md-3">
+                    @Html.Label("Cheque Date")
+                    <kendo-datepicker :value="input.ChequeDate" :disabled="input.PaymentMode!='Cheque'" :min="minDate" :depth="'year'" @@change="function(e){setModel(e,input,'ChequeDate')}" style="width:100%"></kendo-datepicker>
+                </div>
+                <div class="form-group col-md-6">
+                    @Html.Label("Paid By")
+                    <kendo-datasource ref="dsPaidBy" :transport-read-url="'@Url.Action("ReadAccountsStaff", "Common")'" :transport-read-type="'POST'"></kendo-datasource>
+                    <kendo-combobox id="ddPaidBy" ref="ddPaidBy" v-model="input.PaidBy" :data-source-ref="'dsPaidBy'" :filter="'contains'" style="width:100%" @@change="function(e){setModel(e,input,'PaidBy')}"></kendo-combobox>
+                </div>
+                <div class="form-group col-md-3">
+                    @Html.Label("Paid On")
+                    <kendo-datepicker :value="input.PaidOn" :format="'dd-MMM-yyyy'" :max="maxDate" @@change="function(e){setModel(e,input,'PaidOn')}" style="width:100%"></kendo-datepicker>
+                </div>
+                <div class="form-group col-md-6">
+                    @Html.Label("Debit To")
+                    <kendo-datasource ref="dsDebitAccounts" :transport-read-url="'@Url.Action("ReadAccountNames","Common")'" :transport-read-type="'POST'" style="width:100%"></kendo-datasource>
+                    <kendo-combobox ref="ddDebitAccount" v-model="input.DebitTo" :data-source-ref="'dsDebitAccounts'" :data-text-field="'Text'" :data-value-field="'Id'" :filter="'contains'" style="width:100%"></kendo-combobox>
+                </div>
+                <div class="form-group col-md-6">
+                    @Html.Label("Credit To")
+                    <kendo-datasource ref="dsCreditAccounts" :transport-read-url="'@Url.Action("ReadCreditAccountNames","Common")'" :transport-read-type="'POST'" style="width:100%"></kendo-datasource>
+                    <kendo-combobox ref="ddCreditAccount" v-model="input.CreditTo" :data-source-ref="'dsCreditAccounts'" :data-text-field="'Text'" :data-value-field="'Id'" :filter="'contains'" style="width:100%"></kendo-combobox>
+                </div>
+                <div>
+                    <a href="javascript:appPC.addDoc()" class="c-lnk"><i class="fa fa-paperclip"></i> Attachments</a>
+                </div>
+            </div>
+            <div class="form-group" style="text-align:right;padding-top:5px;">
+                <button type="submit" class="btn btn-approve">Update</button>
+            </div>
+        </form>
+    </text>).Visible(false).Title("Payment Return").Width(600).Draggable(true)
+
+@section Scripts {
+    <script type="text/javascript">
+        var app = new Vue({
+            el: '#app',
+            data: {
+                Id: 0,
+                RefNo: "",
+                TabIndex: 0,
+            },
+            methods: {
+                markAsReceived: function (uid) {
+                    var dataItem = $('#grid').getKendoGrid().dataSource.getByUid(uid);
+                    this.Id = dataItem.ID;
+                    this.RefNo = dataItem.RefNoFormatted;
+                    $('#wndPaymentReceived').getKendoWindow().open().center();
+                },
+                markAsPaid: function (uid) {
+                    var dataItem = $('#grid').getKendoGrid().dataSource.getByUid(uid);
+                    this.Id = dataItem.ID;
+                    this.RefNo = dataItem.RefNoFormatted;
+
+                    appPC.open(dataItem.Currency, dataItem.Amount, dataItem.Balance, dataItem.ReturnAmount)
+                },
+                RejectItem: function (uid) {
+                    var dataItem = $('#grid').getKendoGrid().dataSource.getByUid(uid);
+                    this.Id = dataItem.ID;
+                    this.RefNo = dataItem.RefNoFormatted;
+
+                    $('#wndPaymentRejected').getKendoWindow().open().center();
+                },
+                revertReceivedBy: function (uid) {
+                    var dataItem = $('#grid').getKendoGrid().dataSource.getByUid(uid);
+                    $.postData("@Url.Action("RevertPaymentReceived", "Accounts")", { Id: dataItem.ID, RefNoFormatted: app.RefNoFormatted },
+                        function (res) {
+                            kendoAlert(res.Message, false);
+                            $('#grid').getKendoGrid().dataSource.read();
+                            $('#wndPaymentReceived').getKendoWindow().close()
+                        });
+                },
+                revertPaymentCreation: function (uid) {
+                    var dataItem = $('#grid').getKendoGrid().dataSource.getByUid(uid);
+                    $.postData("@Url.Action("RevertPaymentCreation", "Accounts")", { Id: dataItem.ID, RefNoFormatted: app.RefNoFormatted },
+                        function (res) {
+                            kendoAlert(res.Message, false);
+                            $('#grid').getKendoGrid().dataSource.read();
+                        });
+                },
+                printItem: function (uid) {
+                    var dataItem = $('#grid').getKendoGrid().dataSource.getByUid(uid);
+
+                    $('#frmDoc [name=RPT_R]').val("PaymentVoucher");
+                    $('#frmDoc [name=RPT_ID]').val(dataItem.ID);
+                    $('#frmDoc').submit();
+                },
+                tabChange: function (TabIndex) {
+                    this.TabIndex = TabIndex;
+                    $('#grid').getKendoGrid().dataSource.read();
+                },
+                grid_Data: function () {
+                    return { StatusFilter: this.TabIndex };
+                },
+                viewDocument: function (uid) {
+                    var dataItem = $('#grid').getKendoGrid().dataSource.getByUid(uid);
+                    this.Id = dataItem.ID;
+                    appPC.addDoc();
+                },
+                viewPaymentDetails: function (uid) {
+                    var dataItem = $('#grid').getKendoGrid().dataSource.getByUid(uid);
+                    this.Id = dataItem.ID;
+                    $('#wndPayoutDetails').getKendoWindow().open().center();
+                    $('#gridPD').getKendoGrid().dataSource.read();
+                },
+                gridPD_Data: function () {
+                    return { Id: this.Id };
+                }
+            }
+        });
+    </script>
+    <script type="text/javascript">
+        var appRec = new Vue({
+            el: '#appRec',
+            data: {
+                input: {
+                    Receivedby: "",
+                    ReceivedOn: null,
+                },
+                maxDate: new Date(),
+            },
+            methods: {
+                submitForm: function () {
+                    if (!this.input.Receivedby) {
+                        kendoAlert("Please select the received by");
+                        return;
+                    }
+                    if (!this.input.ReceivedOn) {
+                        kendoAlert("Please select the date");
+                        return;
+                    }
+                    $.postData("@Url.Action("UpdatePaymentReturnReceived", "Accounts")", { Id: app.Id, RefNoFormatted: app.RefNo, ReceivedBy: this.input.Receivedby, ReceivedOn: this.input.ReceivedOn },
+                        function (res) {
+                            kendoAlert(res.Message, false);
+                            $('#grid').getKendoGrid().dataSource.read();
+                            $('#wndPaymentReceived').getKendoWindow().close();
+                        });
+                }
+            }
+        });
+    </script>
+    <script type="text/javascript">
+        var appPC = new Vue({
+            el: '#appPC',
+            data: {
+                input: {
+                    PaidBy: "",
+                    PaidOn: null,
+                    Currency: "",
+                    Amount: 0.0,
+                    DebitTo: 0,
+                    CreditTo: 0,
+                    Settled: 0,
+                    Balance: 0,
+                },
+                maxDate: new Date(),
+                minDate: new Date(),
+            },
+            created: function () {
+                appDoc.init("@DocumentReference.SupplierPayment.ToString()", this.onSuccess);
+            },
+            methods: {
+                open: function (Currency, Amount, Balance, ReturnAmount) {
+                    this.input.Currency = Currency;
+                    this.input.Amount = Amount;
+                    this.input.Balance = Balance;
+                    this.input.Settled = ReturnAmount;
+
+                    $('#wndPaymentReturn').getKendoWindow().open().center();
+                },
+                submitForm: function () {
+                    if (!this.input.PaidBy) {
+                        kendoAlert("Please select the paid by");
+                        return;
+                    }
+                    if (!this.input.PaidOn) {
+                        kendoAlert("Please select the paid date");
+                        return;
+                    }
+
+                    $.postData("@Url.Action("UpdatePaymentReturn", "Accounts")", { Id: app.Id, RefNoFormatted: app.RefNo, PaidBy: this.input.PaidBy, PaidOn: this.input.PaidOn, Settled: this.input.Settled, DebitTo: this.input.DebitTo, CreditTo: this.input.CreditTo },
+                        function (res) {
+                            if (!appDoc.save(res.Id))
+                                appPC.onSuccess(res);
+                        });
+                },
+                addDoc: function () {
+                    appDoc.open(app.Id);
+                },
+                onSuccess: function (res) {
+                    kendoAlert(res.Message, res.HasError);
+                    if (res.HasError)
+                        return;
+
+                    $('#grid').getKendoGrid().dataSource.read();
+                    $('#wndPaymentReturn').getKendoWindow().close();
+                }
+            }
+        });
+    </script>
+    <script type="text/javascript">
+        $(function () {
+            appDoc.init("@DocumentReference.SupplierPayment.ToString()", appPC.onSuccess);
+        });
+    </script>
+}

@@ -1,0 +1,318 @@
+﻿@page
+@using BSOL.Core.Entities
+@model StockClubbing
+@{
+    ViewData["Title"] = "Clubbing";
+    Layout = "~/Pages/Shared/_Layout.cshtml";
+}
+@if (!await Html.HasAccess(Forms.Procurement.Clubbing))
+{
+    return;
+}
+@section BreadCrumb{
+    @await Html.PartialAsync("BreadCrumb", "Procurement")
+    @await Html.PartialAsync("Tabs", "Procurement/Stock")
+}
+@{
+    string statusFilter = Request.Query["q"] == "1" ? "Verified" : "Pending";
+}
+<div class="row">
+    <div class="col-md-3" style="display:none;" id="editor">
+        <div id="app">
+            <div class="g-title">
+                <div class="g-right">
+                    <button type='submit' class='btn btn-save btn-cntrls' @@click='submitForm' title='Save'><i class='fa fa-check'></i>Save</button>
+                    <div class="cntrl-inline" v-if="input.Id">
+                        @Html.DeleteButton()
+                    </div>
+                </div>
+            </div>
+            <div style="padding-left:5px;">
+                <div class="form-group">
+                    @Html.LabelFor(x => x.ItemId, "Item")<a class="c-lnk" style="margin-left:10px;" href="javascript:app.pickItem('Item')">Pick Item</a>
+                    <input type="text" :value="input.SKU" class="k-textbox" readonly />
+                </div>
+                <div class="form-group">
+                    @Html.LabelFor(x => x.Qty, "Quantity")
+                    <kendo-numerictextbox :value="input.Qty" :spinners="false" :format="'n0'" @@change="function(e){setModel(e,input,'Qty')}" style="text-align:center;width:100%"></kendo-numerictextbox>
+                </div>
+                <div class="form-group">
+                    @Html.LabelFor(x => x.Notes)
+                    <textarea v-model.trim="input.Notes" class="k-textbox"></textarea>
+                </div>
+                <div class="form-group">
+                    <div style="text-align:right;">
+                        <a class="c-lnk" href="javascript:app.pickItem('ClubbingItem')">Select Items</a>
+                    </div>
+                    @(Html.Kendo().Grid<StockClubbingItem>()
+                .Name("gridClubbingItems")
+                .Editable(Html, "", false, false)
+                .Columns(c =>
+                {
+                    c.Bound(p => p.ItemId).ClientTemplate("<i class='fa fa-times'></i>").HtmlAttributes(new { @style = "color:red;text-align:center", onclick = "app.deleteClubbingItem(this)" }).ClearTitle().Filterable(false).Sortable(false).Width(20);
+                    c.Bound(p => p.SKU);
+                    c.Bound(p => p.ItemCode).Title("Item Code");
+                    c.NumberColumn(p => p.Stock).Width(60);
+                            c.NumberColumn(p => p.Qty).Center().Width(60).HtmlAttributes(new { @class = "editable" }).EditorTemplateName("DecimalEditor");
+                })
+                .Sortable()
+                .Resizable(x => x.Columns(true))
+                .HtmlAttributes(new { @class = "h-grid v-grid inl-grid" })
+                .AutoBind(false)
+                .NoRecords()
+                .Navigatable()
+                .Events(x => x.CellClose("app.gridCellClose"))
+                .DataSource(dataSource => dataSource
+                .Ajax()
+                .Batch(true)
+                .ServerOperation(false)
+                .Model(model =>
+                {
+                    model.Id(p => p.ItemId);
+                    model.Field(p => p.ItemId).Editable(false);
+                    model.Field(p => p.SKU).Editable(false);
+                    model.Field(p => p.Stock).Editable(false);
+                })
+                    .Read(read => read.Action("ReadClubbingItems", "Stock").Data("app.gridData"))
+                ))
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-12" id="displayContainer">
+        <div class="g-title">
+            <div class="g-left">
+                @Html.ToggleButton(Orientation.Horizontal)
+                <ul class="tg-btn tg-fixed" style="float: right; margin-left: 15px; margin-top: 1px;">
+                    <li @(statusFilter == "Pending" ? "class=tg-active" : "")>
+                        <a href="@Url.Page("/Stock/Clubbing")?q=0">Pending</a>
+                    </li>
+                    <li @(statusFilter == "Verified" ? "class=tg-active" : "")>
+                        <a href="@Url.Page("/Stock/Clubbing")?q=1">Verified</a>
+                    </li>
+                </ul>
+            </div>
+            <span class="g-text">Clubbing</span>
+        </div>
+        @(Html.Kendo().Grid<StockClubbing>()
+      .Name("grid")
+        .Columns(x =>
+        {
+            x.DeleteColumn(c => c.Id);
+            x.VerifyColumn(x => x.VerifiedDate);
+            x.Bound(c => c.SKU).Width(150);
+            x.Bound(c => c.ItemCode).Width(150).Title("Item Code");
+            x.DescriptionColumn(c => c.ItemDescription).Title("Description").Width(200);
+            x.NumberColumn(c => c.Qty).Width(100);
+            x.DescriptionColumn(x => x.Notes).Width(160);
+            if (statusFilter == "Verified")
+            {
+                x.Bound(c => c.VerifiedBy).Width(160);
+                x.DateColumn(c => c.VerifiedDate).Width(150);
+            }
+            x.Bound(c => c.CreatedBy).Width(160);
+            x.DateColumn(c => c.CreatedOn).Width(150);
+      })
+      .Sortable()
+      .Scrollable()
+      .Pageable(x => x.Refresh(true))
+      .Resizable(x => x.Columns(true))
+      .EnableFilter()
+      .EnableEdit(Html)
+      .DataSource(d => d
+      .Ajax().ServerOperation(true).PageSize(50)
+      .Read(read => read.Action("ReadClubbing", "Stock", new { StatusFilter = statusFilter == "Pending" ? 0 : 1 }))))
+    </div>
+</div>
+
+@{
+    var jsonData = Vue.Encode(new StockClubbing());
+}
+@section Scripts{
+    @await Html.PartialAsync("PickItems")
+    <script type="text/javascript">
+    var app = new Vue({
+            el: '#app',
+            data: {
+                input:@(jsonData),
+                ItemMode: ""
+            },
+            created: function () {
+                appItem.onSelect = this.onItemSelect;
+            },
+            methods: {
+                validateForm: function () {
+                    removeError();
+                    var isValid = true;
+                    var setError = function (cntrl, msg) {
+                        isValid = false;
+                        showError(cntrl, msg);
+                    };
+                    var item = this.input;
+                    if (!item.ItemId)
+                        setError('ItemId');
+
+                    if (!item.Qty)
+                        setError('Qty');
+
+                    if (!isValid)
+                        return false;
+
+                    var items = $('#gridClubbingItems').getKendoGrid().dataSource.data();
+                    if (!items.length) {
+                        kendoAlert("Please add some items", true);
+                        return false;
+                    }
+
+                    var hasZeroQty = false, exceedsStock = false, hasSameItem = false;
+                    $.each(items, function (i, x) {
+                        if (x.ItemId == item.ItemId)
+                            hasSameItem = true;
+                        else if (x.Qty == 0)
+                            hasZeroQty = false;
+                        else if (x.Qty > item.Stock)
+                            exceedsStock = false;
+                    });
+                    if (hasSameItem) {
+                        kendoAlert("Clubbing Item should not be " + item.SKU, true);
+                        return;
+                    }
+                    else if (hasZeroQty) {
+                        kendoAlert("Qty should not be zero", true);
+                        return false;
+                    }
+                    else if (exceedsStock) {
+                        kendoAlert("Qty should not be greater than Stock", true);
+                        return false;
+                    }
+
+                    return isValid;
+                },
+                submitForm: function () {
+                    if (!this.validateForm())
+                        return;
+
+                    var items = $('#gridClubbingItems').getKendoGrid().dataSource.data();
+
+                    var clubbingItems = [];
+                    $.each(items, function (i, x) {
+                        clubbingItems.push({
+                            ItemId: x.ItemId,
+                            Qty: x.Qty
+                        })
+                    });
+
+                    $.postData("@Url.Action("SaveClubbing", "Stock")", {
+                        data: this.input,
+                        ClubbingItems: clubbingItems
+                    }, this.onSuccess);
+                },
+                selectItem: function (uid) {
+                    var dataItem = $('#grid').getKendoGrid().dataSource.getByUid(uid);
+                    this.input = cloneAndDecode(dataItem);
+                },
+                editItem: function editItem(uid) {
+                    $('.toggle-btn.btn-minus').open();
+                    this.selectItem(uid);
+                    $('#gridClubbingItems').getKendoGrid().dataSource.read();
+                },
+                deleteItem: function (uid) {
+                    if (uid)
+                        this.selectItem(uid);
+
+                    kendoConfirm("Do you want to delete this Clubbing?", function () {
+                        $.postData("@Url.Action("DeleteClubbing", "Stock")", app.input, app.onSuccess);
+                    });
+                },
+                verifyItem: function (uid) {
+                    if (uid)
+                        this.selectItem(uid);
+                    $.postData("@Url.Action("VerifyClubbing", "Stock")", this.input, this.onSuccess);
+                },
+                revertItem: function (uid) {
+                    if (uid)
+                        this.selectItem(uid);
+                    kendoConfirm("Do you want to Un-Verify this Clubbing?", function () {
+                        $.postData("@Url.Action("RevertClubbing", "Stock")", app.input, app.onSuccess);
+                    });
+                },
+                onSuccess: function (res) {
+                    kendoAlert(res.Message, res.HasError);
+                    if (res.HasError)
+                        return;
+                    $('.toggle-btn.btn-minus').close();
+                    $('#grid').getKendoGrid().dataSource.read();
+                    $('#gridClubbingItems').getKendoGrid().dataSource.data([]);
+                },
+                gridData: function () {
+                    return { StockClubbingId: this.input.Id };
+                },
+                gridCellClose: function (e) {
+                    var fieldName = e.sender.columns[e.container.index()].field;
+                    var item = e.model;
+                    if (fieldName == "Qty" && item.Qty > item.Stock) {
+                        kendoAlert("Qty should not be greater than " + item.Stock, true);
+                        item.set("Qty", item.Stock);
+                    }
+                },
+                deleteClubbingItem: function (sender) {
+                    var dataSource = $('#gridClubbingItems').getKendoGrid().dataSource;
+                    var dataItem = $('#gridClubbingItems').getKendoGrid().dataItem($(sender).parent());
+                    dataSource.remove(dataItem);
+                },
+                pickItem: function (e) {
+                    this.ItemMode = e;
+                    if (e == "ClubbingItem")
+                        appItem.MultiSelect = true;
+                    else
+                        appItem.MultiSelect = false;
+
+                    appItem.open();
+                },
+                onItemSelect: function (item) {
+                    if (this.ItemMode == "ClubbingItem") {
+                        if (item.Stock <= 0) {
+                            kendoAlert("Stock not available", true);
+                            return;
+                        }
+                        var newItem = @(Vue.Encode(new StockClubbingItem()));
+                        newItem.ItemId = item.Id;
+                        newItem.SKU = item.SKU;
+                        newItem.Stock = item.Stock;
+                        newItem.Qty = 1;
+                        var dataSource = $('#gridClubbingItems').getKendoGrid().dataSource;
+                        var extItem = $.grep(dataSource.data(), function (x) { return x.ItemId == newItem.ItemId });
+                        if (extItem.length)
+                        {
+                            if (extItem[0].Qty >= extItem[0].Stock) {
+                                kendoAlert("Stock not available", true);
+                                return;
+                            }
+                            extItem[0].set("Qty", extItem[0].Qty + 1);
+                        }
+                        else
+                            dataSource.add(newItem);
+                    }
+                    else {
+                        this.input.ItemId = item.Id;
+                        this.input.SKU = item.SKU;
+                    }
+                }
+            }
+        });
+    </script>
+
+    <script type="text/javascript">
+    $(function () {
+        $('#grid.grid-edit').on('dblclick', 'tbody tr', function () {
+            app.editItem($(this).attr('data-uid'));
+        });
+    });
+
+    function toggle_Change()
+    {
+        app.input = @(jsonData);
+        $('#gridClubbingItems').getKendoGrid().dataSource.data([]);
+    }
+    </script>
+}

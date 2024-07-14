@@ -1,0 +1,106 @@
+﻿@page
+@using BSOL.Helpers
+@using BSOL.Web.Helpers
+@using BSOL.Core.Models.Accounts
+@using Kendo.Mvc.UI
+
+@{
+    ViewData["Title"] = "Settlement";
+    Layout = "~/Pages/Shared/_Layout.cshtml";
+}
+
+<div id="appSegregation">
+    <div class="g-title">
+        <div class="g-left">
+            <table>
+                <tr>
+                    <td>
+                        <kendo-datepicker :value="input.FromDate" :max="maxDate" :format="'dd-MMM-yyyy'" @@change="function(e){setModel(e,input,'FromDate')}" style="width:130px"></kendo-datepicker>
+                    </td>
+                    <td>
+                        <kendo-datepicker :value="input.ToDate" :max="maxDate" :format="'dd-MMM-yyyy'" @@change="function(e){setModel(e,input,'ToDate')}" style="width:130px"></kendo-datepicker>
+                    </td>
+                    <td>
+                        <kendo-datasource ref="dsShopID" :transport-read-url="'@Url.Action("ReadShops", "Common")'" :transport-read-type="'POST'"></kendo-datasource>
+                        <kendo-combobox ref="ddShopID" v-model="ShopId" :data-source-ref="'dsShopID'" :data-text-field="'Text'" :data-value-field="'Id'" :filter="'contains'" style="width:250px"></kendo-combobox>
+                    </td>
+                    <td>
+                        <button type="button" title="View" class="btn btn-save btn-cntrls" @@click="appSegregation.viewReport()"><i class="fa fa-search"></i>View</button>
+                    </td>
+                </tr>
+            </table>
+        </div>
+        <span class="g-text">Settlement</span>
+        <div class="g-right">
+            @Html.ExcelButton("appSegregation.exportTransactionList()")
+        </div>
+    </div>
+</div>
+<div>
+    @(Html.Kendo().Grid<SettlementDetailsModel>().Name("gridTransactionDetails")
+        .Columns(c =>
+        {
+            c.Bound(p => p.PaymentMode).Width(150);
+            c.Bound(p => p.Cheque_No).Title("Cheque/Trans. No").Width(170);
+            c.Bound(p => p.InvoiceNo).Width(160);
+            c.Bound(p => p.ReceiptNo).Width(160);
+            c.Bound(p => p.Receipt_Category).Title("Category").Width(150);
+            c.MoneyColumn(p => p.PaidAmount).Title("Amount").Width(120);
+            c.DateColumn(p => p.PaidDate).Width(150);
+            c.Bound(p => p.ShopName).Width(180);
+            c.Bound(p => p.Paidby).Width(150);
+        })
+        .DataSource(dataSource => dataSource
+        .Ajax()
+        .Batch(true)
+        .ServerOperation(true)
+        .PageSize(50)
+        .Read(read => read.Action("ReadSettlementDetailsList", "Accounts").Data("appSegregation.gridTransactionDetails_Data"))
+        )
+        .EnableFilter()
+        .Excel(x => x.AllPages(true))
+        .Resizable(x => x.Columns(true))
+        .Pageable(x => x.Refresh(true))
+        .Sortable()
+        .Scrollable()
+        .Selectable()
+        .HtmlAttributes(new { @class = "h-grid v-grid" })
+        )
+</div>
+
+<script type="text/javascript">
+    var dt = new Date();
+    var year = dt.getFullYear();
+    var month = dt.getMonth();
+    var date = dt.getDate();
+
+    var appSegregation = new Vue({
+        el: '#appSegregation',
+        data: {
+            input: {
+                FromDate: new Date(year, month, date),
+                ToDate: new Date()
+            },
+            RemittanceID: 0,
+            ShopId: 0,
+            maxDate: new Date(),
+        },
+        methods: {
+            exportTransactionList: function () {
+                ExportToExcel("gridTransactionDetails");
+            },
+            gridTransactionDetails_Data: function () {
+                return { FromDate: StdDate(this.input.FromDate), ToDate: StdDate(this.input.ToDate), ShopId: this.ShopId > 0 ? this.ShopId : 0 };
+            },
+            viewReport: function () {
+                $('#gridTransactionDetails').getKendoGrid().dataSource.read();
+            }
+        }
+    });
+</script>
+<script type="text/javascript">
+    function refreshGrid() {
+        $('#gridTransactionDetails').getKendoGrid().dataSource.read();
+    }
+
+</script>

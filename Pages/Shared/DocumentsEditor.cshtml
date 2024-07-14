@@ -1,0 +1,156 @@
+﻿@model string
+@using BSOL.Core.Entities
+@{
+    var parent = Model.IsValid() ? Model : "appDoc";
+    var id = Model.IsValid() ? (Model + "Editor") : "appDocEditor";
+}
+@Html.Kendo().Window().Name("wndDocEditor" + id).Content(@<text>
+    <div id="@(id)">
+        <form v-on:submit.prevent="submitForm">
+            <div class="components">
+                <div class="form-group" v-if="DisplayCategory">
+                    <label for="Category">Category</label>
+                    <input type="text" v-model.trim="input.Category" class="k-textbox" />
+                </div>
+                <div class="form-group" id="uploadControl">
+                    <label for="FileName">File</label>
+                    <table>
+                        <tr>
+                            <td>
+                                <input type="text" v-model.trim="input.FileName" class="k-textbox" readonly @@click="browseFile" />
+                            </td>
+                            <td>
+                                <button class="btn btn-upload" type="button" @@click="browseFile">Browse</button>
+                            </td>
+                        </tr>
+                    </table>
+                </div>
+                <div class="form-group">
+                    <label for="DisplayName">Name</label>
+                    <input type="text" v-model.trim="input.DisplayName" class="k-textbox" />
+                </div>
+                <div class="form-group" style="text-align: right">
+                    <button v-if="AutoUpload" type='submit' class='btn btn-save btn-cntrls' title='Upload'><i class='fa fa-check'></i>Upload</button>
+                    <button v-if="!AutoUpload" type='submit' class='btn btn-save btn-cntrls' title='Ok'><i class='fa fa-check'></i>Ok</button>
+                    <button type='button' class='btn btn-cancel btn-cntrls' title='Cancel' @@click="cancel"><i class='fa fa-close'></i>Cancel</button>
+                </div>
+            </div>
+        </form>
+        <div style="display: none" v-for="x in Files" class="documentToUpload" :data-id="x">
+            <kendo-upload name="File"
+                          :id="'file' + x"
+                          :async-auto-upload="false"
+                          :multiple="false"
+                          async-save-url="@Url.Action("Upload", "Document")"
+                          @@upload="fileUpload"
+                          @@success="fileUploadSuccess"
+                          @@select="fileSelect">
+            </kendo-upload>
+        </div>
+    </div>
+</text>).Visible(false).Title("Upload Document").Draggable(true)
+@{
+    var jsonData = Vue.Encode(new Document());
+}
+<script type="text/javascript">
+    var @(id) = new Vue({
+        el: "#@(id)",
+        data: {
+            DisplayCategory: false,
+            input: @(jsonData),
+            Files: [],
+            AutoUpload: false,
+            CurrentIndex: 0
+        },
+        methods: {
+            addDoc: function () {
+                $("#wndDocEditor@(id)").getKendoWindow().open().center();
+                this.input = @(jsonData);
+                this.DisplayCategory = @(parent).DisplayCategory;
+                this.input.UploadControlId = this.Files.length;
+                this.Files.push(this.input.UploadControlId);
+                this.AutoUpload = @(parent).ReferenceId != 0;
+            },
+            cancel: function () {
+                this.Files.pop();
+                $("#wndDocEditor@(id)").getKendoWindow().close();
+            },
+            validateForm: function () {
+                removeError();
+                var isValid = true;
+                var setError = function (cntrl, msg) {
+                    isValid = false;
+                    showError(cntrl, msg);
+                };
+                var item = this.input;
+                if (!item.DisplayName)
+                    setError('DisplayName');
+                if (!item.FileName)
+                    setError('FileName');
+                return isValid;
+            },
+            submitForm: function () {
+                if (!this.validateForm())
+                    return;
+
+                if (this.AutoUpload) {
+                    this.CurrentIndex = 0;
+                    this.recursiveUpload();
+                }
+                else {
+                    this.input.Id = null;
+                    @(parent).Items.push(this.input);
+                    $("#wndDocEditor@(id)").getKendoWindow().close();
+                }
+            },
+            browseFile: function () {
+                $("#file" + this.input.UploadControlId).click();
+            },
+            recursiveUpload: function () {
+                if (this.CurrentIndex < this.Files.length) {
+                    var $file = $("#@(id) [data-id=" + this.Files[this.CurrentIndex] + "]" + " .k-upload-selected");
+                    if ($file.length)
+                        $file.click();
+                    return;
+                }
+
+                this.Files = [];
+                if (this.AutoUpload) {
+                    @(parent).load();
+                    $("#wndDocEditor@(id)").getKendoWindow().close();
+                }
+                else if (@(parent).SuccessCallBack)
+                    @(parent).SuccessCallBack({ Message: "Saved successfully." });
+            },
+            save: function () {
+                if (this.Files.length) {
+                    this.CurrentIndex = 0;
+                    this.recursiveUpload();
+                    return true;
+                }
+                return false;
+            },
+            fileSelect: function (e) {
+                this.input.FileName = e.files[0].name;
+                this.input.FileSize = formatFileSize(e.files[0].size);
+                if (!this.input.DisplayName)
+                    this.input.DisplayName = this.input.FileName.split('.').slice(0, -1).join('.');
+            },
+            fileUpload: function (e) {
+                var uploadControlId = this.Files[this.CurrentIndex];
+                var data = this.AutoUpload ? this.input : $.grep(@(parent).Items, function (x) { return x.UploadControlId == uploadControlId })[0];
+                e.data = {
+                    Reference: @(parent).Reference,
+                    ReferenceId: @(parent).ReferenceId,
+                    Category: data.Category,
+                    FileName: data.FileName,
+                    DisplayName: data.DisplayName
+                };
+            },
+            fileUploadSuccess: function () {
+                this.CurrentIndex++;
+                this.recursiveUpload();
+            }
+        }
+    });
+</script>

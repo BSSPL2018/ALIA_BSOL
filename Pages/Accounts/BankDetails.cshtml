@@ -1,0 +1,190 @@
+﻿@page
+@using BSOL.Core.Entities
+@using BSOL.Helpers
+@using Kendo.Mvc.UI
+@inject ICommonHelper commonHelper
+@{
+    ViewData["Title"] = "Bank Details";
+    Layout = "~/Pages/Shared/_Layout.cshtml";
+}
+@{
+    var currencies = await commonHelper.GetCurrency();
+}
+@if (!await Html.HasAccess(Forms.Accounts.BankDetails))
+{
+    return;
+}
+
+<div class="row">
+    <div class="col-md-4">
+        @(
+            Html.Kendo().Grid<Bank>().Name("gridBank")
+                        .Columns(c =>
+                        {
+                            c.DeleteColumn(x => x.ID, "deleteBank('#:uid#')");
+                            c.Bound(p => p.BankName);
+                            c.Bound(p => p.BankCode).Width(100);
+                        })
+            .DataSource(d => d.Ajax()
+            .Batch(true)
+            .ServerOperation(false)
+            .Events(events => events.Error("grid_ErrorHandler"))
+            .Create("UpdateBank", "Accounts")
+            .Read("ReadBankList", "Accounts")
+            .Model(model =>
+            {
+                model.Id(p => p.ID);
+                model.Field("ID", typeof(long)).Editable(false);
+            })
+            .Update("UpdateBank", "Accounts")
+            )
+            .Events(x => x.SaveChanges("gridBank_SaveChanges"))
+            .HtmlAttributes(new { @class = "h-grid v-grid"})
+            .Editable(Html, "Banks")
+            .Sortable()
+            .Scrollable()
+            .Navigatable()
+            )
+    </div>
+    <div class="col-md-8">
+        @(
+            Html.Kendo().Grid<CompanyAccount>().Name("gridCompanyAccount")
+            .Columns(c =>
+            {
+                c.DeleteColumn(x => x.ID, "deleteCompanyAccount('#:uid#')");
+                c.Bound(x => x.BankID).ClientTemplate("#: BankName ? BankName : '' #").EditorTemplateName("ComboBoxEditor").EditorViewData(new { Data = new EditorData(Url.Action("ReadBank", "Accounts"), "BankName", "Text") }).Title("Bank").Width(150);
+                c.Bound(p => p.BranchName).Title("Branch").Width(150);
+                c.Bound(x => x.Currency).EditorTemplateName("DropDownEditor").EditorViewData(new { Data = currencies.ToArray() }).Title("Currency").Width(80);
+                c.Bound(p => p.CompanyAccountName).Title("Account Name").Width(150);
+                c.Bound(p => p.CompanyAccountNo).Title("Account No").Width(150);
+                c.MoneyColumn(p => p.BankCharge).Width(120);
+                c.Bound(p => p.ChargeBasedOn).Width(150).EditorTemplateName("DropDownEditor").EditorViewData(new { Data = new[] { "AMOUNT", "PERSON" } });
+            })
+            .DataSource(d => d.Ajax()
+            .Batch(true)
+            .ServerOperation(false)
+            .Events(events => events.Error("                 "))
+            .Create("UpdateCompanyAccount", "Accounts")
+            .Read("ReadCompanyAccount", "Accounts")
+            .Model(model =>
+            {
+                model.Id(p => p.ID);
+                model.Field("ID", typeof(long)).Editable(false);
+            })
+            .Update("UpdateCompanyAccount", "Accounts")
+            )
+            .Editable(Html, "Company Accounts")
+            .Events(x => x.SaveChanges("gridCompanyAccount_SaveChanges"))
+            .HtmlAttributes(new { @class = "h-grid v-grid" })
+            .Sortable()
+            .Scrollable()
+            .Navigatable()
+            )
+    </div>
+</div>
+
+@section Scripts{
+    <script type="text/javascript">
+
+        function deleteBank(uid) {
+            var dataItem = $('#gridBank').getKendoGrid().dataSource.getByUid(uid);
+            if (dataItem.ID == 0) {
+                $('#gridBank').getKendoGrid().dataSource.cancelChanges(dataItem);
+                return;
+            }
+            kendoConfirm("Do you want to Delete this Bank?", function () {
+                $.post("@Url.Action("DeleteBank", "Accounts")", { ID: dataItem.ID, RefNo: dataItem.Bank },
+                    function (data) {
+                        kendoAlert(data.Message, data.HasError);
+                        if (!data.HasError)
+                            $('#gridBank').getKendoGrid().dataSource.read();
+                    });
+            });
+        }
+
+        function gridBank_SaveChanges(e) {
+            var data = $(e.sender.element).getKendoGrid().dataSource.data();
+            var dirty = $.grep(data, function (item) {
+                return item.dirty || item.ID === 0;
+            });
+            var bankNameEmpty = $.grep(dirty, function (item) {
+                return !item.BankName;
+            });
+
+            var bankCodeEmpty = $.grep(dirty, function (item) {
+                return !item.BankCode;
+            });
+
+            var errors = [];
+
+            if (bankNameEmpty && bankNameEmpty.length)
+                errors.push("Bank Name Should not be empty");
+
+            if (bankCodeEmpty && bankCodeEmpty.length)
+                errors.push("Bank Code Should not be empty");
+
+            if (errors.length) {
+                e.preventDefault();
+                kendoAlert(errors.join("\n"), true);
+            }
+        }
+    </script>
+    <script type="text/javascript">
+        function deleteCompanyAccount(uid) {
+            var dataItem = $('#gridCompanyAccount').getKendoGrid().dataSource.getByUid(uid);
+            if (dataItem.ID == 0) {
+                $('#gridCompanyAccount').getKendoGrid().dataSource.cancelChanges(dataItem);
+                return;
+            }
+            kendoConfirm("Do you want to Delete this Company Account?", function () {
+                $.post("@Url.Action("DeleteCompanyAccount", "Accounts")", { ID: dataItem.ID, RefNo: dataItem.CompanyAccount },
+                    function (data) {
+                        kendoAlert(data.Message, data.HasError);
+                        if (!data.HasError)
+                            $('#gridCompanyAccount').getKendoGrid().dataSource.read();
+                    });
+            });
+        }
+
+        function gridCompanyAccount_SaveChanges(e) {
+            var data = $(e.sender.element).getKendoGrid().dataSource.data();
+            var dirty = $.grep(data, function (item) {
+                return item.dirty || item.ID === 0;
+            });
+            var bankEmpty = $.grep(dirty, function (item) {
+                return !item.BankID || item.BankID == 0;
+            });
+
+            var branchEmpty = $.grep(dirty, function (item) {
+                return !item.BranchName;
+            });
+
+            var companyAccountNameEmpty = $.grep(dirty, function (item) {
+                return !item.CompanyAccountName;
+            });
+
+            var companyAccountNoEmpty = $.grep(dirty, function (item) {
+                return !item.CompanyAccountNo;
+            });
+
+            var errors = [];
+
+            if (bankEmpty && bankEmpty.length)
+                errors.push("Bank Should not be empty");
+
+            if (branchEmpty && branchEmpty.length)
+                errors.push("Branch Should not be empty");
+
+            if (companyAccountNameEmpty && companyAccountNameEmpty.length)
+                errors.push("Company Account Name Should not be empty");
+
+            if (companyAccountNoEmpty && companyAccountNoEmpty.length)
+                errors.push("Company Account No Should not be empty");
+
+            if (errors.length) {
+                e.preventDefault();
+                kendoAlert(errors.join("\n"), true);
+            }
+        }
+    </script>
+    }

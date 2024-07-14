@@ -1,0 +1,158 @@
+﻿@page
+@using BSOL.Core.Models.HirePurchase
+@using BSOL.Helpers
+@using Kendo.Mvc.UI
+
+@{
+    ViewBag.Title = "Deposit Date Change";
+    Layout = "~/Pages/Shared/_Layout.cshtml";
+}
+
+<div id="app">
+    <div class="g-title">
+        <div class="g-left">
+            <ul class="tg-btn tg-fixed" style="display: inline-flex;">
+                <li :class="{'tg-active': TabIndex == 0}">
+                    <a href="javascript:app.tabChange(0)">Pending</a>
+                </li>
+                <li :class="{'tg-active': TabIndex == 1}">
+                    <a href="javascript:app.tabChange(1)">Verified</a>
+                </li>
+            </ul>
+        </div>
+        <span class="g-text">Due Date Change List</span>
+        <div class="g-right">
+            <div v-show="TabIndex==0" class="cntrl-inline">
+                @Html.VerifyButton(true, "app.approveItem()", "Approve")
+            </div>
+            <div v-show="TabIndex==1" class="cntrl-inline">
+                @Html.VerifyButton(false, "app.revertItem()", "Un-do")
+            </div>
+        </div>
+    </div>
+</div>
+
+<div>
+    @(
+        Html.Kendo().Grid<ChequeDepositDateChangeModel>().Name("grid")
+        .Columns(c =>
+        {
+            c.SelectColumn(p => p.ID);
+            @*c.Bound(p => p.ID).ClientTemplate("<a class='btn-grid btn-violet fa fa-retweet' title='Change Deposit To Bank'  href=\"javascript:app.changeDepositToBank('#:uid#')\"></a>")
+            .Title("<i class='fa fa-retweet' title=''></i>").HtmlAttributes(new { style = "text-align:center;" }).HeaderHtmlAttributes(new { style = "text-align:center;" }).Width(45).Sortable(false).Filterable(false);
+*@            c.DeleteColumn(p => p.ID, "app.deleteDepositDateChange('#:uid#')");
+            @*c.ApproveColumn(p => p.ApprovedOn);*@
+            c.Bound(p => p.Cust_Name_EN).Width(180).Title("Customer Name");
+            c.Bound(p => p.AgrementRef).Width(150).Title("Agreement No");
+            c.Bound(p => p.ChequeNo).Width(130);
+            c.MoneyColumn(p => p.Amount).Width(90);
+            c.DateColumn(p => p.OldDepositDate).Width(150);
+            c.DateColumn(p => p.NewDepositDate).Width(150);
+            c.Bound(p => p.EntryBy).Width(150);
+            c.DateColumn(p => p.EntryDate).Width(120);
+            c.Bound(p => p.ApprovedBy).Width(130);
+            c.DateColumn(p => p.ApprovedOn).Width(130);
+        })
+        .DataSource(dataSource => dataSource
+        .Ajax()
+        .Batch(true)
+        .ServerOperation(true)
+        .PageSize(50)
+        .Read(read => read.Action("ReadDepositDateChange", "HirePurchase").Data("app.grid_Data")))
+        .EnableFilter()
+        .Excel(x => x.AllPages(true))
+        .Resizable(x => x.Columns(true))
+        .Pageable(x => x.Refresh(true))
+        .Sortable()
+        .Scrollable()
+        .Selectable()
+        .HtmlAttributes(new { @class = "h-grid v-grid" })
+        .EnableEdit(Html)
+        )
+</div>
+
+@section Scripts
+    {
+    <script type="text/javascript">
+        var app = new Vue({
+            el: '#app',
+            data: {
+                TabIndex: 0,
+            },
+            methods: {
+                grid_Data: function () {
+                    return { StatusFilter: this.TabIndex };
+                },
+                deleteDepositDateChange: function (uid) {
+                    var dataItem = $('#grid').getKendoGrid().dataSource.getByUid(uid)
+                    kendoConfirm("Do you want to delete ?", function () {
+                        $.postData("@Url.Action("DeleteDepositDateChange", "HirePurchase")", { ID: dataItem.ID, ChequeNo: dataItem.ChequeNo, NewDepositDate: dataItem.NewDepositDate, OldDepositDate: dataItem.OldDepositDate, CustomerName: dataItem.Cust_Name_EN }, app.onSuccess);
+                    });
+                },
+                onSuccess: function (res) {
+                    kendoAlert(res.Message, res.HasError);
+                    if (res.HasError)
+                        return;
+
+                    $('#grid').getKendoGrid().dataSource.read();
+                },
+                tabChange: function (index) {
+                    this.TabIndex = index;
+                    $('#grid').getKendoGrid().dataSource.read();
+                },
+                approveItem: function () {
+                    var dataItem = $('#grid').getKendoGrid().dataSource.data();
+                    var selectedCheques = $.grep(dataItem, function (item) {
+                        return item.dirty;
+                    });
+
+                    if (!selectedCheques.length) {
+                        kendoAlert("Please select some cheque to verify", true);
+                        return;
+                    }
+                    var chequeToVerify = [];
+                    $.each(selectedCheques, function (i, item) {
+                        chequeToVerify.push({ ID: item.ID, ChequeNo: item.ChequeNo, Cust_Name_EN: item.Cust_Name_EN });
+                    });
+
+                    $.postData("@Url.Action("ApproveDepositDateChange", "HirePurchase")", { datas: chequeToVerify}, this.onSuccess);
+                },
+                revertItem: function () {
+                    var dataItem = $('#grid').getKendoGrid().dataSource.data();
+                    var selectedCheques = $.grep(dataItem, function (item) {
+                        return item.dirty;
+                    });
+
+                    if (!selectedCheques.length) {
+                        kendoAlert("Please select some cheque to undo", true);
+                        return;
+                    }
+                    var chequeToUndo = [];
+                    $.each(selectedCheques, function (i, item) {
+                        chequeToUndo.push({ ID: item.ID, ChequeNo: item.ChequeNo, Cust_Name_EN: item.Cust_Name_EN });
+                    });
+
+                    $.postData("@Url.Action("UndoDepositDateChange", "HirePurchase")", { datas: chequeToUndo }, this.onSuccess);
+                }
+            }
+        })
+    </script>
+    <script type="text/javascript">
+        $(function () {
+            $("#grid").on("change", ".chkcol", function () {
+                var dataItem = $("#grid").getKendoGrid().dataItem($(this).parent().parent());
+                dataItem.dirty = $(this).prop("checked");
+            });
+        });
+
+        function onSelectAll() {
+            var checked = $('#chkGrid').prop('checked');
+            $('#grid .k-grid-content .chkcol').prop('checked', checked);
+            $('#grid .k-grid-content .chkcol').each(function () {
+                var uid = $(this).parent().parent().attr("data-uid");
+                var dataItem = $('#grid').getKendoGrid().dataSource.getByUid(uid);
+                dataItem.dirty = checked;
+            });
+        }
+    </script>
+}

@@ -1,0 +1,19 @@
+﻿@model string
+@{
+    BSOL.Helpers.Menu menu = new BSOL.Helpers.Menu();
+}
+<div class="c-breadcrumbs hidden-xs">
+    <ul>
+        @foreach (var item in menu.GetBreadCrumb(Html, Model))
+        {
+            <li>
+                <a href="@Url.Page(item.Url)">@item.MenuName</a>
+            </li>
+        }
+    </ul>
+</div>
+<script type="text/javascript">
+    $(function () {
+        $('.c-breadcrumbs a[href="@(Context.Request.Path)"]').addClass('active');
+    });
+</script>

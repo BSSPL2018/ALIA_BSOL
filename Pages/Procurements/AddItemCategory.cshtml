@@ -1,0 +1,115 @@
+﻿@using Core.Entities
+@Html.Kendo().Window().Name("wndItemCategory").Content(@<text>
+    @(Html.Kendo().Grid<ItemCategory>().Name("gridItemCategory")
+    .Editable(Html, "Item Categories")
+        .Columns(c =>
+        {
+            c.DeleteColumn(x => x.Id, "deleteItemCategory('#:uid#')");
+            c.Bound(p => p.Category).Width(200);
+            c.Bound(p => p.Description);
+        })             
+        .DataSource(d => d
+            .Ajax()
+            .Batch(true)
+            .ServerOperation(true)
+            .PageSize(50)
+            .Model(model =>
+            {
+                model.Id(p => p.Id);
+                model.Field(p => p.Id).Editable(false);
+            })
+            .Events(x => x.RequestEnd("gridItemCategory_RequestEnd").Error("grid_ErrorHandler"))
+            .Read(read => read.Action("ReadItemCategories", "Procurements"))
+            .Create(create => create.Action("UpdateItemCategories", "Procurements"))
+            .Update(update => update.Action("UpdateItemCategories", "Procurements"))
+        )
+        .Events(x => x.SaveChanges("gridItemCategory_SaveChanges").DataBound("gridItemCategory_DataBound"))
+        .Sortable()
+        .AutoBind(false)
+        .HtmlAttributes(new { @class = "h-grid v-grid" })
+        .Scrollable()
+        .Pageable(x => x.Refresh(true))
+        .Navigatable()
+        .Filterable()
+    )    
+</text>).Visible(false).Title("Add Category").Draggable(true).Events(e => e.Close("wndItemCategory_Close")).Resizable().MaxWidth(750)
+
+
+<script type="text/javascript">
+    function addCategory() {
+        onWindowOpen(); //For Opacity
+        $('#gridItemCategory').getKendoGrid().dataSource.read();
+        $('#wndItemCategory').getKendoWindow().open();
+        $('#wndItemCategory').getKendoWindow().center();
+    }
+
+    function gridItemCategory_DataBound() {
+        $('#wndItemCategory').getKendoWindow().center();
+    }
+
+    function wndItemCategory_Close() {
+        onWindowClose();
+        app.loadCategory();
+    }
+    function loadItemCategoryID() {
+        ItemCategoryID: this.input.Id;
+    }
+
+    function deleteItemCategory(uid) {
+        var dataItem = $('#gridItemCategory').getKendoGrid().dataSource.getByUid(uid);
+        if (dataItem.Id == 0) {
+            $('#gridItemCategory').getKendoGrid().dataSource.cancelChanges(dataItem);
+            return;
+        }
+        kendoConfirm("Do you want to Delete this Item Category?", function () {
+            $.postData("@Url.Action("DeleteItemCategory", "Procurements")", { Id: dataItem.Id, Category: dataItem.Category, Description: dataItem.Description },
+                function (data) {
+                    kendoAlert(data.Message, data.HasError);
+                    if (!data.HasError)
+                        $('#gridItemCategory').getKendoGrid().dataSource.read();
+                });
+        });
+    }
+
+    function gridItemCategory_SaveChanges(e) {
+        var data = $(e.sender.element).getKendoGrid().dataSource.data();
+        var dirty = $.grep(data, function (item) {
+            return item.dirty || item.Id === 0;
+        });
+        var itemCategory = $.grep(dirty, function (item) {
+            return !item.Category;
+        });
+         var itemDescription = $.grep(dirty, function (item) {
+            return !item.Description;
+        });
+
+        var errors = [];
+        
+        if (itemCategory && itemCategory.length > 0) {
+            $.each(itemCategory, function (i) {
+                if (itemCategory[i].Category == "" )
+                    errors.push("Item Category Should not be empty");
+                return;
+            });
+        }
+
+         if (itemDescription && itemDescription.length > 0) {
+            $.each(itemDescription, function (i) {
+                if (itemDescription[i].Description == "" )
+                    errors.push("Item Description Should not be empty");
+                return;
+            });
+        }
+       
+
+        if (errors.length) {
+            e.preventDefault();
+            kendoAlert(errors.join("\n"), true);
+        }
+    }
+
+    function gridItemCategory_RequestEnd(e) {
+        if ((e.type == "create" || e.type == "update") && !e.response.Errors)
+            kendoAlert("Category Saved.");
+    }
+</script>

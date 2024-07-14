@@ -1,0 +1,199 @@
+﻿@page
+@using BSOL.Core.Models.HirePurchase
+@{
+    ViewBag.Title = "Court Case List";
+    Layout = "~/Pages/Shared/_Layout.cshtml";
+}
+<style>
+    .searchbox {
+        width: 398px;
+        border: 0;
+        height: 41px;
+        border-radius: 25px;
+        outline: none;
+        padding-left: 60px;
+        line-height: 61px;
+        box-shadow: 12px 12px 30px 0 rgb(77 77 119 / 10%);
+        font-weight: 500;
+        color: #8ba2ad;
+        font-weight: bold;
+    }
+
+    .inline-search {
+        position: relative;
+        top: 3px;
+        left: -47px;
+    }
+
+    #search-btn1 {
+        background-image: linear-gradient(to right,#247ddb,#247ddb);
+        border: 0;
+        transition: background-size .2s ease-in-out,.2s box-shadow ease-in-out,.2s filter,.3s opacity;
+        color: #fff;
+        height: 40px;
+        width: 40px;
+        font-size: 14px;
+        border-radius: 50px;
+        outline: none !important;
+        line-height: 40px;
+        cursor: pointer;
+        /*box-shadow: 3px 4px 31px 0 rgb(253 165 93 / 54%);*/
+        margin-left: 2px;
+        -webkit-transition: all 0.2s ease-in-out;
+        -moz-transition: all 0.2s ease-in-out;
+        -o-transition: all 0.2s ease-in-out;
+        transition: all 0.2s ease-in-out;
+    }
+</style>
+
+<form id="app" v-on:submit.prevent="submitForm">
+    <div class="g-title">
+        <div class="g-left">
+            <input type="search" placeholder="Nic No" class="k-textbox searchbox" style="width: 300px;" v-model.trim="SearchText" />
+            <span class="inline-search">
+                <button id="search-btn1" type="submit" value="Search"><i class="fa fa-search"></i></button>
+            </span>
+        </div>
+        <div class="g-right" style=" vertical-align: middle; margin-top: 9px;">
+             @Html.ExcelButtonWithTooltip(flow:"left", toolTipText:"Export")
+        </div>
+    </div>
+</form>
+@(Html.Kendo().Grid<CourtCaseListModel>()
+                                .Name("grid")
+                                .Columns(x =>
+                                {
+                                    x.PrintColumn("app.printItem('#:uid#')");
+                                    x.Bound("").ClientTemplate("<a class='btn-grid btn-violet fa fa-retweet' href=\"javascript:app.followup('#:uid#')\" title='Customer Followup'></a>").Title("").HtmlAttributes(new { style = "text-align:center;" }).Width(50).Sortable(false).Filterable(false);
+                                    x.Bound(c => c.Cust_Ref).Title("Nic No").Width(80);
+                                    x.Bound(c => c.Cust_Name_EN).Title("Customer Name").Width(150);
+                                    x.Bound(c => c.Unit).Title("Product").Width(90);
+                                    x.Bound(c => c.ItemCode).Title("Item Code").Width(120);
+                                    x.Bound(c => c.Reference_No).Title("REG/Part No").Width(150);
+                                    x.Bound(c => c.InvoiceNo).Title("Invoice No").Width(150);
+                                    x.DateColumn(c => c.Invoice_Date).Title("Invoiced On").Width(120);
+                                    x.DateColumn(c => c.CaseFiled).Title("Case Filed On").Width(120);
+                                    x.NumberColumn(c => c.No_Payment).Title("No Of Payment").Width(130);
+                                    x.NumberColumn(c => c.SMonthsPaid).Width(110).Title("Paid Month");
+                                    x.NumberColumn(c => c.MonthsNotPaid).Width(120).Title("Un Paid Month");
+                                    x.MoneyColumn(c => c.DueAmount).Width(80).Title("Due");
+                                    x.MoneyColumn(c => c.TotalPrice).Width(80).Title("Total");
+                                    x.MoneyColumn(c => c.Settled).Width(110).Title("Settled");
+                                    x.MoneyColumn(c => c.DueBalance).Width(120).Title("Due Balance");
+                                    x.MoneyColumn(c => c.BalanceAmount).Width(100).Title("Balance");
+                                })
+                                .Scrollable()
+                                .Sortable()
+                                .Selectable()
+                                .EnableEdit(Html)
+                                .EnableFilter()
+                                .Resizable(x => x.Columns(true))
+                                .Pageable()
+                                    .DataSource(dataSource => dataSource
+                                    .Ajax().ServerOperation(true).PageSize(50)
+                                    .Read(read => read.Action("ReadVerdictPendingList", "CourtCaseList").Data("app.gridData"))
+                                    )
+)
+
+@Html.Kendo().Window().Name("wndFollowupDetails").Content(@<text>
+    <div id="appFolloup">
+        <div class="g-title" style="text-align:left;font-size:13px">
+            <div class="g-left">
+                <span><b>Subject :</b> {{ Subject }} </span><br />
+                <span><b>Details :</b> {{ Details }} </span>
+            </div>
+        </div>
+    </div>
+    @(Html.Kendo().Grid<CustomerFollowup>
+    ()
+    .Name("gridFollowup")
+    .Columns(x =>
+    {
+        x.Bound(c => c.FollowupType).Title("Type").Width(80);
+        x.Bound(c => c.CallType).Title("Call Type").Width(100);
+        x.Bound(c => c.Sender).Title("Sender").Width(150);
+        x.Bound(c => c.Receiver).Title("Receiver").Width(180);
+        x.DateColumn(c => c.FollowupDate).Title("Followup Date").Width(150);
+        x.Bound(c => c.Subject).Width(150);
+        x.Bound(c => c.Details).Title("Details").Width(180);
+        //x.Bound(c => c.Remarks).Width(150);
+        x.Bound(c => c.REGNO).Width(110);
+    })
+    .Scrollable()
+                                .Sortable()
+                                .Selectable()
+                                .EnableEdit(Html)
+                                .EnableFilter()
+                                .Resizable(x => x.Columns(true))
+                                .Pageable()
+                                .AutoBind(false)
+    .DataSource(dataSource => dataSource
+    .Ajax().ServerOperation(true).PageSize(50)
+    .Read(read => read.Action("ReadFollowupList", "CourtCaseList").Data("app.gridFollowupListData"))
+    )
+    )
+</text>).Visible(false).Draggable().Title("Followup List").Width(800).Resizable()
+<form asp-page="/General/DocumentViewer" method="POST" target="_blank" id="frmDoc" style="display:none;">
+    <input type="hidden" name="RPT_R" />
+    <input type="hidden" name="RPT_InvoiceNo" />
+    <input type="hidden" name="RPT_NicNo" />
+</form>
+
+@section Scripts{
+    <script type="text/javascript">
+        var appFolloup = new Vue({
+            el: "#appFolloup",
+            data: {
+                Subject: '',
+                Details: ''
+            },
+            methods: {
+                editFollowupItem: function (uid) {
+                    var dataItem = $('#gridFollowup').getKendoGrid().dataSource.getByUid(uid);
+                    appFolloup.Subject = dataItem.Subject;
+                    appFolloup.Details = dataItem.Details;
+                }
+            }
+        });
+        $(function () {
+            $('#gridFollowup').on('dblclick', 'tbody tr', function () {
+                appFolloup.editFollowupItem($(this).attr('data-uid'));
+            });
+        });
+    </script>
+    <script type="text/javascript">
+        var app = new Vue({
+            el: "#app",
+            data: {
+                SearchText: '',
+                InvoiceNo: ''
+            },
+            methods: {
+                submitForm: function () {
+                    $("#grid").getKendoGrid().dataSource.read();
+                },
+                gridData: function () {
+                    return { NicNo: this.SearchText };
+                },
+                printItem: function (uid) {
+                    var dataItem = $('#grid').getKendoGrid().dataSource.getByUid(uid);
+
+
+                    $('#frmDoc [name=RPT_R]').val("CustomerStatement");
+                    $('#frmDoc [name=RPT_InvoiceNo]').val(dataItem.InvoiceNo);
+                    $('#frmDoc [name=RPT_NicNo]').val(dataItem.Cust_Ref);
+                    $('#frmDoc').submit();
+                },
+                followup: function (uid) {
+                    var dataItem = $('#grid').getKendoGrid().dataSource.getByUid(uid);
+                    this.InvoiceNo = dataItem.InvoiceNo;
+                    $('#wndFollowupDetails').getKendoWindow().open().center();
+                    $("#gridFollowup").getKendoGrid().dataSource.read();
+                },
+                gridFollowupListData: function () {
+                    return { InvoiceNo: this.InvoiceNo };
+                }
+            },
+        });
+    </script>
+}

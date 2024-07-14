@@ -1,0 +1,1012 @@
+﻿@page
+@inject AppUser appUser
+@using Core.Entities
+@using Core.Models.Accounts
+@using BSOL.Core.Models.General
+@model PurchaseOrder
+
+@{
+    ViewData["Title"] = "Purchase Order";
+    Layout = "~/Pages/Shared/_Layout.cshtml";
+    ViewBag.IsFolded = true;
+}
+@if (!await Html.HasAccess(Forms.Procurement.Purchase, Rights.Modify))
+{
+    return;
+}
+
+<environment include="Development">
+    <script src="~/js/kendo/kendo-editor-vue-wrapper.min.js"></script>
+</environment>
+<environment exclude="Development">
+    <script src="https://unpkg.com/@@progress/kendo-editor-vue-wrapper@2022.2.510/dist/cdn/kendo-editor-vue-wrapper.min.js"
+            asp-fallback-src="~/js/kendo/kendo-editor-vue-wrapper.min.js"
+            asp-fallback-test="window.kendo"
+            crossorigin="anonymous"
+            integrity="sha384-1Ed7e1iq9BLW0fQU9oJLatozAfTDbxCqDwtyBfUKE3z7Ct/n2djutNy0xsfdhjAk">
+    </script>
+</environment>
+
+
+@section Head {
+    <style type="text/css">
+        .wt-dropdown .btn, .wt-dropdown .btn:focus, .wt-dropdown .btn:hover {
+            background-color: white !important;
+            border-color: #ddd !important;
+            box-shadow: none !important;
+        }
+
+        .wt-dropdown i {
+            font-size: 12px;
+            color: black !important;
+        }
+
+        .wt-dropdown .dropdown-toggle::after {
+            color: black;
+        }
+
+        .dim-lbl span {
+            display: inline-block;
+            width: 100%;
+        }
+
+
+        /*image preview*/
+        #overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 998;
+            background: #000;
+        }
+
+        .k-upload-selected {
+            display: none !important;
+        }
+
+        #lightbox {
+            position: fixed;
+            z-index: 999;
+        }
+
+        .lightbox {
+            cursor: zoom-in;
+        }
+
+        #lightbox img {
+            background-color: white;
+        }
+
+        #button {
+            float: right;
+            position: absolute;
+            right: 10px;
+            top: 5px;
+        }
+
+        .close {
+            float: right;
+            cursor: pointer;
+            font-weight: bold;
+            position: absolute;
+            right: 10px;
+            top: 5px;
+        }
+
+        .img-cnt img {
+            max-width: 100px;
+            cursor: zoom-in;
+        }
+
+        .pre-content table {
+            max-width: 100% !important;
+        }
+
+        .pos-customer .po-ref {
+            border: none !important;
+        }
+    </style>
+}
+
+<form id="app">
+    @await Html.PartialAsync("Loader")
+    <div class="components pos">
+        <div class="row">
+            <div class="col-md-9">
+                <div class="row">
+                    <div class="col-md-9">
+                        <div class="wt-box">
+                            <label for="SupplierId" style="display: none;"></label>
+                            @*  <div class="pos-customer" v-if="!input.SupplierId" style="margin-bottom: 9px;"> *@
+                            <div class="pos-customer" style="margin-bottom: 9px;  border: 0px solid #f0f0f0;">
+                                    <table>
+                                        <tr>
+                                            <td class="pos-icon">
+                                                <i class="fa fa-user" aria-hidden="true"></i>
+                                            </td>
+                                        <td style="  border: 1px solid #f0f0f0;">
+                                                <kendo-datasource ref="dsSupplier" :transport-read-url="'@Url.Action("ReadPOSuppliers", "Procurements")'" :transport-read-type="'POST'"></kendo-datasource>
+                                                <kendo-combobox ref="ddSupplier" v-model="input.SupplierId" :data-source-ref="'dsSupplier'" :data-text-field="'SupplierName'" :data-value-field="'Id'" :filter="'contains'" placeholder="Type supplier name" @@change="supplierChange" style="width:100%"></kendo-combobox>
+                                            </td>
+                                        <td v-if="input.SupplierId" class="po-ref" style="color: #a20000 ;  text-align: center;;">{{input.RefNoFormatted}}</td>
+                                        </tr>
+                                    </table>
+                                </div>
+                            <div v-if="input.SupplierId" style="padding: 6px 0px; display: inline-block; width: 100%;">
+                                @* <div style="float:left">
+                                <table>
+                                <tr>
+                                <td style="color: #002680;"><i class="user-icon fa fa-user" aria-hidden="true"></i> {{input.SupplierName}}</td>
+                                <td v-show="!input.Id"><a href="javascript:app.clearSupplier()" style="color: #489ee7;text-decoration: underline;font-size: 8pt;margin-left: 10px;">Change</a></td>
+                                </tr>
+                                </table>
+                                </div> *@
+                                @*  <div style="float: right;color: #a20000">
+                                {{input.RefNoFormatted}}
+                                </div> *@
+                            </div>
+                            <div class="row">
+                                <div class="col-md-12">
+                                    <div class="row">
+                                        <div class="col-md-5">
+                                            @Html.LabelFor(x => x.ShopGroupID, "Business Unit")
+                                            <kendo-datasource ref="dsShopGrp" :transport-read-url="'@Url.Action("ReadShopGroupNames", "Procurements")'" :transport-read-type="'POST'" style="width:100%"></kendo-datasource>
+                                            <kendo-combobox ref='ddShopGrp' v-model="input.ShopGroupID" :data-source-ref="'dsShopGrp'" data-value-field="Id" data-text-field="Text" :filter="'contains'" style="width:100%"></kendo-combobox>
+                                        </div>
+                                        <div class="col-md-4">
+                                            @Html.LabelFor(x => x.Mode)
+                                            <kendo-dropdownlist v-model="input.Mode" :data-source="['Local Purchase', 'Shipment', 'Consignment Purchase']" @@change="function(e){setModel(e,input,'Mode',onModeChange)}" style="width:100%"></kendo-dropdownlist>
+                                        </div>
+                                        <div class="col-md-3">
+                                            @Html.LabelFor(x => x.PaymentType, "Payment Type")
+                                            <kendo-dropdownlist v-model="input.PaymentType" :data-source='@Vue.Encode(Utilities.EnumToDescription<PurchaseOrderPaymentType>())' style="width:100%"></kendo-dropdownlist>
+                                        </div>
+                                        <div class="col-md-2">
+                                            @Html.LabelFor(x => x.Currency)
+                                            <kendo-datasource ref="dsCurrency" :transport-read-url="'@Url.Action("ReadCurrencies", "Common")'" :transport-read-type="'POST'"></kendo-datasource>
+                                            <kendo-dropdownlist :value="input.Currency" :data-source-ref="'dsCurrency'" :data-text-field="'Currency'" :data-value-field="'Currency'" @@change="currencyChange" style="width:100%"></kendo-dropdownlist>
+                                        </div>
+                                        <div class="col-md-4">
+                                            @Html.LabelFor(x => x.IncoTerm)
+                                            <kendo-datasource ref="dsIncoTerm"></kendo-datasource>
+                                            <kendo-dropdownlist ref="ddIncoTerm" v-model="input.IncoTerm" :data-source-ref="'dsIncoTerm'" style="width:100%"></kendo-dropdownlist>
+                                        </div>
+
+                                        <div class="col-md-3">
+                                            @Html.LabelFor(x => x.QuotationNo, "Quotation No")
+                                            <input type="text" v-model.trim="input.QuotationNo" class="k-textbox" style="  width: 100%;">
+                                        </div>
+                                        <div class="col-md-3">
+                                            @Html.LabelFor(x => x.QuotationDate, "Quotation Date")
+                                            <kendo-datepicker v-model="input.QuotationDate" :format="'dd-MMM-yyyy'" :max="new Date()" @@change="function(e){setModel(e,input,'QuotationDate')}" style="width:100%;"></kendo-datepicker>
+                                        </div>
+                                    </div>
+                                    <div class="row">
+                                        <div class="col-md-12">
+                                            @Html.LabelFor(x => x.Notes)
+                                            <textarea v-model.trim="input.Notes" class="k-textbox" rows="1" placeholder="Comments" style="width:100%"></textarea>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="wt-box">
+                            <table style="width: 100%;">
+                                <tr>
+                                    <td style="width: 65px;">
+                                        @Html.LabelFor(x => x.PurchaseOrderDate, "PO Date")
+                                    </td>
+                                    <td>
+                                        <kendo-datepicker :value="input.PurchaseOrderDate" :format="'dd-MMM-yyyy'" :max="new Date()" @@change="function(e){setModel(e,input,'PurchaseOrderDate')}" style="width:100%;"></kendo-datepicker>
+                                    </td>
+                                </tr>
+
+                                <tr>
+                                    <td>
+                                        @Html.LabelFor(x => x.DiscountAmount, "Discount")
+                                    </td>
+                                    <td>
+                                        <table style="width: 100%;">
+                                            <tr>
+                                                <td style="width: 48px;">
+                                                    <div class="dropdown show wt-dropdown">
+                                                        <a class="btn btn-secondary dropdown-toggle" href="#" role="button" id="dropdownMenuLink" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                                                            <i :class="{'fa':true,'fa-percent': this.DiscountByPercent,'fa-usd': !this.DiscountByPercent}"></i>
+                                                        </a>
+
+                                                        <div class="dropdown-menu" aria-labelledby="dropdownMenuLink" style="min-width: 48px;max-width:48px;">
+                                                            <a class="dropdown-item" href="javascript:app.changeDiscountMode(1)"><i class="fa fa-percent"></i></a>
+                                                            <a class="dropdown-item" href="javascript:app.changeDiscountMode(0)"><i class="fa fa-usd"></i></a>
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                <td>
+                                                    <div v-show="!DiscountByPercent">
+                                                        <kendo-numerictextbox :value="input.DiscountAmount" :min="0" :spinners="false" :format="'n2'" @@change="discountChange" style="text-align:right;width:100%"></kendo-numerictextbox>
+                                                    </div>
+                                                    <div v-show="DiscountByPercent">
+                                                        <kendo-numerictextbox :value="input.DiscountPercent" :min="0" :max="100" :spinners="false" :format="'n1'" @@change="function(e){setModel(e,input,'DiscountPercent', calculatePurchaseOrder)}" style="text-align:right;width:100%"></kendo-numerictextbox>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        </table>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td>
+                                        @Html.LabelFor(x => x.GSTPercent, "GST (%)")
+                                    </td>
+                                    <td>
+                                        <kendo-datasource ref="dsGST" :transport-read-url="'@Url.Action("ReadGST", "Procurements")'" :transport-read-type="'POST'" style="width:100%"></kendo-datasource>
+                                        <kendo-combobox ref='ddGST' v-model="input.GSTPercent" :data-source-ref="'dsGST'" data-value-field="Percentage" data-text-field="Percentage" :filter="'contains'" @@change="gstChange" style="width:100%"></kendo-combobox>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td colspan="2">
+                                        <div class="wt-sub-title"><span>Attachments</span></div>
+                                        @await Html.PartialAsync("Documents")
+                                    </td>
+                                </tr>
+                                @* <tr>
+                                <td>
+                                @Html.LabelFor(x => x.ShopGroupID, "Business Unit")
+                                </td>
+                                <td>
+                                <kendo-datasource ref="dsShopGrp" :transport-read-url="'@Url.Action("ReadShopGroupNames", "Procurements")'" :transport-read-type="'POST'" style="width:100%"></kendo-datasource>
+                                <kendo-combobox ref='ddShopGrp' v-model="input.ShopGroupID" :data-source-ref="'dsShopGrp'" data-value-field="Id" data-text-field="Text" :filter="'contains'" style="width:100%"></kendo-combobox>
+                                </td>
+                                </tr> *@
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3 wt-box">
+                <div class="row btn-inv-grp">
+                    <div class="col-md-4">
+                        <a class="btn btn-back" href="@Url.Page("/Procurements/PurchaseOrder")"><i class="fa fa-angle-double-left"></i>Back</a>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="btn-group" style="width:100%">
+                            <button type="button" class="btn btn-warning dropdown-toggle" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false" style="  padding: 4px 0 4px 5px;">
+                                Quick Links
+                            </button>
+                            <div class="dropdown-menu">
+                                <a class="dropdown-item" target="_blank" href="@Url.Page("/Procurements/Suppliers")"><i class="fa fa-users"></i> Suppliers</a>
+                                <a class="dropdown-item" target="_blank" href="@Url.Page("/Procurements/Items")"><i class="fa fa-cart-arrow-down"></i> Items</a>
+                                <a class="dropdown-item" href="javascript:app.addDoc()"><i class="fa fa-paperclip"></i> Attachments</a>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <a href="@Url.Page("/Procurements/EditPurchaseOrder")" class="btn" style="background-color:#686868"><i class="fa fa-undo"></i>Reset</a>
+                    </div>
+                    <div class="col-md-4">
+                        <button type="button" class="btn-inv-save" @@click="submitForm">
+                            <i class="fa fa-floppy-o"></i>
+                            <span>Save</span>
+                        </button>
+                    </div>
+                    <div class="col-md-4">
+                        <button type="button" class="btn-inv" @@click="printPO">
+                            <i class="fa fa-print"></i>
+                            <span>Print</span>
+                        </button>
+                    </div>
+                    <div class="col-md-4">
+                        <button type="button" class="btn-inv-delete" @@click="deletePO">
+                            <i class="fa fa-trash-o"></i>
+                            <span>Delete</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div>
+            <div class="pos-search">
+                <table>
+                    <tr>
+                        <td style="border: 1px solid #797777;">
+                            @*<input type="text" v-model.trim="SearchText" placeholder="Enter sku or UPC or or Item Name or Description or scan barcode" v-on:keyup.enter="onSearch" />*@
+                            <kendo-datasource ref="dsSearch" :transport-read-url="'@Url.Action("SearchItems", "Procurements")'" :server-filtering="true" :transport-read-data="onData" :transport-read-type="'POST'"></kendo-datasource>
+                            <kendo-autocomplete id="ddSearch" v-model="SearchText" ref="ddSearch" :delay="500" :data-source-ref="'dsSearch'" :min-length="2" :data-text-field="'Text'" :data-value-field="'Id'" :filter="'contains'" style="width:100%;background-color:white;" @@change="onSearchChange" placeholder="Enter sku or UPC or or Item Code or Description or scan barcode "></kendo-autocomplete>
+                        </td>
+                        <td class="pos-icon" style="border: 1px solid rgb(121, 119, 119)" @@click="onSearch">
+                            <i class="fa fa-search" aria-hidden="true"></i>
+                        </td>
+                        <td style="width: 5px;">&nbsp;</td>
+                        <td @@click="pickItems" class="pos-btn">
+                            <i class="fa fa-cart-arrow-down" aria-hidden="true"></i>
+                            Pick Items
+                        </td>
+                    </tr>
+                </table>
+            </div>
+
+            <div class="g-content">
+                @(Html.Kendo().Grid<PurchaseOrderDetail>()
+                    .Name("grid")
+                    .Editable(Html, "", false, false, GridInsertRowPosition.Top)
+                    .AutoBind(false)
+                    .Columns(c =>
+                    {
+                        c.DeleteColumn(x => x.Id, childEdit: true);
+                        c.Bound(x => x.ImagePath).ClientTemplate(@"<img class='lightbox' src='" + Url.Content("/api/Common/ItemImage?img=") + "#=ImagePath#' download preview />")
+                        .HtmlAttributes(new { @class = "img-cnt", onclick = "app.previewImage(this)" }).Center().ClearTitle().Width(50);
+                        c.Bound(p => p.SNO).Title("#").Width(40);
+                        @*  c.Bound(x => x.SKU).Width(80).Title("SKU");
+                c.Bound(x => x.UPC).Width(80).Title("UPC"); *@
+                        c.Bound(x => x.ItemCode).Width(130).Title("Item Code");
+                        c.DescriptionColumn(x => x.Description).Width(280);
+                        c.Bound(x => x.Size).Width(80).Title("Size");
+                        c.Bound(x => x.SupplierCode).Width(110);
+
+                        c.Bound(p => p.PurchaseUnit).ClientTemplate("#: PurchaseUnit #").Title("Unit").Width(50).EditorTemplateName("UnitComboBoxEditor").Editable("app.purchaseUnit");
+                        c.MoneyColumn(x => x.BaseRate).Hidden();
+                        c.MoneyColumn(x => x.Rate, 4).Width(80).HtmlAttributes(new { @class = "editable" }).EditorTemplateName("DecimalEditor");
+                        c.Bound(p => p.Id).ClientTemplate("<i class='fa fa-caret-down'></i>").HtmlAttributes(new { @class = "pos-qcntrl dec", onclick = "app.decreaseQty(this)" }).ClearTitle().Filterable(false).Sortable(false).Width(40);
+                        c.Bound(p => p.RequestedQty).Title("Qty").Center().Width(60).HtmlAttributes(new { @class = "editable" }).EditorTemplateName("DecimalEditor");
+                        c.Bound(p => p.Id).ClientTemplate("<i class='fa fa-caret-up'></i>").HtmlAttributes(new { @class = "pos-qcntrl inc", onclick = "app.increaseQty(this)" }).ClearTitle().Filterable(false).Sortable(false).Width(40);
+                        c.MoneyColumn(x => x.TotalPrice, 4).Width(100).HtmlAttributes(new { @class = "editable" }).Editable("disableEditor").Width(100).EditorTemplateName("DecimalEditor");
+                        c.DescriptionColumn(x => x.Remarks).Width(180);
+                    })
+                    .Sortable()
+                    .Scrollable()
+                    .Resizable(x => x.Columns(true))
+                    .HtmlAttributes(new { @class = "h-grid inl-grid pos-grid" })
+                    .NoRecords()
+                    .Navigatable()
+                    .DataSource(dataSource => dataSource
+                    .Ajax().ServerOperation(false)
+                    .Events(x => x.RequestEnd("app.gridRequestEnd"))
+                    .Read(read => read.Action("ReadPurchaseOrderItems", "Procurements").Data("app.gridData"))
+                    .Model(m =>
+                    {
+                        m.Id(x => x.Id);
+                        m.Field(x => x.Id).Editable(false);
+                        m.Field(x => x.ItemCategory).Editable(false);
+                        m.Field(x => x.SKU).Editable(false);
+                        m.Field(x => x.UPC).Editable(false);
+                        m.Field(x => x.ItemCode).Editable(false);
+                        m.Field(x => x.ImagePath).Editable(false);
+                        m.Field(x => x.SupplierCode).Editable(false);
+                        m.Field(x => x.Size).Editable(false);
+                    }))
+                    .Events(x => x.CellClose("app.gridCellClose").BeforeEdit("app.onGridBeforeEdit"))
+                    )
+            </div>
+        </div>
+    </div>
+    <div class="inv-footer">
+        <div class="row">
+            <div class="form-group col-md-2 txt-color">
+                <div>
+                    Total Items : {{TotalItems}}
+                </div>
+                <div>
+                    Total Qty : {{TotalQty}}
+                </div>
+            </div>
+            <div class="form-group col-md-2 txt-color">
+                <div>
+                    Net Amount : {{toCurrency(input.NetAmount)}}
+                </div>
+                <div>
+                    Discount <span style="color:#DD1144">{{input.DiscountPercent > 0 ? ("(" + input.DiscountPercent + "%)") : ""}} : {{toCurrency(input.DiscountAmount)}}</span>
+                </div>
+            </div>
+            <div class="form-group col-md-2 txt-color">
+                <div>
+                    Taxable Amount : {{toCurrency(input.TaxableAmount)}}
+                </div>
+                <div>
+                    GST <span style="color:#DD1144">({{input.GSTPercent}} %) : </span> <span style="color:#DD1144"> {{toCurrency(input.GSTAmount)}}</span>
+                </div>
+            </div>
+            <div class="form-group col-md-3 pos-total txt-color" style="font-size:18px; padding-right:10px;">
+                <div>Total Amount</div>
+                <div class="pos-value">{{toCurrency(input.TotalAmount)}}</div>
+            </div>
+        </div>
+    </div>
+</form>
+
+<form asp-page="@Url.Page("/General/DocumentViewer")" method="POST" target="_blank" id="frmDoc" style="display:none;">
+    <input type="hidden" name="RPT_R" value="PurchaseOrder" />
+    <input type="hidden" name="RPT_ENC_Id" />
+    <input type="hidden" name="RPT_EntityID" />
+    <input type="submit" value="Submit">
+</form>
+
+@{
+    var jsonData = Vue.Encode(new PurchaseOrder()
+            {
+                PaymentType = PurchaseOrderPaymentType.Cash.Description(),
+                Currency = appUser.BaseCurrency,
+                ConversionRate = appUser.ConversionRate,
+                Mode = "Local Purchase",
+                PurchaseOrderDate = DateTime.Now,
+                QuotationDate = DateTime.Now
+            });
+}
+
+@section Scripts
+{
+    @(Html.Kendo().Window()
+                                            .Name("wndTerms")
+                                            .Title("Terms & Conditions")
+                                            .Content(@<text>
+    <div id="appEditor">
+        @Html.LabelFor(x => x.Remarks, "Terms & Conditions")
+        <div id="divRemarks">
+            <kendo-editor id="editorRemarks" :resizable-content="true"
+                          :resizable-toolbar="true"
+                          :tools="Tools"
+                          v-model="input.Remarks"
+                          style="height:200px;">
+            </kendo-editor>
+        </div>
+    </div>
+</text>)
+                                    .Draggable()
+                                    .Resizable()
+                                    .Visible(false)
+                                    .MaxWidth(500))
+
+    @await Html.PartialAsync("PurchaseItems")
+    @await Html.PartialAsync("DocumentsDialog", "")
+
+    <script type="text/javascript">
+        var appEditor = new Vue({
+            el: "#appEditor",
+            data: {
+                input: {
+                    Remarks: ""
+                },
+                Tools: [
+                    "bold", "italic", "underline", "strikethrough", "justifyLeft", "justifyCenter", "justifyRight", "justifyFull",
+                    "insertUnorderedList", "insertOrderedList", "indent", "outdent", "viewHtml", "formatting", "fontName",
+                    "fontSize", "foreColor", "backColor",
+                ]
+            }
+        });
+        var app = new Vue({
+            el: '#app',
+            data: {
+                input: @(jsonData),
+                SearchText: "",
+                DiscountByPercent: false,
+                IsVerified: false,
+                TotalItems: 0,
+                TotalQty: 0,
+                Remarks: "",
+                Discount: 0,
+                isLoaded: true,
+                Tools: [
+                    "bold", "italic", "underline", "strikethrough", "justifyLeft", "justifyCenter", "justifyRight", "justifyFull",
+                    "insertUnorderedList", "insertOrderedList", "indent", "outdent", "viewHtml", "formatting", "fontName",
+                    "fontSize", "foreColor", "backColor",
+                ],
+                IncoTerm: [],
+                tIncoTerm: "",
+                max: new Date(),
+                Doc: @(Vue.Encode(new DocumentModel()))
+                            },
+            created: function () {
+                //appDoc.init("@DocumentReference.PurchaseOrders.ToString()", this.onSuccess);
+                appItem.addItemCallBack = this.addItem;
+                this.input.Id = '@(Request.Query["id"])';
+
+                this.tIncoTerm = "";
+
+                $(function () {
+                    var gstData = app.$refs.dsGST.kendoWidget().data();
+                    var dataItem = $.grep(gstData, function (item) {
+                        return item.IsDefault;
+                    });
+                     app.input.GSTPercent = dataItem[0].Percentage;
+
+                })
+
+            },
+
+            methods: {
+                increaseQty: function (sender) {
+                    var item = $('#grid').getKendoGrid().dataItem($(sender).parent());
+                    item.set("RequestedQty", item.RequestedQty + 1);
+                    this.calculateItem(item);
+                },
+                onData: function () {
+                    return { SearchText: $("#ddSearch").val() };
+                },
+                onSearchChange: function (e) {
+                    var item = e.sender.dataItem(e.sender.selectedIndex);
+                    if (item)
+                        this.input.ItemId = item.Id;
+                    this.onSearch(e.sender.value());
+
+                    if (!item)
+                        this.input.ItemId = "";
+                },
+                decreaseQty: function (sender) {
+                    var item = $('#grid').getKendoGrid().dataItem($(sender).parent());
+                    item.set("RequestedQty", item.RequestedQty - 1);
+                    if (item.RequestedQty < 1) {
+                        kendoAlert("Qty should not be lesser than zero", true);
+                        item.set("RequestedQty", 1);
+                        return;
+                    }
+                    this.calculateItem(item);
+                },
+                previewImage: function (e) {
+                    var item = $('#grid').getKendoGrid().dataItem($(e).parent());
+                    var windowHeight = window.innerHeight || $(window).height(),
+                        windowWidth = window.innerWidth || $(window).width();
+                    var imgSrc = "/Common/ItemImage?img=" + item.ImagePath;
+                    // Create the overlay, append it to body and make it visible.
+                    $('<div id="overlay"></div>')
+                        .css('opacity', '0')
+                        .animate({
+                            'opacity': '0.5'
+                        }, 'slow')
+                        .appendTo('body');
+
+
+                    // Create the lightbox container which shall contain the image
+                    $('<div id="lightbox"><span class="close">X</span></div>')
+                        .hide()
+                        .appendTo('body');
+
+
+                    // Create img-element and add to #lightbox when loaded.
+                    $('<img>')
+                        .attr('src', imgSrc)
+                        .css({
+                            'max-height': windowHeight,
+                            'max-width': windowWidth
+                        })
+                        .on('load', function () {
+                            $('#lightbox')
+                                .css({
+                                    'top': (windowHeight - $('#lightbox').height()) / 2,
+                                    'left': (windowWidth - $('#lightbox').width()) / 2
+                                })
+                                .fadeIn();
+                        })
+                        .appendTo('#lightbox');
+
+                    // Remove lightbox on click
+                    $('#overlay, #lightbox').click(function () {
+                        $('#overlay, #lightbox').remove();
+                    });
+                },
+                validateForm: function () {
+                    removeError();
+                    var isValid = true;
+                    var setError = function (cntrl, msg) {
+                        isValid = false;
+                        showError(cntrl, msg);
+                    };
+
+                    if (!this.input.SupplierId)
+                        setError('SupplierId');
+                    else if (this.$refs.ddSupplier && this.$refs.ddSupplier.kendoWidget().selectedIndex == -1)
+                        setError('SupplierId', 'Invalid');
+
+                    if (!this.input.PurchaseOrderDate || !this.input.PurchaseOrderDate.isValid())
+                        setError('PurchaseOrderDate');
+
+                    if (!this.input.Currency)
+                        setError('Currency');
+                    if (!this.input.ShopGroupID)
+                        setError('ShopGroupID');
+                    if (!this.input.IncoTerm)
+                        setError('IncoTerm');
+                    if (!this.input.Notes)
+                        setError('Notes');
+                    if (!this.input.QuotationNo && this.input.Notes.indexOf("AIRTICKET") === -1 )
+                        setError('QuotationNo');
+                    if (!this.input.QuotationDate && this.input.Notes.indexOf("AIRTICKET") === -1 )
+                        setError('QuotationDate');
+
+                    else if (this.$refs.dsGst && this.$refs.dsGST.kendoWidget().selectedIndex == -1)
+                        setError('GSTPercent', 'Invalid');
+
+                    else if (this.$refs.dsCurrency && this.$refs.dsCurrency.kendoWidget().selectedIndex == -1)
+                        setError('Currency', 'Invalid');
+
+                    if (!validatePhoneNo(this.input.ContactNo))
+                        setError('ContactNo', 'Please enter the phone no Ex:1234567.');
+                    if (this.input.DiscountAmount && (this.$refs.ddDiscountAccount && this.$refs.ddDiscountAccount.kendoWidget().selectedIndex == -1))
+                        setError('DiscountAccount');
+                    if (this.input.TotalAmount <= 0) {
+                        kendoAlert("Purchase amount cannot be 0 or negative", true);
+                        return false;
+                    }
+
+                    return isValid;
+                },
+                onSearch: function (txt) {
+                    //if (!txt)
+                    this.SearchText = txt;
+
+                    if (!this.SearchText)
+                        return;
+                    if (!this.input.ItemId)
+                        return;
+
+                    if (!this.input.SupplierId) {
+                        kendoAlert('Please select the supplier', true);
+                        return;
+                    }
+
+                    $.getData('@Url.Action("SearchPOItems", "Procurements")', { SearchText: this.SearchText, SupplierId: this.input.SupplierId, ItemId: this.input.ItemId }, function (res) {
+                        if (!res) {
+                            kendoAlert("Item not found", true);
+                            return;
+                        }
+                        app.addItem(res);
+                        $("#ddSearch").val("");
+                    });
+                    this.SearchText = "";
+                    // this.input.Id = "";
+
+                },
+                clearSupplier: function () {
+                    this.input.SupplierId = null;
+                },
+                pickItems: function () {
+                    if (!this.input.SupplierId) {
+                        kendoAlert('Please select supplier and add items', true);
+                        return;
+                    }
+                    appItem.open();
+                },
+                addDoc: function () {
+                    //appDoc.open(this.input.Id);
+                },
+                onSuccess: function (res) {
+                    if (res.HasError) {
+                        kendoAlert(res.Message, res.HasError);
+                        return;
+                    }
+
+                    if (app.input.Id == 0 || app.input.Id == null)
+                        lapp.refreshNotification();
+
+                    app.Doc.reset();
+
+                    kendoAlert(res.Message, false, "BSOL", function () { 
+                        location.href = "@Url.Page("/Procurements/PurchaseOrder")";;
+                    });
+
+                },
+                submitForm: function () {
+                    if (!this.validateForm())
+                        return;
+
+                    this.input.GSTPercent = this.input.GSTPercent > 0 ? this.input.GSTPercent : 0.00;
+                    var items = $('#grid').getKendoGrid().dataSource.data();
+                    var purchaseOrderDetails = [];
+                    $.each(items, function () {
+                        purchaseOrderDetails.push({
+                            SNO: this.SNO,
+                            Id: this.Id,
+                            ItemId: this.ItemId,
+                            Description: this.Description,
+                            BaseRate: this.BaseRate,
+                            Rate: this.Rate,
+                            RequestedQty: this.RequestedQty,
+                            TotalPrice: this.TotalPrice,
+                            Remarks: this.Remarks,
+                            PurchaseUnit: this.PurchaseUnit,
+                            Conversion: this.Conversion
+                        });
+                    });
+                    $.postData("@Url.Action("SavePurchaseOrder", "Procurements")", {
+                        PurchaseOrder: this.input,
+                        PurchaseOrderDetails: purchaseOrderDetails
+                    }, function (res) {
+                        app.input.Id = res.Id;
+                        if (!app.Doc.save(res.Id))
+                            app.onSuccess(res);
+                    });
+                },
+                appendItem: function (newItem) {
+                    var dataSource = $('#grid').getKendoGrid().dataSource;
+                    var count = dataSource._data.length;
+                    var extItem = newItem.IsInventory ? $.grep(dataSource.data(), function (x) { return x.SKU == newItem.SKU }) : [];
+
+                    if (extItem.length) {
+                        extItem[0].set("RequestedQty", extItem[0].RequestedQty + 1);
+                        this.calculateItem(extItem[0]);
+                    }
+                    else {
+                        newItem.SNO = count + 1;
+                        // dataSource.insert(0, newItem);
+                        var index = dataSource.total();
+                        dataSource.insert(index, newItem);
+
+                        var items = dataSource.data();
+                        //this.calculateItem(items[0]);
+                        this.calculateItem(items[index]);
+                    }
+                },
+                addItem: function (item) {
+                    var newItem = @(Vue.Encode(new PurchaseOrderDetail()));
+                    newItem.ItemId = item.ItemId;
+                    newItem.SKU = item.SKU;
+                    newItem.UPC = item.UPC;
+                    newItem.ItemCode = item.ItemCode;
+                    newItem.Description = item.Description;
+                    newItem.ItemCategory = item.ItemCategory;
+                    newItem.BaseRate = item.Rate;
+                    newItem.Rate = currencyConversion(item.Rate, this.input.Currency, this.input.ConversionRate);
+                    newItem.RequestedQty = 1;
+                    newItem.ImagePath = item.ImagePath;
+                    newItem.SupplierCode = item.SupplierCode;
+                    newItem.GSTApplicable = item.GSTApplicable;
+                    newItem.IsInventory = item.IsInventory;
+
+                    newItem.PurchaseUnits = JSON.parse(item.PurchaseUnits);
+                    newItem.PurchaseUnit = item.Unit;
+                    newItem.Unit = item.Unit;
+                    newItem.Conversion = item.Conversion;
+                    newItem.Size = item.Size;
+                    this.appendItem(newItem);
+                },
+                supplierChange: function (e) {
+                    var self = this;
+                    var item = e.sender.dataItem(e.sender.selectedIndex);
+                    if (item) {
+                        this.input.SupplierName = item.SupplierName;
+                        this.input.GST = (item.GST == null || item.GST == 0) ? 0 : item.GST;
+                        app.GST = this.input.GST;
+
+                        $.postData("@Url.Action("GetSupplierIncoTerm", "Procurements")", { SupplierId: item.Id }, function (res) {
+
+                            app.input.PaymentType = res.PaymentType ? res.PaymentType : 'CASH';
+                            // app.input.IncoTerm = res.IncoTerm ? res.IncoTerm : null;
+                        });
+                    }
+                    else {
+                        app.input.PaymentType = 'CASH';
+                        // app.input.IncoTerm = null;
+                    }
+                },
+                currencyChange: function (e) {
+                    this.input.Currency = e.sender.value();
+                    var item = e.sender.dataItem(e.sender.selectedIndex);
+                    this.input.ConversionRate = item.ConversionRate;
+
+                    var items = $('#grid').getKendoGrid().dataSource.data();
+                    $.each(items, function (i, item) {
+                        item.set("Rate", currencyConversion(item.BaseRate, app.input.Currency, app.input.ConversionRate));
+                        app.calculateItem(item);
+                    });
+                },
+                disPercentageChange: function (e) {
+                    var discountAmount = (app.TotalAmount * e.sender.value()) / 100;
+                    app.input.DiscountAmount = discountAmount;
+                    app.Discount = discountAmount;
+                    app.calculatePurchaseOrder();
+                },
+                discountChange: function (e) {
+                    app.input.DiscountAmount = e.sender.value();
+                    app.Discount = e.sender.value();
+                    app.calculatePurchaseOrder();
+                },
+                changeDiscountMode: function (e) {
+                    this.DiscountByPercent = (e == 1);
+                    app.input.DiscountPercent = 0;
+                    this.calculatePurchaseOrder();
+                },
+                gstChange: function (e) {
+                    var gstAmount = parseFloat(e.sender.value());
+                    if (!e.sender.value())
+                        this.input.GSTPercent = 0;
+                    else if (isNaN(gstAmount) || gstAmount < 0) {
+                        kendoAlert('Please enter valid GST(%)', true);
+                        this.input.GSTPercent = 0;
+                    }
+                    else
+                        this.input.GSTPercent = gstAmount;
+
+                    this.calculatePurchaseOrder();
+                },
+                gridCellClose: function (e) {
+                    var fieldName = e.sender.columns[e.container.index()].field;
+                    var item = e.model;
+                    if (fieldName == "Rate" && item.RequestedQty > 0) {
+                        item.set("BaseRate", this.input.Currency == "@(appUser.BaseCurrency)" ? item.Rate : convertToBaseCurrency(item.Rate, this.input.Currency, this.input.ConversionRate));
+                    }
+
+                    this.calculateItem(item);
+                },
+                calculateItem: function (item) {
+                    item.set("TotalPrice", item.Rate * item.RequestedQty);
+                    this.calculatePurchaseOrder();
+                },
+                calculatePurchaseOrder: function () {
+                    if (!app.input) return;
+                    var items = $('#grid').getKendoGrid().dataSource.data();
+                    var netAmount = 0, taxableAmount = 0, totalQty = 0, totalDiscount = 0;
+                    $.each(items, function (i, item) {
+                        totalQty += item.RequestedQty;
+                        netAmount += item.TotalPrice;
+                        if (item.GSTApplicable)
+                            taxableAmount += item.TotalPrice;
+                    });
+
+                    var discountAmount = 0;
+                    if (this.DiscountByPercent) {
+                        discountAmount = parseFloat((netAmount * (this.input.DiscountPercent / 100)).toFixed(2));
+                        this.input.DiscountAmount = discountAmount;
+                    }
+                    else {
+                        this.input.DiscountPercent = 0;
+                        discountAmount = this.input.DiscountAmount;
+                    }
+
+                    taxableAmount = (taxableAmount - discountAmount) > 0 ? (taxableAmount - discountAmount) : 0;
+                    var gst = parseFloat((taxableAmount * (this.input.GSTPercent / 100)).toFixed(2));
+                    var totalAmount = netAmount - discountAmount + gst;
+                    this.TotalItems = items.length;
+                    this.TotalQty = totalQty;
+                    this.TotalDiscountAmount = totalDiscount + discountAmount;
+                    this.input.NetAmount = netAmount;
+                    this.input.GSTAmount = gst;
+                    this.input.TaxableAmount = taxableAmount;
+                    this.input.TotalAmount = totalAmount;
+                },
+                deleteItem: function (uid) {
+                    var dataSource = $('#grid').getKendoGrid().dataSource;
+                    var dataItem = dataSource.getByUid(uid);
+                    if (!dataItem.Id)
+                        dataSource.cancelChanges(dataItem);
+                    else
+                        dataSource.remove(dataItem);
+
+                    gridData = dataSource.data();
+                    var sno = gridData.length;
+                    $.each(gridData, function (i, item) {
+                        gridData[i].SNO = sno;
+                        sno--;
+                    });
+
+                    $('#grid').data('kendoGrid').refresh();
+                    this.calculatePurchaseOrder();
+                },
+                printPO: function () {
+                    if (!this.input.Id) {
+                        kendoAlert("Purchase Order not yet saved", true);
+                        return;
+                    }
+                    $('#frmDoc [name=RPT_ENC_Id]').val(this.input.Id);
+                    $('#frmDoc [name=RPT_EntityID]').val(@(appUser.EntityID));
+                    $('#frmDoc').submit();
+                },
+                deletePO: function () {
+                    if (!this.input.Id) {
+                        kendoAlert("Purchase Order not yet saved", true);
+                        return;
+                    }
+                    kendoConfirm("Do you want to delete this purchase order?", function () {
+                        $.postData("@Url.Action("DeletePurchaseOrder", "Procurements")", { Id: app.input.Id, RefNo: app.input.RefNoFormatted }, function (res) {
+                            app.onSuccess(res);
+                            lapp.refreshNotification();
+                        });
+                    });
+                },
+                gridData: function () {
+                    return { PurchaseOrderId: this.input.Id };
+                },
+                gridRequestEnd: function () {
+                    setTimeout(this.calculatePurchaseOrder, 500);
+                },
+                changeSellingUnit: function (e) {
+                    var selectedItem = e.sender.dataItem(e.sender.selectedIndex);
+                    var gridItem = $(".k-edit-cell").closest(".k-grid").data("kendoGrid").dataItem($(".k-edit-cell").closest("tr"));
+
+                    this.setProp(gridItem, "Rate", selectedItem.SellingUnitRate);
+                    this.setProp(gridItem, "Conversion", selectedItem.Conversion);
+                    this.calculateItem(gridItem);
+                },
+                onGridBeforeEdit(e) {
+                    var purchaseUnits = e.model.PurchaseUnits && e.model.PurchaseUnits != null ? e.model.PurchaseUnits : [];
+
+                    setTimeout(function () {
+                        var $cntrl = e.sender._current.find("[name=PurchaseUnit]");
+                        if (!$cntrl.length)
+                            return;
+
+                        var $cb = $cntrl.getKendoComboBox();
+                        if (purchaseUnits && purchaseUnits.length) {
+
+                            var chkBaseUnit = $.grep(purchaseUnits, function (item) {
+                                return item.SellingUnit == e.model.Unit;
+                            });
+                            if (!chkBaseUnit.length)
+                                purchaseUnits.push({ Id: 0, SellingUnitId: 0, SellingUnitRate: e.model.Rate, SellingUnit: e.model.Unit, Conversion: 1.0 });
+
+                            $cb.dataSource.data(purchaseUnits);
+                        }
+                        else
+                            $cb.dataSource.data([]);
+                    }, 300);
+                },
+                purchaseUnit: function (dataItem) {
+                    if (dataItem.PurchaseUnits.length)
+                        return true;
+                    else
+                        return false;
+                },
+                setProp: function (item, prop, value) {
+                    if (this.BulkUpload)
+                        item[prop] = value;
+                    else
+                        item.set(prop, value);
+                },
+                onModeChange: function () {
+                    var incoTerms = [];
+                    if (this.input.Mode == "Local Purchase")
+                        incoTerms = ["", "Pick from Supplier", "Door Delivery"];
+                    else
+                        incoTerms = ["", "CIF - Cost, Insurance & Freight", "FOB - Free on Board", "CFR - Cost and Freight", "EXW - Ex Works", "DAT - Delivered At Terminal", "DDP - Delivered Duty Paid", "FCA - Free Carrier", "CIP - Carriage and Insurance Paid ", "FAS - Free Alongside Ship", "AP - Delivered At Place"];
+                    
+                    this.$refs.dsIncoTerm.kendoWidget().data(incoTerms);
+                    this.input.IncoTerm = this.tIncoTerm;
+                }
+            }
+
+        });
+    </script>
+    @await Html.PartialAsync("DocumentScripts")
+    <script type="text/javascript">
+        $(function () {
+            app.Doc.init("@DocumentReference.PurchaseOrders", app.onSuccess);
+            $('.c-breadcrumbs a[href="@Url.Page("/Procurements/PurchaseOrder")').addClass('active');
+            var $grid = $("#grid");
+            var $gridheader = $grid.find('.k-grid-header');
+            var height = $(window).height() - $gridheader.offset().top - $gridheader.outerHeight() - $('.inv-footer').outerHeight() - 15;
+            $grid.find('.k-grid-content').css('height', Math.max(height, 200) + "px");
+            $grid.css("margin-bottom", ($('.inv-footer').outerHeight() / 2) + "px");
+            if (app.input.Id)
+                $grid.getKendoGrid().dataSource.read();
+
+            $("#ddSearch").keypress(function (event) {
+                if (event.keyCode == 13) {
+                    app.onSearch(app.$refs.ddSearch.kendoWidget().value());
+                }
+            });
+
+            var self = app;
+            if (self.input.Id) {
+                app.isLoaded = false;
+                $.postData('@Url.Action("GetPurchaseOrderDetails", "Procurements")', { Id: app.input.Id },
+                    function (res) {
+                        self.isLoaded = true;
+                        self.input = res;
+                        self.tIncoTerm = app.input.IncoTerm;
+                        self.DiscountByPercent = res.DiscountPercent > 0;
+                        appEditor.input.Remarks = self.input.Remarks;
+                        self.onModeChange();
+                    });
+
+                //appDoc.load(app.input.Id);
+                app.Doc.load(app.input.Id);
+            }
+            else
+                app.onModeChange();
+        });
+        function toggle_Change() {
+            app.Doc.reset();
+            app.input = @(jsonData);
+        }
+    </script>
+
+}

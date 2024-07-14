@@ -1,0 +1,101 @@
+﻿@page
+@model BSOL.Pages.IndexModel
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BSOL - Alia Investment Pvt Ltd</title>
+    <link href="~/css/login.css" rel="stylesheet" />
+    <environment include="Development">
+        <script src="~/lib/jquery/jquery.min.js"></script>
+        <script src="~/lib/vue/vue.min.js"></script>
+        <script src="~/js/js.cookie.min.js"></script>
+    </environment>
+    <environment exclude="Development">
+        <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"
+                asp-fallback-src="~/lib/jquery/jquery.min.js"
+                asp-fallback-test="window.jQuery"
+                crossorigin="anonymous"
+                integrity="sha384-vtXRMe3mGCbOeY7l30aIg8H9p3GdeSe4IFlP6G8JMa7o7lXvnz3GFKzPxzJdPfGK">
+        </script>
+        <script src="https://unpkg.com/vue@2.6.11/dist/vue.min.js"
+                asp-fallback-src="~/lib/vue/vue.min.js"
+                asp-fallback-test="window.Vue"
+                crossorigin="anonymous"
+                integrity="sha384-OZmxTjkv7EQo5XDMPAmIkkvywVeXw59YyYh6zq8UKfkbor13jS+5p8qMTBSA1q+F">
+        </script>
+        <script src="https://cdn.jsdelivr.net/npm/js-cookie@3.0.1/dist/js.cookie.min.js"></script>
+    </environment>
+</head>
+<body>
+    <div class="wrapper fadeInDown">
+        <div id="app">
+
+            @await Html.PartialAsync("Loader")
+            <div id="formContent">
+
+
+                <div class="logo-wrapper">
+                    <img class="user-logo" src="~/images/user.svg" alt="User Icon" height="150">
+
+                </div>
+                <!-- Login Form -->
+                <form method="post" v-on:submit.prevent="submitForm">
+                    <input type="text" id="UserName" v-model.trim="UserName" placeholder="Username" autofocus>
+                    <input type="password" id="Password" v-model.trim="Password" placeholder="Password">
+                    <input type="submit" value="Log In">
+                </form>
+                <a href="" class="forgot-password">Forgot Password?</a>
+                <span class="ErrorMsg">{{ErrorMsg}}</span>
+            </div>
+            <div class="login-right">
+                <img class="login-logo" src="~/images/Logo.png" id="icon" alt="User Icon">
+                <h2 class="active">BSOL ERP</h2>
+                <p>Complete ERP Solutions for your Organization</p>
+            </div>
+        </div>
+
+    </div>
+
+    <script type="text/javascript">
+        var app = new Vue({
+            el: "#app",
+            data: {
+                UserName: "",
+                Password: "",
+                ErrorMsg: "",
+                isLoaded: true
+            },
+            methods: {
+                validateForm: function () {
+                    return this.UserName && this.Password;
+                },
+                submitForm: function () {
+                    if (!this.validateForm())
+                        return;
+
+                    this.isLoaded = false;
+                    $.post("@Url.Action("Login", "Authenticate")", { UserName: this.UserName, Password: this.Password, grant_type: "cookie" }, function (res) {
+                        app.isLoaded = true;
+                        if (res.HasError) {
+                            document.querySelector('.ErrorMsg').style.display = 'block';
+                            app.ErrorMsg = res.Message;
+                            return;
+                        }
+                        location.href = res.Message;
+                    });
+                }
+            }
+        });
+
+
+        $(function () {
+            Cookies.remove('MAIN_MENU');
+        });
+        $(function () {
+            localStorage.setItem("NotificationCount", "NONE");
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,339 @@
+﻿@page
+@using BSOL.Core.Entities
+@model RamazanPromotion
+@{
+    var id = Request.Query["id"].ToString();
+}
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BSOL - Alia Investment Pvt Ltd</title>
+
+    <environment include="Development">
+        <link href="~/lib/bootstrap/css/bootstrap.min.css" rel="stylesheet" />
+    </environment>
+
+    <environment exclude="Development">
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet"
+              asp-fallback-href="~/lib/bootstrap/css/bootstrap.min.css"
+              asp-fallback-test-class="sr-only" asp-fallback-test-property="position" asp-fallback-test-value="absolute" />
+    </environment>
+
+    <style type="text/css">
+        .c-form {
+            padding: 15px;
+            border: 2px solid #eee;
+            border-radius: 10px;
+        }
+
+            .c-form input[type=text] {
+                border-width: 0 0 1px 0;
+                width: 100%;
+                border-color: #d4cfcf;
+            }
+
+        .ld-error {
+            padding: 2px 5px;
+            text-align: center;
+            color: red;
+            background-color: #fbd8d8;
+        }
+
+        .ld-info {
+            padding: 2px 5px;
+            text-align: center;
+            color: green;
+            background-color: #dbf7db;
+        }
+
+        .ld-final-msg {
+            padding: 50px 0;
+            font-size: 20px;
+            color: #102e85;
+        }
+
+        .ld-code {
+            color: #ff5f00;
+            font-size: 21px;
+            font-weight: 500;
+            letter-spacing: 1px;
+        }
+
+        .ld-logo {
+            height: 50px;
+            width: 100%;
+            background-size: contain;
+            background-repeat: no-repeat;
+            background-position: center;
+        }
+
+        .ld-footer {
+            height: 100%;
+            width: 60px;
+            background-size: contain;
+            background-repeat: no-repeat;
+            background-position: right;
+            margin-right: 15px;
+        }
+
+        h1 {
+            text-align: center;
+            color: tomato;
+            font-size: larger
+        }
+
+        p {
+            text-align: center;
+            font-size: medium
+        }
+    </style>
+    <style>
+        .ld-btn {
+            background: #0971ca;
+            box-shadow: 0 2px 4px #11221e;
+            border: none;
+            border-radius: 3px;
+            color: white;
+            border: 1px solid #0971ca;
+            font-size: large;
+            width: 100px;
+            padding: 5px 0;
+        }
+
+            .ld-btn:disabled {
+                background: #b4b4b4;
+                border: 1px solid #b4b4b4;
+                color: #656565;
+                border-width: 0;
+                box-shadow: none;
+            }
+
+        .ld-ques {
+            font-size: 20px;
+            font-weight: 500;
+        }
+
+        .ld-ans {
+            list-style-type: none;
+            padding: 0;
+        }
+
+            .ld-ans li {
+                border: 1px solid #d7d7d7;
+                margin: 15px;
+                border-radius: 9px;
+                font-size: 15px;
+                cursor: pointer;
+            }
+
+                .ld-ans li a {
+                    text-decoration: none;
+                    display: inline-block;
+                    width: 100%;
+                    padding: 15px;
+                    font-size: 18px;
+                }
+
+        .ans-selected {
+            border-width: 2px !important;
+        }
+
+            .ans-selected.ans-invalid {
+                box-shadow: 3px 3px 5px 6px #fde8e8 inset;
+                border-color: red !important;
+                color: red;
+            }
+
+            .ans-selected.ans-valid {
+                box-shadow: 3px 3px 5px 6px #e9fde8 inset;
+                border-color: #00ff40 !important;
+                color: green;
+            }
+
+        .c-form table {
+            width: 100%;
+        }
+
+        .c-form input[type=text] {
+            width: 100%;
+            margin-bottom: 20px;
+        }
+
+        input[type=number] {
+            -moz-appearance: textfield;
+        }
+
+        input::-webkit-outer-spin-button,
+        input::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+
+        body {
+            background-image: url('@Url.Content("~/images/Background.jpg")');
+            background-position: left bottom;
+            background-repeat: no-repeat;
+            background-size: 20%;
+        }
+    </style>
+
+    <environment include="Development">
+        <script src="~/lib/jquery/jquery.min.js"></script>
+        <script src="~/lib/vue/vue.min.js"></script>
+    </environment>
+    <environment exclude="Development">
+        <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"
+                asp-fallback-src="~/lib/jquery/jquery.min.js"
+                asp-fallback-test="window.jQuery"
+                crossorigin="anonymous"
+                integrity="sha384-vtXRMe3mGCbOeY7l30aIg8H9p3GdeSe4IFlP6G8JMa7o7lXvnz3GFKzPxzJdPfGK">
+        </script>
+        <script src="https://unpkg.com/vue@2.6.11/dist/vue.min.js"
+                asp-fallback-src="~/lib/vue/vue.min.js"
+                asp-fallback-test="window.Vue"
+                crossorigin="anonymous"
+                integrity="sha384-OZmxTjkv7EQo5XDMPAmIkkvywVeXw59YyYh6zq8UKfkbor13jS+5p8qMTBSA1q+F">
+        </script>
+    </environment>
+    <script src="~/js/jquery.maskedinput.min.js"></script>
+
+</head>
+<body>
+    <div class="row">
+        <div class="col-md-3">
+        </div>
+        <div class="col-md-6">
+            <div style="text-align: center;margin-bottom:10px;padding: 5px">
+                <div style="background-image:url('@Url.Content("~/images/AliaLogo.png")')" class="ld-logo">
+                </div>
+            </div>
+            <form id="app" v-on:submit.prevent="submitForm">
+                <div class="c-form" style="position:relative">
+
+                    <div class="ld-error" v-if="ErrorMsg">
+                        {{ErrorMsg}}
+                    </div>
+                    <div class="ld-info" v-if="Message">
+                        {{Message}}
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <label>Name</label>
+                        </div>
+                        <div class="col-md-6">
+                            <input id="txtName" type="text" v-model.trim="input.CustomerName" />
+                        </div>
+                        <div class="col-md-6">
+                            <label>ID Card No.</label>
+                        </div>
+                        <div class="col-md-6">
+                            <input id="txtNICNo" type="text" />
+                        </div>
+
+                        <div class="col-md-12">
+                            <button type="submit" class="ld-btn" style="float:right">Save</button>
+                            @*<div style="background-image:url('@Url.Content("~/images/AliaLogo.png")');float:right" class="ld-footer">
+                                </div>*@
+                        </div>
+                    </div>
+                    <div v-show="IsRegistered" class="ld-final-msg">
+                        <p>
+                            Thank you very much for visiting Alia. Your Coupon Code number is: <br /><br />
+                            <span class="ld-code">{{input.CouponCode}}</span>
+                            <br /><br />
+                            <h1> Good Luck!</h1>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <environment include="Development">
+        <script src="~/lib/bootstrap/js/bootstrap.bundle.min.js"></script>
+    </environment>
+
+    <environment exclude="Development">
+        <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"
+                asp-fallback-src="~/lib/bootstrap/js/bootstrap.bundle.min.js"
+                asp-fallback-test="window.jQuery && window.jQuery.fn && window.jQuery.fn.modal"
+                crossorigin="anonymous"
+                integrity="sha384-ka7Sk0Gln4gmtz2MlQnikT1wXgYsOg+OMhuP+IlRH9sENBO0LRn5q+8nbTov4+1p">
+        </script>
+
+        <script src="~/js/site.min.js" asp-append-version="true"></script>
+    </environment>
+    <script type="text/javascript">
+        var app = new Vue({
+            el: "#app",
+            data:{
+                input: @Vue.Encode(new RamazanPromotion()),
+                ErrorMsg: "",
+                Message: "",
+                isLoaded: true,
+                OutletID:null,
+                IsRegistered:false
+            },
+            created: function () {
+                this.OutletID="@(id)";
+                $.post("@Url.Action("GetCustomer", "Promotion")", { OutletID: "@(id)" }, function (res) {
+                    app.input = res;
+                    app.isLoaded = true;
+                });
+            },
+            methods:{
+                validateForm:function(){
+                var errMsgs = [];
+
+                    var item = this.input;
+                    if(!item.CustomerName)
+                        errMsgs.push("Please enter Name");
+                    if(!item.NicNo)
+                        errMsgs.push("Please enter ID Card No.");
+
+                    if(errMsgs.length){
+                        alert(errMsgs.join("\n"));
+                        return false;
+                    }
+                    return true;
+
+                return isValid;
+                },
+                submitForm: function(){
+                    this.input.NicNo = $("#txtNICNo").val().trim();
+                    if (!this.validateForm())
+                    return;
+
+                    $.post("@Url.Action("SaveRamadanPromotion","Promotion")",{NicNo:this.input.NicNo,OutletID:this.OutletID,CustomerName:this.input.CustomerName}
+                          ,this.onSuccess);
+                },
+                onSuccess:function(res){
+                        app.isLoaded = true;
+                        if(res.HasError)
+                        {
+                            app.ErrorMsg = res.Message;
+                            app.IsRegistered = false;
+                            return;
+                        }
+                        app.IsRegistered = true;
+                        app.input.CouponCode = res.Message;
+                }
+            }
+        });
+    </script>
+    <script type="text/javascript">
+        function showError(cntrl, msg, parent) {
+            $((parent ? (parent + ' ') : '') +  'label[for="' + cntrl.replace(/[.\[\]]/g, '_') + '"]').after("<span class='field-Err'>* " + (msg ? msg : "Required") + "</span>");
+                 }
+
+        $(function(){
+            $.mask.definitions['9'] = '';
+            $.mask.definitions['d'] = '[0-9]';
+
+            $("#txtNICNo").mask("Adddddd");
+            //$("#txtMobileNo").mask("ddddddd");
+        });
+    </script>
+</body>
+</html>

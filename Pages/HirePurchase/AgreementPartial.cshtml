@@ -1,0 +1,127 @@
+﻿@using BSOL.Core.Models.HirePurchase
+@Html.Kendo().Window().Name("wndAgreementListDetails").Content(@<text>
+    <div id="applst">
+        <div class="g-title" style="border-radius:0;border-width:0;">
+            <div style="float:right;">
+                <kendo-datasource ref="dsEmployee" :transport-read-url="'@Url.Action("ReadSigningEmployee", "Agreement")'" :transport-read-type="'POST'"></kendo-datasource>
+                <kendo-combobox ref="ddEmployee" v-model="SigningID" :data-source-ref="'dsEmployee'" :data-text-field="'Text'" :data-value-field="'Id'" :filter="'contains'" style="width:200px"></kendo-combobox>
+
+                <div class="btn-group">
+                    <button type="button" class="btn btn-primary dropdown-toggle" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                        <i class="fa fa-print" style="font-size: 15px;"></i> Print <span class="caret"></span>
+                    </button>
+                    <ul id="lstPrint" class="dropdown-menu">
+                        <li><a href="#" data-report="">Agreements</a></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+    @(Html.Kendo().Grid<AgreementListModel>
+    ()
+    .Name("gridAgreementList")
+    .Columns(x =>
+    {
+    x.Bound(c => c.AgreementRefNo).Title("Ref No").Width(130);
+    x.Bound(c => c.AgreementType).Title("Agreement Type").Width(130);
+    x.DateColumn(c => c.AgreementDate).Title("Agreement Date").Width(180);
+    x.Bound(c => c.EntryBy).Title("Entry By").Width(100);
+    x.DateColumn(c => c.EntryDate).Width(150);
+    })
+    .Scrollable()
+    .Sortable()
+    .Selectable()
+    .EnableEdit(Html)
+    .EnableFilter()
+    .Resizable(x => x.Columns(true))
+    .Pageable()
+    .Excel(x => x.AllPages(true))
+    .DataSource(dataSource => dataSource
+    .Ajax().ServerOperation(true).PageSize(50)
+    .Read(read => read.Action("ReadAgreementList", "Agreement").Data("applst.gridAgreementListData"))
+    )
+    )
+</text>).Visible(false).Draggable().Title("Agreement List").Width(800).Resizable()
+
+<form asp-page="/General/DocumentViewer" method="POST" target="_blank" id="frmDoc" style="display:none;">
+    <input type="hidden" name="RPT_R" />
+    <input type="hidden" name="RPT_ID" />
+    <input type="hidden" name="RPT_SigningID" />
+</form>
+
+<script type="text/javascript">
+    var applst = new Vue({
+        el: "#applst",
+        data: {
+            AgreementID: 0,
+            SigningID: 0
+        },
+        methods: {
+            open: function (tbl_Id) {
+                this.AgreementID = tbl_Id;
+
+                $('#wndAgreementListDetails').getKendoWindow().open().center();
+                $('#gridAgreementList').getKendoGrid().dataSource.read();
+            }
+            ,
+            gridAgreementListData: function () {
+                return { AgreementID: this.AgreementID }
+            }
+        }
+    });
+</script>
+<script type="text/javascript">
+    $(function () {
+        $('#lstPrint a:not(.smenu)').click(printReport);
+        $('.dropdown-submenu a.smenu').on("click", function (e) {
+            $(this).next('ul').toggle();
+            e.stopPropagation();
+            e.preventDefault();
+        });
+    });
+
+    function printReport(e) {
+        e.preventDefault();
+        var dataItem = $("#gridAgreementList").getKendoGrid().dataItem($('#gridAgreementList .k-state-selected'));
+        if (!dataItem) {
+            kendoAlert("Please select agreement record in the below list before printing Report", true);
+            return;
+        }
+
+        if (applst.SigningID == 0) {
+            kendoAlert("Please select signing name", true);
+            return;
+        }
+
+        var reportName = ""
+        if (dataItem.AgreementType == 'Alia - Mortgage Later') {
+            reportName = 'AliaMortgageLater/AliaMortgageLaterMaster';
+        }
+        if (dataItem.AgreementType == 'Alia - No Mortgage') {
+            reportName = 'AliaNoMortgage/AliaNoMortgageMaster';
+        }
+        if (dataItem.AgreementType == 'Alia - Same Unit Mortgage') {
+            reportName = 'AliaSameUnitMortgage/AliaSameUnitMortgageMaster';
+        }
+        if (dataItem.AgreementType == 'Alia - With Mortgage') {
+            reportName = 'AliaWithMortgage/AliaWithMortgageMaster';
+        }
+        if (dataItem.AgreementType == 'Court - Mortgage Later') {
+            reportName = 'CourtMortgageLater/CourtMortgageLaterMaster';
+        }
+        if (dataItem.AgreementType == 'Court - No Mortgage') {
+            reportName = 'CourtNoMortgage/CourtNoMortgageMaster';
+        }
+        if (dataItem.AgreementType == 'Court - Third Party Mortgage') {
+            reportName = 'CourtThirdPartyMortgage/CourtThirdPartyMortgageMaster';
+        }
+        if (dataItem.AgreementType == 'Court - With Mortgage') {
+            reportName = 'CourtWithMortgage/CourtWithMortgageMaster';
+        }
+
+        $('#frmDoc [name=RPT_R]').val(reportName);
+        $('#frmDoc [name=RPT_ID]').val(dataItem.ID);
+        $('#frmDoc [name=RPT_SigningID]').val(applst.SigningID);
+        $('#frmDoc').submit();
+    }
+</script>

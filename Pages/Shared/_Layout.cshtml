@@ -1,0 +1,363 @@
+﻿@inject AppUser appUser
+@inject IConfiguration configuration
+@using BSOL.Helpers
+@using Kendo.Mvc.UI
+@using Microsoft.Extensions.Configuration
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewBag.Title - BSOL | Alia Investment Pvt Ltd</title>
+
+    <environment include="Development">
+        <link href="~/lib/bootstrap/css/bootstrap.min.css" rel="stylesheet" />
+        <link href="~/lib/font-awesome/css/font-awesome.min.css" rel="stylesheet" />
+        <!-- Theme -->
+        <link href="~/css/materialdesignicons.min.css" rel="stylesheet" />
+        <link href="~/css/perfect-scrollbar.min.css" rel="stylesheet" />
+        <link href="~/css/theme.css" rel="stylesheet" />
+        <!-- Site -->
+        <link href="~/css/kendo.common.min.css" rel="stylesheet" />
+        @*<link href="~/css/skin.min.css" rel="stylesheet" />*@
+        <link href="~/css/kendo.skin.css" rel="stylesheet" />
+        <link href="~/css/site.css" rel="stylesheet" asp-append-version="true" />
+        <!-- Google Material Symbols -->
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
+    </environment>
+
+    <environment exclude="Development">
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet"
+              asp-fallback-href="~/lib/bootstrap/css/bootstrap.min.css"
+              asp-fallback-test-class="sr-only" asp-fallback-test-property="position" asp-fallback-test-value="absolute" />
+        <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css"
+              asp-fallback-href="~/lib/fontawesome/css/font-awesome.min.css"
+              asp-fallback-test-class="fa" asp-fallback-test-property="font-family" asp-fallback-test-value="FontAwesome" />
+        <!-- Theme -->
+        <link href="~/css/materialdesignicons.min.css" rel="stylesheet" />
+        <link href="~/css/perfect-scrollbar.min.css" rel="stylesheet" />
+        <link href="~/css/theme.min.css" rel="stylesheet" />
+        <!-- Site -->
+        <link rel="stylesheet" href="https://kendo.cdn.telerik.com/2021.2.616/styles/kendo.common.min.css"
+              asp-fallback-href="~/css/kendo.common.min.css"
+              asp-fallback-test-class="span.k-dropdown" asp-fallback-test-property="background-image" asp-fallback-test-value="none" />
+        @*<link href="~/css/skin.min.css" rel="stylesheet" />*@
+        <link href="~/css/kendo.skin.min.css" rel="stylesheet" />
+        <link href="~/css/site.min.css" rel="stylesheet" asp-append-version="true" />
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
+    </environment>
+
+    @await RenderSectionAsync("Head", required: false)
+    <environment include="Development">
+        <!-- JQuery -->
+        <script src="~/lib/jquery/jquery.min.js"></script>
+        <!-- Kendo -->
+        <script src="~/js/kendo/kendo.all.min.js"></script>
+        <script src="~/js/kendo/kendo.aspnetmvc.min.js"></script>
+        <script src="~/js/kendo/kendo.culture.en-CA.min.js"></script>
+        <!-- Vue -->
+        <script src="~/lib/vue/vue.min.js"></script>
+        <!-- Kendo Vue Wrappers -->
+        <script src="~/js/kendo/kendo-dateinputs-vue-wrapper.min.js"></script>
+        <script src="~/js/kendo/kendo-dropdowns-vue-wrapper.min.js"></script>
+        <script src="~/js/kendo/kendo-dropdowntree-vue-wrapper.min.js"></script>
+        <script src="~/js/kendo/kendo-inputs-vue-wrapper.min.js"></script>
+        <script src="~/js/kendo/kendo-datasource-vue-wrapper.min.js"></script>
+        <script src="~/js/kendo/kendo-upload-vue-wrapper.min.js"></script>
+    </environment>
+
+    <environment exclude="Development">
+        <!-- https://www.srihash.org/ -->
+        <!-- JQuery -->
+        <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"
+                asp-fallback-src="~/lib/jquery/jquery.min.js"
+                asp-fallback-test="window.jQuery"
+                crossorigin="anonymous"
+                integrity="sha384-vtXRMe3mGCbOeY7l30aIg8H9p3GdeSe4IFlP6G8JMa7o7lXvnz3GFKzPxzJdPfGK">
+        </script>
+        <!-- Kendo -->
+        <script src="https://kendo.cdn.telerik.com/2021.2.616/js/kendo.all.min.js"
+                asp-fallback-src="~/js/kendo/kendo.all.min.js"
+                asp-fallback-test="window.kendo"
+                crossorigin="anonymous"
+                integrity="sha384-bmVguhMYtJWTmC0EelgQm22PXdwNLP5DigGwPXSRGQOQJEV3Xi37dTnG7dsal65b">
+        </script>
+        <script src="https://kendo.cdn.telerik.com/2021.2.616/js/kendo.aspnetmvc.min.js"
+                asp-fallback-src="~/js/kendo/kendo.aspnetmvc.min.js"
+                asp-fallback-test="window.kendo"
+                crossorigin="anonymous"
+                integrity="sha384-C9PnYk2vbJWeN7+1fxRHpb+w9SD2o5LgV0/wwlcizzPc4GMbGs2Px8ZDAS+bf3ov">
+        </script>
+        <script src="https://kendo.cdn.telerik.com/2021.2.616/js/cultures/kendo.culture.en-CA.min.js"
+                asp-fallback-src="~/js/kendo/kendo.culture.en-CA.min.js"
+                asp-fallback-test="window.kendo"
+                crossorigin="anonymous"
+                integrity="sha384-UAJjqkC0CSdFJXsQVBFXP+tdorriJv3bB8u4PMn5YlT6LsyrjQ1MfGvybFnIa6y5">
+        </script>
+        <!-- Vue -->
+        <script src="https://unpkg.com/vue@2.6.11/dist/vue.min.js"
+                asp-fallback-src="~/lib/vue/vue.min.js"
+                asp-fallback-test="window.Vue"
+                crossorigin="anonymous"
+                integrity="sha384-OZmxTjkv7EQo5XDMPAmIkkvywVeXw59YyYh6zq8UKfkbor13jS+5p8qMTBSA1q+F">
+        </script>
+        <!-- Kendo Vue Wrappers - https://www.telerik.com/kendo-vue-ui/components/framework/using-cdn/ -->
+        <script src="https://unpkg.com/@@progress/kendo-dateinputs-vue-wrapper@2021.2.616/dist/cdn/kendo-dateinputs-vue-wrapper.min.js"
+                asp-fallback-src="~/js/kendo/kendo-dateinputs-vue-wrapper.min.js"
+                asp-fallback-test="window.kendo"
+                crossorigin="anonymous"
+                integrity="sha384-x2gzMmH/4l1nF8hHHM3HSj3P5ntzdVR1IThLjyPvkKrhJHZLeGsdQt1Iq3pCDD48">
+        </script>
+        <script src="https://unpkg.com/@@progress/kendo-dropdowns-vue-wrapper@2021.2.616/dist/cdn/kendo-dropdowns-vue-wrapper.min.js"
+                asp-fallback-src="~/js/kendo/kendo-dropdowns-vue-wrapper.min.js"
+                asp-fallback-test="window.kendo"
+                crossorigin="anonymous"
+                integrity="sha384-iICAgnGYFRmTHzJLAaudbqwpxi8TGHEUatdDEpl/CFD4Y4zac+Y4ztqbPesDXgqB">
+        </script>
+        <script src="https://unpkg.com/@@progress/kendo-dropdowntree-vue-wrapper@2021.2.616/dist/cdn/kendo-dropdowntree-vue-wrapper.min.js"
+                asp-fallback-src="~/js/kendo/kendo-dropdowntree-vue-wrapper.min.js"
+                asp-fallback-test="window.kendo"
+                crossorigin="anonymous"
+                integrity="sha384-S+f4caBUh5bBpgYLsyLXRygjjtOYreO0YwpxqLHN1uqpxUbNKn0u2xybW3/l0cGh">
+        </script>
+        <script src="https://unpkg.com/@@progress/kendo-inputs-vue-wrapper@2021.2.616/dist/cdn/kendo-inputs-vue-wrapper.min.js"
+                asp-fallback-src="~/js/kendo/kendo-inputs-vue-wrapper.min.js"
+                asp-fallback-test="window.kendo"
+                crossorigin="anonymous"
+                integrity="sha384-IkHubglWl6dPUEMGi9q/U2VMv3B9TqrkSBHDbE8jkfzUjc/uOg/3asrv1rvXiCcS">
+        </script>
+        <script src="https://unpkg.com/@@progress/kendo-datasource-vue-wrapper@2021.2.616/dist/cdn/kendo-datasource-vue-wrapper.min.js"
+                asp-fallback-src="~/js/kendo/kendo-datasource-vue-wrapper.min.js"
+                asp-fallback-test="window.kendo"
+                crossorigin="anonymous"
+                integrity="sha384-p8DLFiDdI4I2ip0GQBIs57O0qxbkwCqxulf0rbsIeaEabMTz2eDGkoNincZsvJRK">
+        </script>
+        <script src="https://unpkg.com/@@progress/kendo-upload-vue-wrapper@2021.2.616/dist/cdn/kendo-upload-vue-wrapper.min.js"
+                asp-fallback-src="~/js/kendo/kendo-upload-vue-wrapper.min.js"
+                asp-fallback-test="window.kendo"
+                crossorigin="anonymous"
+                integrity="sha384-hvLTMlgp1anrlLsyg7xQOXlxu0RAVg8R/Wl0zWFUF/YmgWxA2Z6W/MVtUnJdd9Ec">
+        </script>
+    </environment>
+
+    @if (configuration.GetValue<string>("PushNotification:OneSignalAppID").IsValid() && configuration.GetValue<string>("AppEnvironment").ToUpper() == "PRODUCTION")
+    {
+        <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
+        <script>
+            window.OneSignalDeferred = window.OneSignalDeferred || [];
+            OneSignalDeferred.push(function (OneSignal) {
+                OneSignal.init({
+                    appId: "@(configuration.GetValue<string>("PushNotification:OneSignalAppID"))",
+                });
+            });
+
+            OneSignal.push(function () {
+                OneSignal.on('subscriptionChange', function (isSubscribed) {
+                    if (isSubscribed) {
+                        OneSignal.getUserId(function (userId) {
+                            $.post("@Url.Action("SubscribeBrowser", "Authenticate")", { ID: userId });
+                        });
+                    }
+                    else
+                        $.post("@Url.Action("UnSubscribeBrowser", "Authenticate")", null);
+                });
+            });
+        </script>
+    }
+
+    <script type="text/javascript">
+        kendo.culture("en-CA");
+        var DATE_FORMAT = "@(Format.Date.Description())";
+        var DATETIME_FORMAT = "@(Format.DateTime.Description())";
+        var BASE_CURRENCY = "@appUser.BaseCurrency";
+        var CONVERSION_RATE = @(appUser.ConversionRate);
+        var HAS_SUB_MENU = true;
+    </script>
+</head>
+<body>
+    <div class="app header-default side-nav-dark @(Convert.ToBoolean(ViewBag.IsFolded) ? "side-nav-folded" : "") @(Convert.ToBoolean(ViewBag.IsFolded) ? "default-fold" : "")">
+        <div class="layout">
+
+
+            <!-- Header START -->
+
+            <header class="top-header preload">
+
+                <div class="top-header-left">
+                    <div class="top-header-apps-holder">
+                        <span class="material-symbols-outlined toggle-sidebar preload">navigate_before</span>
+                    </div>
+
+
+                    <partial name="_HeaderAppsPartial" />
+
+
+                </div>
+
+                <div class="top-header-right">
+                    <div class="top-header-section header-notification-section">
+                        <span class="notification-icon-holder">
+                            <a href="javascript:lapp.weburl()">
+                                <span id="spnNCount" class="notification-count"></span>
+                                <span class="material-symbols-outlined">notifications</span>
+                            </a>
+                        </span>
+                    </div>
+
+
+                    <div class="top-header-section header-profile-section">
+
+                        <span class="header-profile-img">
+                            <img src="~/images/NoImage.png">
+                        </span>
+                        <span class="top-header-user-name">@appUser.CommonEmpNo</span>
+                        <span class="material-symbols-outlined top-header-profile-drop">keyboard_arrow_down</span>
+                        <div class="profile-dropdown">
+                            <div class="profile-dropdown-wrapper">
+                                <span class="dropdown-profile-details">
+                                    <div class="info">
+                                        <span class="title">@appUser.FullName</span>
+                                        <!--<span class="sub-title">Sales Executive</span>-->
+                                    </div>
+                                </span>
+
+                                <ul>
+                                    <li>
+                                        <a href=""><span class="material-symbols-outlined">person</span>Profile</a>
+                                    </li>
+                                    <li>
+                                        <a href=""><span class="material-symbols-outlined">lock</span>Change Password</a>
+                                    </li>
+                                    <li>
+                                        <a href="@Url.Action("Logout", "Authenticate")"><span class="material-symbols-outlined">logout</span>Logout</a>
+                                    </li>
+
+                                </ul>
+                            </div>
+                        </div>
+
+                    </div>
+
+
+                </div>
+
+            </header>
+
+            <!-- Header END -->
+            <!-- Side Nav START -->
+            <partial name="_LeftMenuPartial" />
+            <!-- Side Nav END -->
+            <!-- Page Container START -->
+            <div class="page-container preload">
+                <!-- Content Wrapper START -->
+                <div class="main-content">
+                    <div class="header-cnt">
+                        @RenderSection("BreadCrumb", false)
+                    </div>
+                    @RenderBody()
+                </div>
+                <!-- Content Wrapper END -->
+                <!-- Footer START -->
+                <footer class="content-footer">
+                    <div class="footer">
+                        <div class="copyright">
+                            <span>Copyrights © @DateTime.Now.Year <b class="text-dark">Systems Solutions</b>. All rights reserved.</span>
+                            <span class="go-right">
+                                @RenderSection("PageTips", false)
+                            </span>
+                        </div>
+                    </div>
+                </footer>
+                <!-- Footer END -->
+            </div>
+            <!-- Page Container END -->
+        </div>
+    </div>
+
+    <environment include="Development">
+        <script src="~/lib/bootstrap/js/bootstrap.bundle.min.js"></script>
+        <script src="~/js/kendo/jszip.min.js"></script>
+        <script src="~/js/js.cookie.min.js"></script>
+    </environment>
+
+    <environment exclude="Development">
+        <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"
+                asp-fallback-src="~/lib/bootstrap/js/bootstrap.bundle.min.js"
+                asp-fallback-test="window"
+                crossorigin="anonymous"
+                integrity="sha384-ka7Sk0Gln4gmtz2MlQnikT1wXgYsOg+OMhuP+IlRH9sENBO0LRn5q+8nbTov4+1p">
+        </script>
+        <script src="https://kendo.cdn.telerik.com/2021.2.616/js/jszip.min.js"
+                asp-fallback-src="~/js/kendo/jszip.min.js"
+                asp-fallback-test="window.kendo"
+                crossorigin="anonymous"
+                integrity="sha384-/uIBVG1oH4Tb9OcLLxfroAlKUcnoOIEjpv8jPC8YM4QzWRTuc9/VSQdrs+iFkWN1">
+        </script>
+        <script src="https://cdn.jsdelivr.net/npm/js-cookie@3.0.1/dist/js.cookie.min.js"></script>
+    </environment>
+
+    <script src="~/js/perfect-scrollbar.jquery.min.js"></script>
+    <script src="~/js/theme.min.js"></script>
+    <script src="~/js/site.js" asp-append-version="true"></script>
+
+    @await RenderSectionAsync("Scripts", required: false)
+    <script type="text/javascript">
+        $(function () {
+            if (!HAS_SUB_MENU)
+                document.querySelector(".toggle-sidebar").click();
+
+            $('.nav-list a[href="@(Context.Request.Path)"]').addClass('active');
+            var parentMenu = Cookies.get('MAIN_MENU');
+            if (parentMenu)
+                $('.header-apps-wrapper a[data-menu="' + parentMenu + '"]').addClass('active');
+        });
+
+        function navigateUrl(url, menuName) {
+            Cookies.set('MAIN_MENU', menuName);
+            location.href = url;
+        }
+    </script>
+
+    <script type="text/javascript">
+        $(function () {
+            if (localStorage.getItem("NotificationCount") == 'NONE') {
+                lapp.resetCount()
+            }
+            else {
+                lapp.setNCount();
+            }
+        });
+
+        var lapp = new Vue({
+            el: '#lapp',
+            methods: {
+                weburl: function (url) {
+                    //window.location.href = "/Sales/MyTask";
+                    window.open("/Sales/MyTask");
+                },
+                refreshNotification: function () {
+                    $.getData('@Url.Action("GetNotificationCount", "General")', null, function (res) {
+                        localStorage.setItem("NotificationCount", res);
+                        lapp.setNotification();
+                    });
+                },
+                setNCount: function () {
+                    var cnt = localStorage.getItem("NotificationCount");
+                    $("#spnNCount").text(cnt);
+                    if (cnt == 0)
+                        $("#spnNCount").hide();
+                    else
+                        $("#spnNCount").show();
+                },
+                resetCount: function () {
+                    $.postData('@Url.Action("GetNotificationCount", "Sales")', null, function (res) {
+                        localStorage.setItem("NotificationCount", res.Value);
+                        lapp.setNCount();
+                    });
+                }
+            }
+        });
+
+    </script>
+</body>
+</html>

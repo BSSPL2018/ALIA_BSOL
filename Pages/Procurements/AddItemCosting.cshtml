@@ -1,0 +1,252 @@
+﻿@using BSOL.Core.Models.Procurement
+@(Html.Kendo().Window().Name("wndCosting").Content(@<text>
+    <div id="appCos">
+        <div class="g-title">
+            <div class="g-left">
+                
+            </div>
+            <div class="g-right">
+                <template v-if="!IsVerified">
+                    @Html.SaveButton("appCos.saveCosting()")
+                </template>
+                <template v-if="IsCreated && !IsVerified">
+                    @Html.VerifyButton(true,"appCos.verifyItems()")
+                    @Html.DeleteButton("appCos.deleteCosting()")
+                </template>
+                <template v-if="IsVerified">
+                    @Html.VerifyButton(false,"appCos.revertItems()","Revert")
+                </template>
+                @Html.ExcelButton("appCos.export()")
+            </div>
+        </div>
+
+        <div :class="{'grid-editable': !IsVerified}">
+            @(
+                    Html.Kendo().Grid<ItemCostingModel>().Name("gridItemCosting")
+                    .Columns(c =>
+                    {
+                        @* c.Bound(p => p.SKUFormatted).Title("SKU").Width(80); *@
+                        c.Bound(p => p.Unit).Width(50).Filterable(false);
+                        c.Bound(p => p.ItemCode).Width(150).Title("Item Code");
+                        @* c.Bound(p => p.Size).Width(100).HtmlAttributes(new { @class = "fs-11" }).Filterable(false); *@
+                        c.DescriptionColumn(p => p.Description).HtmlAttributes(new { @class = "fs-11" }).Width(200).Filterable(false);
+                        c.Bound(p => p.Currency).Width(90).Title("Currency").Filterable(false);
+                        c.Group(g =>
+                        {
+                            g.Columns(c =>
+                        {
+                            c.Bound(p => p.OldQty).Title("Old").Width(80).Center().Filterable(false);
+                            c.Bound(p => p.NewQty).Title("New").Editable("appCos.disableIfVerified").HtmlAttributes(new { @class = "editable-cell aln-center", data_field = "NewQty" }).HeaderHtmlAttributes(new { @class = "aln-center" }).Width(80).Filterable(false);
+                        }).Title("Qty").HeaderHtmlAttributes(new { @class = "aln-center" });
+                        });
+                        c.Group(g =>
+                        {
+                            g.Columns(c =>
+                        {
+                            c.Bound(p => p.HSNCode).Title("Code").Width(100).Filterable(false);
+                            c.Bound(p => p.HSNPercentage).Title("%").Width(50).HtmlAttributes(new { @class = "aln-center" }).Filterable(false);
+                        }).Title("HSN").HeaderHtmlAttributes(new { @class = "aln-center" }).Hidden();
+                        });
+                        c.Group(g =>
+                        {
+                            g.Columns(c =>
+                        {
+                            c.MoneyColumn(p => p.Freight).Width(100).Filterable(false);
+                            c.MoneyColumn(p => p.OtherExpenses).Width(100).Title("Others").Filterable(false);
+                            c.MoneyColumn(p => p.CustomDutyFee).Width(100).EditorTemplateName("DecimalEditor").Title("Duty Fee").Editable("appCos.disableIfVerified").HtmlAttributes(new { @class = "editable-cell aln-right", data_field = "CustomDutyFee" }).Filterable(false);
+                        }).Title("Expenses").HeaderHtmlAttributes(new { @class = "aln-center" }).Hidden();
+                        });
+                        c.MoneyColumn(p => p.TotalExpenses).Title("Total Exp.").Editable("disableEditor").Width(100).HeaderHtmlAttributes(new { style = "vertical-align:middle;" }).Filterable(false).Hidden();
+                        c.MoneyColumn(p => p.PurchasedRate).Title("Sup. Rate").Width(100).HeaderHtmlAttributes(new { style = "vertical-align:middle;" }).Filterable(false).Hidden();
+                        c.Group(g =>
+                        {
+                            g.Columns(c =>
+                        {
+                            c.MoneyColumn(p => p.OldCostOfGoods).Title("Old").Width(90).Filterable(false);
+                            c.MoneyColumn(p => p.NewCostOfGoods).Title("New Cost").HtmlAttributes(new { @class = "editable-cell aln-right", data_field = "NewCostOfGoods" }).HeaderHtmlAttributes(new { @class = "aln-right" }).Editable("appCos.disableIfVerified").Width(90).Filterable(false);
+                            c.MoneyColumn(p => p.WAC).Title("WAC").HtmlAttributes(new { @class = "editable-cell aln-right", data_field = "WAC" }).HeaderHtmlAttributes(new { @class = "aln-right" }).Editable("disableEditor").Width(90).Filterable(false);
+                        }).Title("Cost Of Goods").HeaderHtmlAttributes(new { @class = "aln-center" });
+                        });
+                        c.MoneyColumn(p => p.TotalCost).Width(100).Editable("disableEditor").Filterable(false);
+                        c.Group(g =>
+                        {
+                            g.Columns(c =>
+                        {
+                            c.MoneyColumn(p => p.OldSellingRate).Title("Old").Width(90).Filterable(false);
+                            c.MoneyColumn(p => p.NewSellingRate).HtmlAttributes(new { @class = "editable-cell aln-right", data_field = "NewSellingRate" }).HeaderHtmlAttributes(new { @class = "aln-right" }).EditorTemplateName("MoneyEditor").Title("New").Width(90).Editable("appCos.disableIfVerified").Filterable(false);
+                        }).Title("Selling Price").HeaderHtmlAttributes(new { @class = "aln-center" });
+                        });
+                    })
+                    .Events(x => x.CellClose("appCos.gridCellClose"))
+                    .Editable(Html, "", false, false)
+                    .HtmlAttributes(new { @class = "grid-auto" })
+                    .Scrollable()
+                    .Sortable()
+                    .EnableFilter()
+                    .Resizable(c => c.Columns(true))
+                    .Events(x => x.DataBound("appCos.gridDataBound"))
+                    .Excel(x => x.AllPages(true))
+                    .AutoBind(false)
+                    .DataSource(dataSource => dataSource.Ajax().ServerOperation(false)
+                    .Read(read => read.Action("ReadItemCosting", "Costing").Data("appCos.gridData"))
+                    .Model(m =>
+                    {
+                        m.Field(x => x.SKUFormatted).Editable(false);
+                        m.Field(x => x.ItemCode).Editable(false);
+                        m.Field(x => x.Unit).Editable(false);
+                        m.Field(x => x.Size).Editable(false);
+                        m.Field(x => x.Description).Editable(false);
+                        m.Field(x => x.Currency).Editable(false);
+                        m.Field(x => x.OldQty).Editable(false);
+                        m.Field(x => x.OldCostOfGoods).Editable(false);
+                        m.Field(x => x.OldSellingRate).Editable(false);
+                        m.Field(x => x.HSNCode).Editable(false);
+                        m.Field(x => x.HSNPercentage).Editable(false);
+                        m.Field(x => x.Freight).Editable(false);
+                        m.Field(x => x.OtherExpenses).Editable(false);
+                        m.Field(x => x.PurchasedRate).Editable(false);
+                    })
+                    )
+                    )
+            </div>
+        </div>
+
+</text>).Visible(false).Title("Item Costing").Draggable(true).Resizable().Width(1300).Events(events => events.Close("onWindowClose")))
+
+
+<script type="text/javascript">
+    var appCos = new Vue({
+        el: "#appCos",
+        data: {
+            ShipmentId: null,
+            PurchaseOrderId: null,
+            RefNo: null,
+            IsCreated: false,
+            IsVerified: false,
+            IsDefault: true
+        },
+        methods: {
+            open: function (uid) {
+                onWindowOpen(); //For Opacity
+                var dataItem = $('#grid').getKendoGrid().dataSource.getByUid(uid);
+                this.ShipmentId = dataItem.ShipmentId ? dataItem.ShipmentId : 0;
+                this.PurchaseOrderId = dataItem.PurchaseOrderId ? dataItem.PurchaseOrderId : 0;
+                this.RefNo = dataItem.RefNo;
+                this.IsCreated = false;
+                this.IsVerified = false;
+                this.IsDefault = dataItem.IsAdvanced == 0 ? true : false;
+
+                $('#gridItemCosting').getKendoGrid().dataSource.data([]);
+                $('#gridItemCosting').getKendoGrid().dataSource.read();
+                $('#wndCosting').getKendoWindow().open().center().setOptions({ title: "Item Costing For " + dataItem.RefNo });
+                this.gridColumnsDisplay(this.IsDefault);
+            },
+            saveCosting: function () {
+                var items = $('#gridItemCosting').getKendoGrid().dataSource.data();
+                var itemCosting = [];
+                $.each(items, function (i, x) {
+                    itemCosting.push({
+                        ItemId: x.ItemId,
+                        ConfirmedQty: x.NewQty,
+                        CustomDutyFee: x.CustomDutyFee,
+                        Freight: x.Freight,
+                        OtherExpenses: x.OtherExpenses,
+                        PurchasedRate: x.PurchasedRate,
+                        OldCostOfGoods: x.OldCostOfGoods,
+                        CostOfGoods: x.NewCostOfGoods,
+                        WAC: x.WAC,
+                        SellingRate: x.NewSellingRate,
+                        OldSellingRate: x.OldSellingRate,
+                        OldQty: x.OldQty,
+                        CostingPercentage: x.Profit
+                    });
+                });
+
+                $.postJson("@(Url.Action("SaveItemCosting", "Costing"))?ShipmentId=" + this.ShipmentId + "&PurchaseOrderId=" + this.PurchaseOrderId + "&RefNo=" + this.RefNo, itemCosting,
+                    this.onSuccess);
+            },
+            gridCellClose: function (e) {
+                var fieldName = e.container.attr("data-field");
+                var item = e.model;
+                if (fieldName == "NewQty" || fieldName == "NewCostOfGoods") {
+                    var wacAmount = ((parseFloat(item.OldCostOfGoods) * item.OldQty) + (parseFloat(item.NewCostOfGoods) * item.NewQty)) / (item.NewQty + item.OldQty);
+                    //item.set('WAC', Math.round(wacAmount, 4));
+                    item.set('WAC', wacAmount.toFixed(2));
+
+                    var totalCost = parseFloat(item.NewCostOfGoods) * item.NewQty
+                    //item.set('TotalCost', Math.round(totalCost, 4));
+                    item.set('TotalCost', totalCost.toFixed(2));
+                }
+            },
+            disableIfVerified: function (dataItem) {
+                return !dataItem.VerifiedOn;
+            },
+            deleteCosting: function () {
+                var self = this;
+                kendoConfirm("Do you want to delete the costing?", function () {
+                    $.postData("@Url.Action("DeleteItemCosting", "Costing")", { ShipmentId: self.ShipmentId, PurchaseOrderId: self.PurchaseOrderId, RefNo: self.RefNo }, self.onSuccess);
+                });
+            },
+            verifyItems: function () {
+                $.postData("@Url.Action("VerifyItemCosting", "Costing")", { ShipmentId: this.ShipmentId, PurchaseOrderId: this.PurchaseOrderId, RefNo: this.RefNo }, this.onSuccess);
+            },
+            revertItems: function () {
+                var self = this;
+                kendoConfirm("Do you want to revert the costing?", function () {
+                    $.postData("@Url.Action("RevertItemCosting", "Costing")", { ShipmentId: self.ShipmentId, PurchaseOrderId: self.PurchaseOrderId, RefNo: self.RefNo }, self.onSuccess);
+                });
+            },
+            onSuccess: function (res) {
+                kendoAlert(res.Message, res.HasError);
+                if (res.HasError)
+                    return;
+                $('#gridItemCosting').getKendoGrid().dataSource.read();
+                $('#grid').getKendoGrid().dataSource.read();
+            },
+            gridData: function () {
+                return { ShipmentId: this.ShipmentId, PurchaseOrderId: this.PurchaseOrderId };
+            },
+            gridDataBound: function () {
+                var grid = $("#gridItemCosting").getKendoGrid();
+                var $tr = $("#gridItemCosting .k-grid-content tr");
+                var models = grid.dataSource.data();
+                var model = models[0];
+
+                if (model) {
+                    this.IsCreated = model.CreatedOn != null;
+                    this.IsVerified = model.VerifiedOn != null;
+                }
+
+                //$tr.find("td:last-child:contains(0)").parent().addClass('r-red');
+                $('#wndCosting').getKendoWindow().center();
+            },
+            export: function () {
+                var self = this;
+                $.postData("@Url.Action("ExportCosting", "Costing")", { ShipmentId: self.ShipmentId, PurchaseOrderId: self.PurchaseOrderId, RefNo: self.RefNo }, function (res) {
+                    ExportToExcel("gridItemCosting");
+                });
+            },
+            gridColumnsDisplay: function (isDefault) {
+                var $grid = $('#gridItemCosting').getKendoGrid();
+                if (this.IsDefault) {
+                    $grid.hideColumn('HSNCode');
+                    $grid.hideColumn('HSNPercentage');
+                    $grid.hideColumn('Freight');
+                    $grid.hideColumn('OtherExpenses');
+                    $grid.hideColumn('CustomDutyFee');
+                    $grid.hideColumn('TotalExpenses');
+                    $grid.hideColumn('PurchasedRate');
+                }
+                else {
+                    $grid.showColumn('HSNCode');
+                    $grid.showColumn('HSNPercentage');
+                    $grid.showColumn('Freight');
+                    $grid.showColumn('OtherExpenses');
+                    $grid.showColumn('CustomDutyFee');
+                    $grid.showColumn('TotalExpenses');
+                    $grid.showColumn('PurchasedRate');
+                }
+            }
+        }
+    });
+</script>

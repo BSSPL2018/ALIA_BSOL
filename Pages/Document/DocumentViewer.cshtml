@@ -1,0 +1,70 @@
+﻿@page
+@inject AppUser appUser
+@{
+    ViewData["Title"] = "Documents";
+    Layout = "~/Pages/Shared/_Layout.cshtml";
+}
+
+<div id="app">
+    <div class="g-title" style="text-align: center;padding-left: 377px;">
+        <span class="g-text" style="font-size: 23px;text-decoration: underline;">Ref No : {{RefNo}}</span>
+    </div>
+    <div class="row">
+        <div class="col-md-4">
+            <ul>
+                <li v-for="(x,index) in Documentlist">
+                    <table>
+                        <tr>
+                            <td class="file-details">
+                                <a :href="'javascript:app.onDocumentClick(`'+x.Id+'`)'">{{x.DisplayName}}</a>
+                            </td>
+                        </tr>
+                    </table>
+                </li>
+            </ul>
+        </div>
+        <div class="col-md-8" id="docList">
+            <iframe id="docFrame" name="docFrame" style="width:100%;"></iframe>
+        </div>
+    </div>
+
+</div>
+
+<form action="@Url.Action("Preview","Document")" method="POST" target="docFrame" id="frmDoc" style="display:none;">
+    <input type="hidden" name="Id" />
+    <input type="submit" value="Submit">
+</form>
+
+<script type="text/javascript">
+    var app = new Vue({
+        el: '#app',
+        data: {
+            Documentlist: [],
+            SelectedDocument: null,
+            RefNo: "",
+        },
+        created: function () {
+            var Id = "@Html.Raw(Request.Query["id"])";
+            var Reference = "@Html.Raw(Request.Query["Reference"])";
+            this.RefNo = "@Html.Raw(Request.Query["RefNo"])";
+            $.post('@Url.Action("ReadDocument", "Document")', { referenceId: Id, Reference: Reference }, function (res) {
+                app.Documentlist = res;
+            });
+        },
+        methods: {
+            onDocumentClick: function (Id) {
+                this.previewDocument(Id);
+                //setReportHeight();
+            },
+            previewDocument: function (Id) {
+                var footerHeight = $('.content-footer').outerHeight() ? $('.content-footer').outerHeight() : 0;
+                var height = $(window).height() - $("#docList").offset().top - footerHeight - 12;
+                $("#docList").css("height", height);
+                $('#docFrame').css('height', height);
+                $('#frmDoc [name=Id ]').val(Id);
+                $('#frmDoc').submit();
+            }
+        }
+    });
+</script>
+

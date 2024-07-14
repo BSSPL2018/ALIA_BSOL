@@ -1,0 +1,207 @@
+﻿@page
+@using BSOL.Core.Entities
+@{
+    ViewData["Title"] = "Serialed Items";
+    Layout = "~/Pages/Shared/_Layout.cshtml";
+}
+@if (!await Html.HasAccess(Forms.Procurement.ReceiveItems))
+{
+    return;
+}
+@section BreadCrumb{
+    @await Html.PartialAsync("BreadCrumb", "Procurement")
+    @await Html.PartialAsync("Tabs", "Procurement/Receive Items")
+}
+@{
+    string statusFilter = Request.Query["q"] == "2" ? "Received" :
+                          Request.Query["q"] == "1" ? "UnReceived" : "UnCleared";
+}
+
+<div class="g-title">
+    <div class="g-left">
+        <ul class="tg-btn tg-fixed" style="float: right; margin-left: 15px; margin-top: 1px;">
+            <li @(statusFilter == "UnCleared" ? "class=tg-active" : "")>
+                <a href="@Url.Page("/Procurements/SerialedItems")?q=0">Un Cleared</a>
+            </li>
+            <li @(statusFilter == "UnReceived" ? "class=tg-active" : "")>
+                <a href="@Url.Page("/Procurements/SerialedItems")?q=1">Un Received</a>
+            </li>
+            <li @(statusFilter == "Received" ? "class=tg-active" : "")>
+                <a href="@Url.Page("/Procurements/SerialedItems")?q=2">Received</a>
+            </li>
+        </ul>
+    </div>
+    @if (statusFilter == "Received")
+    {
+        <div class="g-left" style="padding-left: 10px;">
+            <form id="app" v-on:submit.prevent="submitForm">
+                <kendo-dropdownlist v-model="param.PurchaseMode" :data-source="['Local Purchase', 'Shipment']" style="width:130px"></kendo-dropdownlist>
+                <kendo-datepicker :value="param.FromDate" :format="'dd-MMM-yyyy'" @@change="function(e){setModel(e,param,'FromDate')}" style="width:120px;"></kendo-datepicker>
+                <kendo-datepicker :value="param.ToDate" :format="'dd-MMM-yyyy'" @@change="function(e){setModel(e,param,'ToDate')}" style="width:120px;"></kendo-datepicker>
+                <button type='submit' class='btn btn-save' title='View'><i class='fa fa-check'></i>View</button>
+            </form>
+        </div>
+    }
+    <div class="g-right">
+        @if (statusFilter == "UnReceived")
+        {
+            @Html.SaveButton("receiveItems()", "Mark as Received", "Receive", "button")
+        }
+        @if (statusFilter == "Received")
+        {
+            @Html.SaveButton("unReceiveItems()", "Mark as Un-Received", "Un Receive", "button")
+        }
+        @Html.ExcelButton()
+    </div>
+</div>
+
+@(Html.Kendo().Grid<SerialedItem>().Name("grid")
+
+            .Columns(c =>
+            {
+                if(statusFilter != "UnCleared")
+                    c.SelectColumn(x => x.Id);
+                c.Bound(x => x.SerialNo).Width(120);
+                c.Bound(x => x.SKUFormatted).Title("SKU").Width(120);
+                c.Bound(x => x.UPC).Title("UPC").Width(120);
+                c.Bound(x => x.ItemCode).Width(120).Title("Item Name");
+                c.DescriptionColumn(x => x.Description).Width(300);
+                c.Bound(x => x.Category).Width(140);
+                c.Bound(x => x.ShipmentRefNo).Title("Shipment").Width(120);
+                c.Bound(x => x.PurchaseOrderRefNo).Title("PO").Width(120);
+                if(statusFilter == "UnReceived")
+                    c.DateColumn(x => x.ClearedDate).Title("Cleared On").Width(100);
+                if(statusFilter == "Received")
+                {
+                    c.Bound(x => x.ReceivedBy).Width(140);
+                    c.DateColumn(x => x.ReceivedDate).Title("Received On").Width(120);
+                }
+            })
+            .Events(x => x.CellClose("grid_CellClose"))
+            .DataSource(dataSource => dataSource
+                .Ajax()
+                .Batch(true)
+                .ServerOperation(true)
+                .PageSize(50)
+                .Read(read => read.Action("ReadSerialedItems", "Stock", new { StatusFilter = Convert.ToString(Request.Query["q"]) ?? "0" }).Data("app.gridData"))
+                )
+        .EnableFilter()
+        .Excel(x => x.AllPages(true))
+        .Resizable(x => x.Columns(true))
+        .Pageable(x => x.Refresh(true))
+        .Sortable()
+        .Scrollable()
+        .HtmlAttributes(new { @class = "h-grid v-grid" })
+)
+
+@section Scripts
+{
+    <script type="text/javascript">
+        var fromDate = new Date();
+        fromDate.setMonth(fromDate.getMonth() - 1);
+
+        var app = new Vue({
+            el: '#app',
+            data: {
+                param: {
+                    FromDate: fromDate,
+                    ToDate: new Date(),
+                    PurchaseMode: "Local Purchase"
+                },
+                StatusFilter: "@statusFilter"
+            },
+            methods: {
+                submitForm: function () {
+                    if(this.param.FromDate && this.param.ToDate)
+                        $('#grid').getKendoGrid().dataSource.read();
+                },
+                gridData: function () {
+                    if(this.StatusFilter == "Received")
+                        return { FromDate: StdDate(this.param.FromDate), ToDate: StdDate(this.param.ToDate), PurchaseMode: this.param.PurchaseMode };
+                }
+            }
+        });
+    </script>
+    <script type="text/javascript">
+    $(function () {
+            $("#grid").on("change", ".chkcol", function () {
+                var dataItem = $("#grid").getKendoGrid().dataItem($(this).parent().parent());
+                dataItem.dirty = $(this).prop("checked");
+            });
+        });
+
+    function onSelectAll() {
+        var checked = $('#chkGrid').prop('checked');
+        $('#grid .k-grid-content .chkcol').prop('checked', checked);
+        $('#grid .k-grid-content .chkcol').each(function () {
+            var uid = $(this).parent().parent().attr("data-uid");
+            var dataItem = $('#grid').getKendoGrid().dataSource.getByUid(uid);
+            dataItem.dirty = checked;
+        });
+    }
+
+    function grid_CellClose(e) {
+        var fieldName = this.columns[e.container.index()].field;
+        var item = e.model;
+
+        if (fieldName == "ReceivedQty") {
+            if (item.ReceivedQty > item.ConfirmedQty) {
+                kendoAlert("Received Qty cannot be greater than " + item.ConfirmedQty, true);
+                item.set("ReceivedQty", item.ConfirmedQty);
+            }
+            else if (item.ReceivedQty == 0) {
+                kendoAlert("Received Qty cannot be zero", true);
+                item.set("ReceivedQty", 1);
+            }
+        }
+    }
+
+    function receiveItems() {
+        var data = $('#grid').getKendoGrid().dataSource.data();
+        var selectedItems = $.grep(data, function (item) {
+            return item.dirty || item.Id === 0;
+        });
+        if (!selectedItems.length) {
+            kendoAlert("Please select some items to Receive", true);
+            return;
+        }
+        var itemsToReceive = [];
+        $.each(selectedItems, function (i, item) {
+            itemsToReceive.push(item.Id);
+        });
+        $.postData("@Url.Action("ReceiveSerialedItems", "Stock")", { Items: itemsToReceive.toString() }, function (res) {
+            kendoAlert(res.Message, res.HasError);
+                if (res.HasError)
+                    return;
+
+            $('#grid').getKendoGrid().dataSource.read();
+            $('#chkGrid').prop('checked', false);
+        });
+    }
+
+    function unReceiveItems() {
+        var data = $('#grid').getKendoGrid().dataSource.data();
+        var selectedItems = $.grep(data, function (item) {
+            return item.dirty || item.Id === 0;
+        });
+        if (!selectedItems.length) {
+            kendoAlert("Please select some items to Un-Receive", true);
+            return;
+        }
+        var itemsToUnReceive = [];
+        $.each(selectedItems, function (i, item) {
+            itemsToUnReceive.push(item.Id);
+        });
+        kendoConfirm("Do you want to Un-Receive these Items (" + itemsToUnReceive.length + ")?", function () {
+            $.postData("@Url.Action("UnReceiveSerialedItems", "Stock")", { Items: itemsToUnReceive.toString() }, function (res) {
+                    kendoAlert(res.Message, res.HasError);
+                    if (res.HasError)
+                        return;
+
+                $('#grid').getKendoGrid().dataSource.read();
+                $('#chkGrid').prop('checked', false);
+            });
+        });
+    }
+    </script>
+}

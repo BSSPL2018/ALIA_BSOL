@@ -1,0 +1,491 @@
+﻿@page
+@using BSOL.Core.Models.Logitics
+@model LorryPayment
+@{
+    ViewBag.Title = "Lorry Payment";
+    Layout = "~/Pages/Shared/_Layout.cshtml";
+}
+@if (!await Html.HasAccess(Forms.Logistics.LorryPayment))
+{
+    return;
+}
+<form id="app" v-on:submit.prevent="submitForm">
+    <div class="g-title">
+        <div class="g-left">
+            @* @Html.ToggleButton(Orientation.Vertical) *@
+            @if (await Html.HasAccess(Forms.Logistics.LorryPayment, Rights.Add))
+            {
+                <button type="button" style="padding: 4px 10px;border-radius: 0;background: #0F9D58;" onclick="app.addLorryPayment()" class="btn btn-primary">
+                    <i class="fa fa-plus-circle"></i>Create
+                </button>
+            }
+           
+            <ul class="tg-btn tg-fixed" style="display: inline-flex;">
+                <li :class="{'tg-active': TabIndex == 0}">
+                    <a href="javascript:app.tabChange(0)">Pending</a>
+                </li>
+                <li :class="{'tg-active': TabIndex == 1}">
+                    <a href="javascript:app.tabChange(1)">Approved</a>
+                </li>
+            </ul>
+            
+        </div>
+        <span class="g-text">Lorry Payment Request</span>
+        <div class="g-right">
+           @*  @Html.SaveButton() *@
+            <kendo-datepicker :format="'dd-MMM-yyyy'" :value="param.FromDate" :max="minDate" @@change="function(e){setModel(e,param,'FromDate')}" style="width:130px"></kendo-datepicker>
+            <kendo-datepicker :format="'dd-MMM-yyyy'" :value="param.ToDate" :max="minDate" @@change="function(e){setModel(e,param,'ToDate')}" style="width:130px"></kendo-datepicker>
+            <button type="button" title="View" class="btn btn-save btn-cntrls" Onclick="viewReport()"><i class="fa fa-search"></i>View</button>
+            @Html.ExcelButton("customExport()")
+        </div>
+    </div>
+    <div id="LorryPayment" class="modal fade right" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered modal-sm">
+            <div class="modal-content" style="border-radius:0px;">
+                <div class="header-modal">
+                    <h5 class="modal-title title-modal">Lorry Payment</h5>
+                    <button type="button" onclick="hideModal('LorryPayment')" class="btn-close close-btn close-modal-btn" data-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="form-group col-md-12">
+                            @Html.LabelFor(x => x.FloatSettingID, "Float Name")
+                            <kendo-datasource ref="dsFloatSettingID" :transport-read-url="'@Url.Action("ReadFloat", "LorryPayment")'" :transport-read-type="'POST'"></kendo-datasource>
+                            <kendo-combobox ref="ddFloatSettingID" v-model="input.FloatSettingID" :data-source-ref="'dsFloatSettingID'" :data-text-field="'Text'" :data-value-field="'Id'" :filter="'contains'" style="width:100%" :disabled="this.input.ID>0"></kendo-combobox>
+                        </div>
+                        <div class="form-group col-md-12">
+                            @Html.LabelFor(x => x.Product, "Product")
+                            <kendo-datasource ref="dsProduct" :transport-read-url="'@Url.Action("ReadProduct", "LorryPayment")'" :transport-read-type="'POST'"></kendo-datasource>
+                            <kendo-combobox ref="ddProduct" v-model="input.Product" :data-source-ref="'dsProduct'" @@change="function(e){setModel(e,input,'Product',ProductChange)}" :filter="'contains'" style="width:100%" :disabled="this.input.ID>0"></kendo-combobox>
+                        </div>
+                        <div class="form-group col-md-12" v-show="input.ID==0">
+                            @Html.LabelFor(x => x.ShipmentID, "Shipment No")
+                            <kendo-datasource ref="dsShipmentID" :transport-read-url="'@Url.Action("ReadShipment", "LorryPayment")'" :transport-read-type="'POST'"></kendo-datasource>
+                            <kendo-combobox ref="ddShipmentID" v-model="input.ShipmentID" :data-source-ref="'dsShipmentID'" :data-text-field="'Text'" :data-value-field="'Id'" :auto-bind="false" :filter="'contains'" style="width:100%" :disabled="this.input.ID>0"></kendo-combobox>
+                        </div>
+                        <div class="form-group col-md-12" v-if="input.ID>0">
+                            @Html.LabelFor(x => x.ShipmentID, "Shipment No")
+                            <input type="text" v-model.trim="input.ShipmentRef" :maxlength="10" class="k-textbox" readonly />
+                        </div>
+                        <div class="form-group col-md-12">
+                            @Html.LabelFor(x => x.LorryNumber, "LorryNumber")
+                            <input type="text" v-model.trim="input.LorryNumber" :maxlength="10" class="k-textbox" />
+                        </div>
+                        <div class="form-group col-md-12">
+                            @Html.LabelFor(x => x.VehicleType, "Vehicle Type")
+                            <kendo-datasource ref="dsVehicleType" :transport-read-url="'@Url.Action("ReadVehicleType", "LorryPayment")'" :transport-read-type="'POST'"></kendo-datasource>
+                            <kendo-combobox ref="ddVehicleType" v-model="input.VehicleType" :data-source-ref="'dsVehicleType'" @@change="function(e){setModel(e,input,'VehicleType',VehicleTypeChange)}" :filter="'contains'" style="width:100%" @@change="function(e){setModel(e,input,'VehicleType',VehicleTypeChange)}"></kendo-combobox>
+                        </div>
+                        <div class="form-group col-md-6">
+                            @Html.LabelFor(x => x.StartTime, "Start Time")<br />
+                            <kendo-timepicker :value="input.StartTime" :format="'HH:mm'" @@change="function(e){setModel(e,input,'StartTime',initSettings)}"></kendo-timepicker>
+                        </div>
+                        <div class="form-group col-md-6">
+                            @Html.LabelFor(x => x.EndTime, "End Time")<br />
+                            <kendo-timepicker :value="input.EndTime" :format="'HH:mm'" @@change="function(e){setModel(e,input,'EndTime',initSettings)}"></kendo-timepicker>
+                        </div>
+                        <div class="form-group col-md-6">
+                            @Html.LabelFor(x => x.TotalTime, "First Rate")<br />
+                            <kendo-timepicker :value="this.dayTime" :disabled="true" :format="'HH:mm'"></kendo-timepicker>
+                        </div>
+                        <div class="form-group col-md-6">
+                            @Html.LabelFor(x => x.TotalTime, "Second Rate")<br />
+                            <kendo-timepicker :value="this.nightTime" :disabled="true" :format="'HH:mm'"></kendo-timepicker>
+                        </div>
+                        <div class="form-group col-md-6">
+                            @Html.LabelFor(x => x.TotalTime, "Total Time")<br />
+                            <kendo-timepicker :value="input.TotalTime" :disabled="true" :format="'HH:mm'"></kendo-timepicker>
+                        </div>
+                        <div class="form-group col-md-6">
+                            @Html.LabelFor(x => x.LorryRate, "Lorry Rate")
+                            <kendo-numerictextbox :value="input.LorryRate" :min="0" :spinners="false" :format="'n2'" style="text-align:right;width:100%" :disabled="true"></kendo-numerictextbox>
+                        </div>
+                        <div class="form-group col-md-6">
+                            @Html.LabelFor(x => x.NoOfBundles, "No Of Bundles")
+                            <kendo-numerictextbox :value="input.NoOfBundles" :min="0" :maxlength="2" :spinners="true" :format="'n0'" style="text-align:center;width:100%" @@spin="function(e){setModel(e,input,'NoOfBundles',calcAmount)}" @@change="function(e){setModel(e,input,'NoOfBundles',calcAmount)}"></kendo-numerictextbox>
+                        </div>
+                        <div class="form-group col-md-6">
+                            @Html.LabelFor(x => x.BundlesRate, "Bundles Rate")
+                            <kendo-numerictextbox :value="input.BundlesRate" :min="0" :disabled="true" :spinners="false" :format="'n0'" style="text-align:right;width:100%"></kendo-numerictextbox>
+                        </div>
+                        <div class="form-group col-md-6">
+                            @Html.LabelFor(x => x.Amount, "Calculated Amount")
+                            <kendo-numerictextbox v-model="input.Amount" :min="0" :spinners="false" :format="'n2'" :disabled="true" style="text-align:right;width:100%"></kendo-numerictextbox>
+                        </div>
+                        <div class="form-group col-md-6">
+                            @Html.LabelFor(x => x.TotalAmount, "Paid Amount")
+                            <kendo-numerictextbox v-model="input.TotalAmount" :min="0" :spinners="false" :format="'n2'" style="text-align:right;width:100%"></kendo-numerictextbox>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    @if (await Html.HasAccess(Forms.Logistics.LorryPayment, Rights.Modify))
+                    {
+                        <button type="submit" title="Save" class="btn btn-save btn-cntrls"><i class="fa fa-check-circle"></i>Save</button>
+                    }
+                    <button type="button" class="btn btn-danger" onclick="hideModal('LorryPayment')" data-dismiss="modal"><i class="fa fa-times"></i>Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    @* <div id="editor" class="components" style="display: none;">
+
+    </div> *@
+</form>
+@(Html.Kendo().Grid<LorryPaymentModel>()
+                                .Name("grid")
+                                .Columns(x =>
+                                {
+                                    x.EditButtonColumn("app.editItem('#:uid#')");
+                                    x.DeleteColumn("app.deleteItem('#:uid#')");
+                                    x.ApproveColumn(c => c.ApprovedDate);
+                                    x.Bound(c => c.FloatName).Width(230);
+                                    x.Bound(c => c.ShipmentRef).Width(130);
+                                    x.Bound(c => c.Product).Width(90);
+                                    x.Bound(c => c.LorryNumber).Width(130);
+                                    x.Bound(c => c.VehicleType).Width(130);
+                                    x.MoneyColumn(c => c.LorryRate).Width(100);
+                                    x.NumberColumn(c => c.ExtraBundle).Width(120);
+                                    x.MoneyColumn(c => c.BundlesRate).Width(120);
+                                    x.MoneyColumn(c => c.Amount).Title("Calculated Amount").Width(170);
+                                    x.MoneyColumn(c => c.TotalAmount).Title("Paid Amount").Width(120);
+                                    x.TimeColumn(c => c.StartTime).Width(90);
+                                    x.TimeColumn(c => c.EndTime).Width(90);
+                                    x.TimeColumn(c => c.TotalTime).Width(90);
+                                    x.Bound(c => c.EntryBy).Width(130);
+                                    x.DateColumn(c => c.EntryDate).Width(130);
+                                    x.Bound(c => c.ApprovedBy).Width(130);
+                                    x.DateColumn(c => c.ApprovedDate).Width(130);
+                                })
+                               .Scrollable(sc => sc.Endless(true))
+                               .Selectable()
+                               .Sortable()
+                               .EnableFilter()
+                               .Resizable(x => x.Columns(true))
+                               .Pageable()
+                               .EnableEdit(Html)
+                               .DataSource(dataSource => dataSource
+                               .Ajax().ServerOperation(true).PageSize(50)
+                               .Read(read => read.Action("ReadLorryPayment", "LorryPayment").Data("app.grid_Data"))
+                               )
+
+)
+@{
+    var jsonData = Vue.Encode(new LorryPayment() { NoOfBundles = 1 });
+}
+@section Scripts {
+    <script type="text/javascript">
+        function toggle_Change() {
+            app.input = @(jsonData);
+            app.dayTime = '0:00';
+            app.nightTime = '0:00';
+        }
+        function viewReport() {
+            $('#grid').getKendoGrid().dataSource.read();
+        }
+        function grid_Data() {
+            return { FromDate: StdDate(app.param.FromDate), ToDate: StdDate(app.param.ToDate), StatusFilter: app.TabIndex };
+        }
+        function customExport() {
+            window.open("@Url.Action("ExportLorryPayment", "LorryPayment")?FromDate=" + StdDate(app.param.FromDate) + "&ToDate=" + StdDate(app.param.ToDate) + "&StatusFilter=" + app.TabIndex);
+        }
+    </script>
+    <script type="text/javascript">
+        var app = new Vue({
+            el: '#app',
+            data: {
+                input: @(jsonData),
+                RatePerMins: 0,
+                NewLorryRate: 0,
+                SubsequentRatePerMins: 0,
+                SubsequentNewLorryRate: 0,
+                ExtraBundleRate: 0,
+                IsFreeLorryBundle: false,
+                NoOfFreeBundles: 0,
+                minDate: new Date(),
+                NewLorryRateFrom: '0:00',
+                NewLorryRateTo: '0:00',
+                TabIndex: 0,
+                param: {
+                    FromDate: new Date(),
+                    ToDate: new Date()
+                },
+                InitialArr: [],
+                dayMins: 0,
+                nightMins: 0,
+                dayTime: '0:00',
+                nightTime: '0:00',
+                BeforeFirstHourRateMinimumMins: 0
+            },
+            created: function () {
+                var dt = new Date();
+                dt.setFullYear(dt.getFullYear() - 1);
+                this.param.FromDate = dt;
+            },
+            methods: {
+                validateForm: function () {
+                    removeError();
+                    var isValid = true;
+                    var setError = function (cntrl, msg) {
+                        isValid = false;
+                        showError(cntrl, msg);
+                    };
+                    var item = this.input;
+
+                    if (this.$refs.ddProduct && this.$refs.ddProduct.kendoWidget().selectedIndex == -1)
+                        setError('Product');
+                    if (this.$refs.ddShipmentID && this.$refs.ddShipmentID.kendoWidget().selectedIndex == -1 && item.ID <= 0)
+                        setError('ShipmentID');
+                    if (this.$refs.ddFloatSettingID && this.$refs.ddFloatSettingID.kendoWidget().selectedIndex == -1)
+                        setError('FloatSettingID');
+                    if (item.NoOfBundles <= 0)
+                        setError('NoOfBundles');
+                    if (item.Amount <= 0)
+                        setError('Amount');
+                    if (item.TotalAmount > item.Amount)
+                        setError('TotalAmount');
+                    if (!item.LorryNumber)
+                        setError('LorryNumber');
+                    if (this.$refs.ddVehicleType && this.$refs.ddVehicleType.kendoWidget().selectedIndex == -1)
+                        setError('VehicleType');
+
+                    return isValid;
+                },
+                submitForm: function () {
+                    if (!this.validateForm())
+                        return;
+
+                    this.input.RatePerMins = this.RatePerMins;
+                    this.input.ExtraBundleRate = this.ExtraBundleRate;
+                    this.input.IsFreeLorryBundle = this.IsFreeLorryBundle;
+                    this.input.NoOfFreeBundles = this.NoOfFreeBundles;
+                    this.input.StartTime = TimeSpanToTime(this.input.StartTime);
+                    this.input.EndTime = TimeSpanToTime(this.input.EndTime);
+                    this.input.NewLorryRate = this.NewLorryRate;
+                    this.input.SubsequentRatePerMins = this.SubsequentRatePerMins;
+                    this.input.SubsequentNewLorryRate = this.SubsequentNewLorryRate;
+                    this.input.NewLorryRateFrom = TimeSpanToTime(this.NewLorryRateFrom);
+                    this.input.NewLorryRateTo = TimeSpanToTime(this.NewLorryRateTo);
+                    this.input.BeforeFirstHourRateMinimumMins = this.BeforeFirstHourRateMinimumMins;
+
+                    $.postData("@Url.Action("SaveLorryPayment", "LorryPayment")",
+                        this.input
+                        , this.onSuccess);
+                },
+                onSuccess: function (res) {
+                    if (res.HasWarning) {
+                        appMsg.open(res.GridData, "Invalid Request!");
+                        return;
+                    }
+                    kendoAlert(res.Message, res.HasError);
+                    if (res.HasError)
+                        return;
+
+                    hideModal('LorryPayment');
+                    this.cancel();
+                },
+                addLorryPayment:function(){
+                    showModal('LorryPayment');
+                    this.input = @(jsonData);
+                },
+                editItem: function (uid) {
+                    this.FDate = app.input.FromDate;
+                    this.TDate = app.input.ToDate;
+                    // $('.toggle-btn.btn-minus').open();
+                    showModal('LorryPayment');
+                    this.selectItem(uid);
+                    this.$refs.dsProduct.kendoWidget().read();
+                    this.ProductChange();
+                    this.VehicleTypeChange();
+                },
+                deleteItem: function (uid) {
+                    var dataItem = $('#grid').getKendoGrid().dataSource.getByUid(uid);
+                    this.selectItem(uid);
+
+                    if (dataItem.ID > 0) {
+                        kendoConfirm("Do you want to Delete this lorry payment?", function () {
+                            $.postData("@Url.Action("DeleteLorryPayment", "LorryPayment")", app.input,
+                                app.onSuccess);
+                        });
+                    }
+                },
+                approveItem: function (uid) {
+                    var dataItem = $('#grid').getKendoGrid().dataSource.getByUid(uid);
+                    this.selectItem(uid);
+
+                    if (dataItem.ID > 0) {
+                        $.postData("@Url.Action("ApproveLorryPayment", "LorryPayment")", app.input,
+                            app.onSuccess);
+                    }
+                },
+                rejectItem: function (uid) {
+                    var dataItem = $('#grid').getKendoGrid().dataSource.getByUid(uid);
+                    this.selectItem(uid);
+
+                    if (dataItem.ID > 0) {
+                        kendoConfirm("Do you want to undo this lorry payment?", function () {
+                            $.postData("@Url.Action("UndoLorryPayment", "LorryPayment")", app.input,
+                                app.onSuccess);
+                        });
+                    }
+                },
+                selectItem: function (uid) {
+                    var dataItem = $('#grid').getKendoGrid().dataSource.getByUid(uid);
+                    this.input = cloneAndDecode(dataItem);
+                    this.input.FromDate = this.FDate;
+                    this.input.ToDate = this.TDate;
+                },
+                ProductChange: function () {
+                    if (this.input.Product) {
+                        this.$refs.dsShipmentID.kendoWidget().read({ Product: this.input.Product });
+
+                        $.postData("@Url.Action("ReadLorryValue", "LorryPayment")", { Product: this.input.Product },
+                            function (data) {
+                                if (data) {
+                                    app.IsFreeLorryBundle = data.IsFreeLorryBundle;
+                                }
+                                app.initSettings();
+                            });
+                    }
+                    else {
+                        this.$refs.dsShipmentID.kendoWidget().data([]);
+                    }
+                },
+                VehicleTypeChange: function () {
+                    if (this.input.VehicleType) {
+                        $.postData("@Url.Action("ReadLorryRate", "LorryPayment")", { VehicleType: this.input.VehicleType },
+                            function (data) {
+                                if (data) {
+                                    app.RatePerMins = data.RatePerMins;
+                                    app.NewLorryRate = data.NewLorryRate;
+                                    app.ExtraBundleRate = data.ExtraBundleRate;
+                                    app.NoOfFreeBundles = data.NoOfFreeBundles;
+                                    app.NewLorryRateFrom = data.NewLorryRateFrom;
+                                    app.NewLorryRateTo = data.NewLorryRateTo;
+                                    app.SubsequentRatePerMins = data.SubsequentRatePerMins;
+                                    app.SubsequentNewLorryRate = data.SubsequentNewLorryRate;
+                                    app.BeforeFirstHourRateMinimumMins = data.BeforeFirstHourRateMinimumMins;
+                                }
+                                app.initSettings();
+                            });
+                    }
+                    else {
+                        app.RatePerMins = 0.0;
+                        app.NewLorryRate = 0.0;
+                    }
+                },
+                initSettings: function () {
+                    var settingFrom = timeToMin(app.NewLorryRateFrom) + 1;
+                    var settingTo = timeToMin(app.NewLorryRateTo);
+
+                    var isFallin2Days = settingFrom > settingTo;
+                    var arr = [];
+
+                    arr.push({ From: isFallin2Days ? 0 : settingFrom, To: settingTo, Type: "Night" });
+
+                    arr.push({ From: settingTo + 1, To: isFallin2Days ? settingFrom - 1 : (24 * 60), Type: "Day" });
+
+                    if (!isFallin2Days && settingFrom > 0)
+                        arr.push({ From: 0, To: settingFrom - 1, Type: "Day" });
+
+                    if (isFallin2Days)
+                        arr.push({ From: settingFrom, To: (24 * 60), Type: "Night" });
+
+                    this.InitialArr = arr;
+
+                    this.calculate();
+                },
+                calculate: function () {
+
+                    var arrResult = [];
+                    app.dayMins = 0;
+                    app.nightMins = 0;
+                    var beforelorryrate = 0.0;
+                    var afterlorryrate = 0.0;
+                    var from = timeToMin(app.input.StartTime);
+                    var to = timeToMin(app.input.EndTime);
+                    var isFallin2Days = from > to;
+
+                    var i = 0;
+                    var recurrence = 0;
+                    var MAX_RECURRENCE = 10;
+                    while (recurrence <= MAX_RECURRENCE && (from > 0 || to > 0)) {
+                        var item = this.InitialArr[i];
+
+                        if (item.From <= from + 1 && item.To > from) {
+                            var toMins = !isFallin2Days && to <= item.To + 1 ? to : item.To;
+                            arrResult.push({ From: from, To: toMins, Type: item.Type });
+
+                            if (item.Type == 'Day')
+                                app.dayMins = app.dayMins + (toMins - from);
+
+                            if (item.Type == 'Night')
+                                app.nightMins = app.nightMins + (toMins - from);
+
+                            from = item.To == 1440 ? 0 : item.To;
+                            if (!isFallin2Days && to <= item.To + 1)
+                                break;
+
+                            isFallin2Days = item.To == 1440 ? false : isFallin2Days;
+                        }
+
+                        i = i == this.InitialArr.length - 1 ? 0 : i + 1;
+                        recurrence++;
+                    }
+
+                    if (app.dayMins <= app.BeforeFirstHourRateMinimumMins && app.dayMins > 0)
+                        beforelorryrate = app.RatePerMins * app.dayMins;
+                    else if (app.dayMins > app.BeforeFirstHourRateMinimumMins)
+                        beforelorryrate = (parseFloat(app.RatePerMins) * 60) + (app.dayMins - app.BeforeFirstHourRateMinimumMins) * parseFloat(app.SubsequentRatePerMins);
+                    if (app.nightMins <= 60 && app.nightMins > 0)
+                        afterlorryrate = app.NewLorryRate * app.nightMins;
+                    else if (app.nightMins > 60)
+                        afterlorryrate = (parseFloat(app.NewLorryRate) * 60.0) + (app.nightMins - 60.0) * parseFloat(app.SubsequentNewLorryRate);
+
+
+                    app.input.LorryRate = (app.dayMins + app.nightMins) <= app.BeforeFirstHourRateMinimumMins ? ((app.dayMins > 0 ? app.RatePerMins : app.NewLorryRate) * app.BeforeFirstHourRateMinimumMins) : (beforelorryrate + afterlorryrate);
+
+                    mins = app.dayMins + app.nightMins;
+                    var hours = Math.floor(mins / 60);
+                    var minutes = mins % 60;
+                    app.input.TotalTime = (hours + ':' + minutes);
+                    app.dayTime = (Math.floor(app.dayMins / 60) + ':' + app.dayMins % 60);
+                    app.nightTime = (Math.floor(app.nightMins / 60) + ':' + app.nightMins % 60);
+
+                    app.calcAmount();
+                },
+                calcAmount: function () {
+                    if (app.IsFreeLorryBundle)
+                        app.input.BundlesRate = (parseFloat((app.input.NoOfBundles) - parseFloat(app.NoOfFreeBundles)) * parseFloat(app.ExtraBundleRate));
+                    else
+                        app.input.BundlesRate = app.input.NoOfBundles * app.ExtraBundleRate;
+
+                    if (app.input.BundlesRate >= 0)
+                        app.input.Amount = app.input.BundlesRate + app.input.LorryRate;
+                    else
+                        app.input.Amount = app.input.LorryRate;
+
+                    app.input.TotalAmount = app.input.Amount;
+                },
+                cancel: function () {
+                    $('.toggle-btn.btn-minus').close();
+                    $('#grid').getKendoGrid().dataSource.read();
+                },
+                grid_Data: function () {
+                    return { FromDate: StdDate(app.param.FromDate), ToDate: StdDate(app.param.ToDate), StatusFilter: app.TabIndex };
+                },
+                tabChange: function (index) {
+                    this.TabIndex = index;
+                    $("#grid").getKendoGrid().dataSource.read();
+                }
+            }
+        });
+    </script>
+    <script type="text/javascript">
+        $(function () {
+            $('#grid').on('dblclick', 'tbody tr', function () {
+                app.editItem($(this).attr('data-uid'));
+            });
+        });
+    </script>
+}

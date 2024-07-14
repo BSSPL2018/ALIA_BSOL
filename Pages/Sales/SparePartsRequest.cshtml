@@ -1,0 +1,1097 @@
+﻿@page
+@using BSOL.Core.Models.Sales
+@using BSOL.Core.Models.General
+@using BSOL.Helpers
+@using Kendo.Mvc.UI
+@inject AppUser _appUser
+@model SparePartsRequest
+
+@{
+    ViewData["Title"] = "Spare Parts Request";
+    Layout = "~/Pages/Shared/_Layout.cshtml";
+}
+
+@if (!await Html.HasAccess(Forms.Sales.SparePartsRequest))
+{
+    return;
+}
+
+<form id="app" v-on:submit.prevent="submitForm">
+    <div class="g-title">
+        <div class="g-left">
+            <table>
+                <tr>
+                    <td>
+                        @*  @Html.ToggleButton(Orientation.Vertical) *@
+                        @if (await Html.HasAccess(Forms.Sales.SparePartsRequest, Rights.Add))
+                        {
+                            <button type="button" style="padding: 4px 10px;border-radius: 0;background: #0F9D58;" onclick="app.addSpareParts()" class="btn btn-primary">
+                                <i class="fa fa-plus-circle"></i>Create
+                            </button>
+                        }
+                    </td>
+                    <td>
+                        <kendo-datepicker v-model="params.FromDate" :max="maxDate" :format="'dd-MMM-yyyy'" @@change="function(e){setModel(e,params,'FromDate')}" style="width:130px"></kendo-datepicker>
+                    </td>
+                    <td>
+                        <kendo-datepicker v-model="params.ToDate" :max="maxDate" :format="'dd-MMM-yyyy'" @@change=" function(e){setModel(e,params,'ToDate')}" style="width:130px"></kendo-datepicker>
+                    </td>
+                    <td>
+                        @* <ul class="tg-btn tg-fixed" style="float: right; margin-left: 2px; margin-top: 1px;">
+                            <li :class="{'tg-active': TabIndex == 0}">
+                                <a href="javascript:app.tabChange(0)">Requests</a>
+                            </li>
+                            <li :class="{'tg-active': TabIndex == 1}">
+                                <a href="javascript:app.tabChange(1)">Billing</a>
+                            </li>
+                            <li :class="{'tg-active': TabIndex == 2}">
+                                <a href="javascript:app.tabChange(2)">Packing</a>
+                            </li>
+                            <li :class="{'tg-active': TabIndex == 3}">
+                                <a href="javascript:app.tabChange(3)">Pending</a>
+                            </li>
+                            <li :class="{'tg-active': TabIndex == 4}">
+                                <a href="javascript:app.tabChange(4)">Delivered</a>
+                            </li>
+                            <li :class="{'tg-active': TabIndex == 5}">
+                                <a href="javascript:app.tabChange(5)">Completed</a>
+                            </li>
+                            <li :class="{'tg-active': TabIndex == 6}">
+                                <a href="javascript:app.tabChange(6)">Cancelled</a>
+                            </li>
+                        </ul> *@
+                    </td>
+                </tr>
+            </table>
+        </div>
+        <div class="g-center">
+            <ul class="tg-btn tg-fixed" style="float: right; margin-left: 2px; margin-top: 1px;">
+                <li :class="{'tg-active': TabIndex == 0}">
+                    <a href="javascript:app.tabChange(0)">Requests</a>
+                </li>
+                <li :class="{'tg-active': TabIndex == 1}">
+                    <a href="javascript:app.tabChange(1)">Billing</a>
+                </li>
+                <li :class="{'tg-active': TabIndex == 2}">
+                    <a href="javascript:app.tabChange(2)">Packing</a>
+                </li>
+                <li :class="{'tg-active': TabIndex == 3}">
+                    <a href="javascript:app.tabChange(3)">Pending</a>
+                </li>
+                <li :class="{'tg-active': TabIndex == 4}">
+                    <a href="javascript:app.tabChange(4)">Delivered</a>
+                </li>
+                <li :class="{'tg-active': TabIndex == 5}">
+                    <a href="javascript:app.tabChange(5)">Completed</a>
+                </li>
+                <li :class="{'tg-active': TabIndex == 6}">
+                    <a href="javascript:app.tabChange(6)">Cancelled</a>
+                </li>
+            </ul>
+        </div>
+        <div class="g-right">
+            @* <div v-show="TabIndex==0" class="cntrl-inline">
+                @Html.SaveButton()
+            </div>
+            <div v-show="TabIndex==1" class="cntrl-inline">
+                @Html.SaveButton("app.updateBilling()", "Save", "Save", "button")
+            </div>
+            <div v-show="TabIndex==2" class="cntrl-inline">
+                @Html.SaveButton("app.updatePacking()", "Save", "Save", "button")
+            </div>
+            <div v-show="TabIndex==3" class="cntrl-inline">
+                @Html.SaveButton("app.updateDelivery()", "Save", "Save", "button")
+            </div>
+            <div v-show="TabIndex==4" class="cntrl-inline">
+                @Html.SaveButton("app.updateAcknowledge()", "Update Acknowledge", "Acknowledge", "button")
+            </div> *@
+
+            <div class="btn-group">
+                <button type="button" class="btn btn-primary dropdown-toggle" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                    <i class="fa fa-print"></i> Print <span class="caret"></span>
+                </button>
+                <ul id="lstPrint" class="dropdown-menu">
+                    <li><a href="#" data-report="POS/SparePartsMonthSummary"><i class="fa fa-file-pdf-o"></i>Monthly Summary</a></li>
+                    <li><a href="#" data-report="POS/SparePartsStaffSummary"><i class="fa fa-file-pdf-o"></i>Staff Summary</a></li>
+                    <li><a href="#" data-report="POS/SparePartsDeliveryReport"><i class="fa fa-file-pdf-o"></i>Delivery Label</a></li>
+                    <li><a href="#" data-report="POS/SparePartsDeliveryReport1"><i class="fa fa-file-pdf-o"></i>Delivery Label 4</a></li>
+                    <li><a href="#" data-xl="SPARE_PARTS_REQUEST" data-type="" data-category="SPARE_PARTS_REQUEST"><i class="fa fa-file-excel-o"></i> Export To XL</a></li>
+                </ul>
+            </div>
+            @* @Html.ExcelButton()*@
+        </div>
+    </div>
+    <div id="SpareParts" class="modal fade right" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content" style="border-radius:0px;">
+                <div class="header-modal">
+                    <h5 class="modal-title title-modal">Spare Parts Requests</h5>
+                    <button type="button" onclick="hideModal('SpareParts')" class="btn-close close-btn close-modal-btn" data-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="g-box">
+                            <div class="g-header">
+                                Customer Details
+                            </div>
+                            <div class="row">
+                                <div class="form-group col-md-3">
+                                    @*@Html.LabelFor(x=>x.QuotationNo,"Quotation No :")*@
+                                    <label for="QuotationNo" :class="{'input-invalid': !input.QuotationNo}">Quotation No :</label>
+                                    <input id="txtQuotationNo" type="text" class="k-textbox" autocomplete="off" v-model="input.QuotationNo" style="width:100%" maxlength="50" />
+                                </div>
+
+                                <div class="form-group col-md-2">
+                                    @*@Html.LabelFor(x=>x.Product,"Product :")*@
+                                    <label for="Product" :class="{'input-invalid': !input.Product}">Product :</label>
+                                    <kendo-datasource ref="dsProduct" :transport-read-url="'@Url.Action("ReadProduct", "Common")'" :transport-read-type="'POST'"></kendo-datasource>
+                                    <kendo-combobox ref="ddProduct" id="ddProduct" v-model="input.Product" :data-source-ref="'dsProduct'" @@change="function(e){setModel(e,input,'Product')}" :filter="'contains'" style="width:100%"></kendo-combobox>
+                                </div>
+
+                                <div class="form-group col-md-7">
+                                    @*@Html.LabelFor(x=>x.CustomerName,"Customer Name :")*@
+                                    <label for="CustomerName" :class="{'input-invalid': !input.CustomerName}">Customer Name :</label>
+                                    <input type="checkbox" id="chkRegisteredCustomer" v-model="RegisteredCustomer" class="k-checkbox">
+                                    <label for="chkRegisteredCustomer" class="k-checkbox-label">Registered Customer</label>
+                                    <a href="javascript:app.pickCustomer()" style="padding-left: 63px;color:#1B264F;text-decoration:underline !important;">Pick Customer</a>
+                                    <div v-show="RegisteredCustomer">
+                                        <kendo-datasource ref="dsCustomerID" :transport-read-url="'@Url.Action("ReadSearchCustomer", "Common")'" :server-filtering="true" :transport-read-data="onData" :transport-read-type="'POST'"></kendo-datasource>
+                                        <kendo-autocomplete id="ddCustomerID" ref="ddCustomerID" v-model="input.CustomerName" :data-source-ref="'dsCustomerID'" :data-text-field="'Text'" :data-value-field="'Id'" :min-length="5" @@change="onCustomerChange" placeholder="Enter Customer Name" :filter="'contains'" style="width:100%"></kendo-autocomplete>
+                                    </div>
+                                    <div v-show="!RegisteredCustomer">
+                                        <input type="text" id="ddCustomerID" v-model="input.CustomerName" />
+                                    </div>
+                                </div>
+
+                                <div class="form-group col-md-3">
+                                    @*<label for="txtContactNo" :class="{'input-invalid': !input.ContactNo}">Contact No :</label>*@
+                                    <label for="ContactNo" :class="{'input-invalid': !input.ContactNo}">Contact No :</label>
+                                    <input id="txtContactNo" type="text" class="k-textbox" autocomplete="off" v-model.trim="input.ContactNo" style="width:100%" maxlength="50" />
+                                </div>
+                                <div class="form-group col-md-3">
+                                    @*@Html.Label("Atoll")*@
+                                    <label for="AtollID" :class="{'input-invalid': !AtollID}">Atoll :</label>
+                                    <kendo-datasource ref="dsAtollID" :transport-read-url="'@Url.Action("ReadAtoll", "Common")'" :transport-read-type="'POST'"></kendo-datasource>
+                                    <kendo-combobox ref="ddAtollID" id="ddAtollID" v-model="AtollID" :data-source-ref="'dsAtollID'" :data-text-field="'Text'" :data-value-field="'Id'" @@change="function(e){setModel(e,input,'AtollID',onAtollChange)}" :filter="'contains'" style="width:100%"></kendo-combobox>
+                                </div>
+                                <div class="form-group col-md-3">
+                                    @*@Html.LabelFor(x=>x.IslandID,"Island :")*@
+                                    <label for="IslandID" :class="{'input-invalid': !input.IslandID}">Island :</label>
+                                    <kendo-datasource ref="dsIslandID" :transport-read-url="'@Url.Action("ReadIslandName", "Common")'" :transport-read-type="'POST'"></kendo-datasource>
+                                    <kendo-combobox ref="ddIslandID" id="ddIslandID" v-model="input.IslandID" :data-source-ref="'dsIslandID'" :data-text-field="'IslandName'" :data-value-field="'ID'" :auto-bind="false" @@change="function(e){setModel(e,input,'IslandID',onIslandChange)}" :filter="'contains'" style="width:100%"></kendo-combobox>
+                                </div>
+
+                                <div class="form-group col-md-3">
+                                    @*@Html.LabelFor(x=>x.IslandCode,"Island Code :")*@
+                                    <label for="IslandCode" :class="{'input-invalid': !input.IslandCode}">Island Code :</label>
+                                    <input id="txtIslandCode" type="text" class="k-textbox" autocomplete="off" v-model="input.IslandCode" style="width:100%" maxlength="50" />
+                                </div>
+                                <div class="form-group col-md-4">
+                                    @*@Html.LabelFor(x=>x.CustomerAddress,"Delivery Label  Address :")*@
+                                    <label for="CustomerAddress" :class="{'input-invalid': !input.CustomerAddress}">Delivery Label  Address :</label>
+                                    <textarea class="k-textbox" id="txtCustomerAddress" v-model="input.CustomerAddress" rows="1"></textarea>
+                                </div>
+
+                                <div class="form-group col-md-4">
+                                    @*@Html.LabelFor(x=>x.DeliveryAddress,"Drop Off Location :")*@
+                                    <label for="DeliveryAddress" :class="{'input-invalid': !input.DeliveryAddress}">Drop Off Location :</label>
+                                    <kendo-datasource ref="dsDeliveryAddress" :transport-read-url="'@Url.Action("ReadDeliveryAddress", "Sales")'" :transport-read-type="'POST'"></kendo-datasource>
+                                    <kendo-combobox id="ddDeliveryAddress" ref="ddDeliveryAddress" v-model="input.DeliveryAddress" :data-source-ref="'dsDeliveryAddress'" :filter="'contains'" style="width:100%"></kendo-combobox>
+                                </div>
+                                <div class="form-group col-md-4">
+                                    @*@Html.LabelFor(x=>x.DeliverTo,"Deliver To :")*@
+                                    <label for="DeliverTo" :class="{'input-invalid': !input.DeliverTo}">Deliver To :</label>
+                                    <kendo-dropdownlist id="ddDeliverTo" v-model="input.DeliverTo" style="width:100%" :data-source="['CARGO BOAT','SPEED BOAT','AIR CARGO','MALE']"></kendo-dropdownlist>
+                                </div>
+                                <div class="form-group col-md-4">
+                                    @*@Html.LabelFor(x=>x.RequiredDeliveryOn,"Required Delivery Date :")*@
+                                    <label for="RequiredDeliveryOn" :class="{'input-invalid': !input.RequiredDeliveryOn}">Required Delivery Date :</label>
+                                    <kendo-datetimepicker id="dtRequiredDeliveryOn" :value="input.RequiredDeliveryOn" style="width:100%" :max="rmaxDate" time-format="HH:mm tt" :format="'dd-MMM-yyyy HH:mm tt'" @@change="function(e){setModel(e,input,'RequiredDeliveryOn')}"></kendo-datetimepicker>
+                                </div>
+                                <div class="form-group col-md-4">
+                                    @*@Html.LabelFor(x=>x.VesselName,"Vessel Name :")*@
+                                    <label for="VesselName" :class="{'input-invalid': !input.VesselName}">Vessel Name :</label>
+                                    <kendo-datasource ref="dsVesselName" :transport-read-url="'@Url.Action("ReadVesselName", "Sales")'" :transport-read-type="'POST'"></kendo-datasource>
+                                    <kendo-combobox id="ddVesselName" ref="ddVesselName" v-model="input.VesselName" :data-source-ref="'dsVesselName'" :filter="'contains'" style="width:100%" @@change="function(e){setModel(e,input,'VesselName',onVesselNameChange)}"></kendo-combobox>
+                                </div>
+                                <div class="form-group col-md-4">
+                                    @*@Html.LabelFor(x=>x.VesselContact,"Vessel Contact :")*@
+                                    <label for="VesselContact" :class="{'input-invalid': !input.VesselContact}">Vessel Contact :</label>
+                                    <input id="txtVesselContact" type="text" class="k-textbox" autocomplete="off" v-model="input.VesselContact" style="width:100%" maxlength="50" />
+                                </div>
+                                <div class="form-group col-md-4">
+                                    @*@Html.LabelFor(x=>x.RequestReceivedTo,"Request Received To :")*@
+                                    <label for="RequestReceivedTo" :class="{'input-invalid': !input.RequestReceivedTo}">Request Received To :</label>
+                                    <input id="txtRequestReceivedTo" type="text" class="k-textbox" autocomplete="off" v-model="input.RequestReceivedTo" style="width:100%" maxlength="50" />
+                                </div>
+                                <div class="form-group col-md-4">
+                                    @*@Html.LabelFor(x=>x.RequestReceivedBy,"Request Received By :")*@
+                                    <label for="RequestReceivedBy" :class="{'input-invalid': !input.RequestReceivedBy}">Request Received By :</label>
+                                    <kendo-datasource ref="dsRequestReceivedBy" :transport-read-url="'@Url.Action("ReadCommonName", "Common")'" :transport-read-type="'POST'"></kendo-datasource>
+                                    <kendo-combobox id="ddRequestReceivedBy" ref="ddRequestReceivedBy" v-model="input.RequestReceivedBy" :data-source-ref="'dsRequestReceivedBy'" :filter="'contains'" style="width:100%"></kendo-combobox>
+                                </div>
+                                <div class="form-group col-md-4">
+                                    @*@Html.LabelFor(x=>x.RequestReceivedOn,"Request Received On :")*@
+                                    <label for="RequestReceivedOn" :class="{'input-invalid': !input.RequestReceivedOn}">Request Received On :</label>
+                                    <kendo-datetimepicker id="dtRequestReceivedOn" :value="input.RequestReceivedOn" style="width:100%" :max="maxDate" :format="'dd-MMM-yyyy HH:mm tt'" time-format="HH:mm tt" @@change="function(e){setModel(e,input,'RequestReceivedOn',changeRequestReceivedOn)}"></kendo-datetimepicker>
+                                </div>
+                                <div class="form-group col-md-12">
+                                    @Html.LabelFor(x => x.Remarks, "Remarks :")
+                                    <textarea class="k-textbox" v-model="input.Remarks" rows="1"></textarea>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="g-box">
+                        <div class="g-header">Billing Details </div>
+                        <div class="row">
+                            <div class="form-group col-md-4">
+                                @*@Html.LabelFor(x=>x.BillRefNo,"Bill Ref No :")*@
+                                <label for="BillRefNo" :class="{'input-invalid': !input.BillRefNo && (input.BillAmount > 0||TabIndex==1)}">Bill Ref No :</label>
+                                <input type="text" id="txtBillRefNo" v-model="input.BillRefNo" style="width:100%" />
+                            </div>
+                            <div class="form-group col-md-4">
+                                @*@Html.LabelFor(x=>x.BillAmount,"Bill Amount :")*@
+                                <label for="BillAmount" :class="{'input-invalid': input.BillAmount<=0 && (input.BillRefNo ||TabIndex==1)}">Bill Amount :</label>
+                                <kendo-numerictextbox id="txtBillAmount" v-model="input.BillAmount" :min="0" :spinners="false" :format="'n2'" style="width:100%"></kendo-numerictextbox>
+                            </div>
+                            <div class="form-group col-md-4">
+                                @*@Html.LabelFor(x=>x.Currency,"Currency :")*@
+                                <label for="Currency" :class="{'input-invalid': !input.Currency && (input.BillRefNo ||TabIndex==1)}">Currency :</label>
+                                <kendo-datasource ref="dsCurrency" :transport-read-url="'@Url.Action("ReadSelectedCurrencies", "Common")'" :transport-read-type="'POST'"></kendo-datasource>
+                                <kendo-combobox id="ddCurrency" ref="ddCurrency" v-model="input.Currency" :data-source-ref="'dsCurrency'" :data-text-field="'Value'" :data-value-field="'Value'" @@change="function(e){setModel(e,input,'Currency')}" :filter="'contains'" style="width:100%"></kendo-combobox>
+                            </div>
+                            <div class="form-group col-md-7">
+                                @*@Html.LabelFor(x=>x.PaymentReferenceNo,"Payment Reference No :")*@
+                                <label for="PaymentReferenceNo" :class="{'input-invalid': !input.PaymentReferenceNo && (input.BillRefNo|| input.PaymentReceivedOn ||TabIndex==1)}">Payment Reference No :</label>
+                                <kendo-datasource ref="dsPaymentReferenceNo" :transport-read-url="'@Url.Action("ReadPaymentReferenceNo", "Sales")'" :transport-read-type="'POST'"></kendo-datasource>
+                                <kendo-combobox id="ddPaymentRefNo" ref="ddPaymentReferenceNo" v-model="input.PaymentReferenceNo" :data-source-ref="'dsPaymentReferenceNo'" @@change="function(e){setModel(e,input,'PaymentReferenceNo',changePaymentRefNo)}" :filter="'contains'" style="width:100%"></kendo-combobox>
+                            </div>
+                            <div class="form-group col-md-5">
+                                @*@Html.LabelFor(x=>x.PaymentReceivedOn,"Payment Received On :")*@
+                                <label for="PaymentReceivedOn" :class="{'input-invalid': !input.PaymentReceivedOn && (input.BillRefNo|| input.PaymentReferenceNo ||TabIndex==1)}">Payment Received On :</label>
+                                <kendo-datetimepicker id="dtPaymentReceivedOn" :value="input.PaymentReceivedOn" style="width:100%" :max="maxDate" :format="'dd-MMM-yyyy HH:mm tt'" time-format="HH:mm tt" @@change="function(e){setModel(e,input,'PaymentReceivedOn',changePaymentReceivedOn)}"></kendo-datetimepicker>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="g-box">
+                        <div class="g-header">Delivery Details </div>
+
+                        <div class="row">
+                            <div class="form-group col-md-5">
+                                @*                    @Html.LabelFor(x=>x.ActualDeliveryAddress,"Actual Delivery Address :")*@
+                                <label for="ActualDeliveryAddress" :class="{'input-invalid': !input.ActualDeliveryAddress && (TabIndex==3)}">Actual Delivery Address :</label>
+                                <textarea class="k-textbox" id="txtActualDeliveryAddress" v-model="input.ActualDeliveryAddress" rows="1" :disabled="disableDeliveryDetails"></textarea>
+                            </div>
+                            <div class="form-group col-md-4">
+                                @*@Html.LabelFor(x=>x.ActualDeliveryTo,"Actual Delivery To :")*@
+                                <label for="ActualDeliveryTo" :class="{'input-invalid': !input.ActualDeliveryTo && (TabIndex==3)}">Actual Delivery To :</label>
+                                <kendo-dropdownlist id="ddActualDeliveryTo" v-model="input.ActualDeliveryTo" style="width:100%" :disabled="disableDeliveryDetails" :data-source="['CARGO BOAT','SPEED BOAT','AIR CARGO','MALE']"></kendo-dropdownlist>
+                            </div>
+                            <div class="form-group col-md-3">
+                                @*@Html.LabelFor(x=>x.AssignedTo,"Assigned To :")*@
+                                <label for="AssignedToId" :class="{'input-invalid': !input.AssignedToId && (TabIndex==3)}">Assigned To :</label>
+                                <kendo-datasource ref="dsAssignedTo" :transport-read-url="'@Url.Action("ReadAllEmployees", "Common")'" :transport-read-type="'POST'"></kendo-datasource>
+                                <kendo-combobox id="ddAssignedToId" ref="ddAssignedTo" v-model="input.AssignedToId" :data-source-ref="'dsAssignedTo'" :filter="'contains'" :data-text-field="'Text'" :data-value-field="'Id'" style="width:100%" :disabled="disableDeliveryDetails" @@change="function(e){setModel(e,input,'AssignedToId',onAssignedToChange)}"></kendo-combobox>
+                            </div>
+                            <div class="form-group col-md-4">
+                                @*@Html.LabelFor(x=>x.AssignedDate,"Assigned Date :")*@
+                                <label for="AssignedDate" :class="{'input-invalid': !input.AssignedDate && (TabIndex==3)}">Assigned Date :</label>
+                                <kendo-datetimepicker id="dtAssignDate" :value="input.AssignedDate" style="width:100%" :max="maxDate" :format="'dd-MMM-yyyy HH:mm tt'" time-format="HH:mm tt" :disabled="disableDeliveryDetails" @@change="function(e){setModel(e,input,'AssignedDate',changeAssignedDate)}"></kendo-datetimepicker>
+                            </div>
+                            <div class="form-group col-md-4">
+                                @*@Html.LabelFor(x=>x.DeliveryBy,"Delivery By :")*@
+                                <label for="DeliveryById" :class="{'input-invalid': !input.DeliveryById && (TabIndex==3 && input.DeliveryDate)}">Delivery By :</label>
+                                <kendo-datasource ref="dsDeliveryBy" :transport-read-url="'@Url.Action("ReadAllEmployees", "Common")'" :transport-read-type="'POST'"></kendo-datasource>
+                                <kendo-combobox id="ddDeliveryBy" ref="ddDeliveryBy" v-model="input.DeliveryById" :data-source-ref="'dsDeliveryBy'" :data-text-field="'Text'" :data-value-field="'Id'" :filter="'contains'" style="width:100%" :disabled="disableDeliveryDetails" @@change="function(e){setModel(e,input,'DeliveryById',onDeliveryByToChange)}"></kendo-combobox>
+                            </div>
+                            <div class="form-group col-md-4">
+                                @*@Html.LabelFor(x=>x.DeliveryDate,"Delivery Date :")*@
+                                <label for="DeliveryDate" :class="{'input-invalid': !input.DeliveryDate && (TabIndex==3 && input.DeliveryById)}">Delivery Date :</label>
+                                <kendo-datetimepicker id="dtDeliveryDate" :value="input.DeliveryDate" style="width:100%" :max="maxDate" :format="'dd-MMM-yyyy HH:mm tt'" time-format="HH:mm tt" :disabled="disableDeliveryDetails" @@change="function(e){setModel(e,input,'DeliveryDate',changeDeliveryDate)}"></kendo-datetimepicker>
+                            </div>
+                            <div class="form-group col-md-12">
+                                @Html.LabelFor(x => x.AcknowledgedRemarks, "Delivery Remarks :")
+                                <textarea class="k-textbox" v-model="input.AcknowledgedRemarks" rows="1" :disabled="TabIndex!=4 && TabIndex!=3"></textarea>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    @if (await Html.HasAccess(Forms.Sales.SparePartsRequest, Rights.Modify))
+                    {
+                        <div v-show="TabIndex==0" class="cntrl-inline">
+                            <button type="submit" title="Save" class="btn btn-save btn-cntrls"><i class="fa fa-check-circle"></i>Save</button>
+                        </div>
+                        <div v-show="TabIndex==1" class="cntrl-inline">
+                            <button type="button" title="Save" onclick="app.updateBilling()" class="btn btn-save btn-cntrls"><i class="fa fa-check-circle"></i>Save</button>
+                        </div>
+                        <div v-show="TabIndex==2" class="cntrl-inline">
+                            <button type="button" title="Save" onclick="app.updatePacking()" class="btn btn-save btn-cntrls"><i class="fa fa-check-circle"></i>Save</button>
+                        </div>
+                        <div v-show="TabIndex==3" class="cntrl-inline">
+                            <button type="button" title="Save" onclick="app.updateDelivery()" class="btn btn-save btn-cntrls"><i class="fa fa-check-circle"></i>Save</button>
+                        </div>
+                        <div v-show="TabIndex==4" class="cntrl-inline">
+                            <button type="button" title="Save" onclick="app.updateAcknowledge()" title="Update Acknowledge" class="btn btn-save btn-cntrls"><i class="fa fa-check-circle"></i>Save</button>
+                        </div>
+                    }
+                    <button type="button" class="btn btn-danger" onclick="hideModal('SpareParts')" data-dismiss="modal"><i class="fa fa-times"></i>Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    @* <div id="editor" class="components" style="display: none">
+
+    </div> *@
+</form>
+@(
+Html.Kendo().Grid<SparePartsRequestModel>()
+    .Name("grid")
+    .Columns(c =>
+    {
+        c.SelectColumn(p => p.CheckedColumn).Hidden(true);
+        c.Bound("").ClientTemplate("<a class='btn-grid c-lnk fa fa-paperclip' title='View Doc' href=\"javascript:app.viewDocument('#:uid#')\"></a>")
+           .Title("<i class='fa fa-paperclip' title='View Doc'></i>").HtmlAttributes(new { style = "text-align:center;" }).HeaderHtmlAttributes(new { style = "text-align:center;" }).Width(45).Sortable(false).Filterable(false);
+        c.Bound("").ClientTemplate("<a class='btn-grid btn-violet fa fa-retweet' href=\"javascript:app.callLog('#:uid#')\" title='Call Log'></a>").Title("").HtmlAttributes(new { style = "text-align:center;" }).Width(50).Sortable(false).Filterable(false);
+        c.EditButtonColumn("app.editItem('#:uid#')");
+        c.DeleteColumn(p => p.DeleteColumn, "app.deleteItem('#:uid#')");
+
+        c.Bound(p => p.RevertColumn).ClientTemplate("#if(CanUndo){#<a class='btn-grid btn-save fa fa-undo' title='Revert' href=\"javascript:app.rejectItem('#:uid#')\"></a>#}#")
+                    .Title("<i class='fa fa-undo' title='Revert'></i>").HtmlAttributes(new { style = "text-align:center;" }).HeaderHtmlAttributes(new { style = "text-align:center;" }).Width(45).Sortable(false).Filterable(false).Visible(c.Container.ViewContext.HasAccess(Rights.Approve)); ;
+
+        c.Bound("").ClientTemplate("#if(CanApprove){#<a class='btn-grid btn-approve fa fa-check' title='Verify' href=\"javascript:app.approveItem('#:uid#')\"></a>#}#")
+                        .Title("<i class='fa fa-check' title='Verify'></i>").HtmlAttributes(new { style = "text-align:center;" }).HeaderHtmlAttributes(new { style = "text-align:center;" }).Width(45).Sortable(false).Filterable(false).Visible(c.Container.ViewContext.HasAccess(Rights.Approve));
+
+        c.Bound("").ClientTemplate("#if(FinalUndo){#<a class='btn-grid btn-save fa fa-undo' title='Undo' href=\"javascript:app.undoAcknowledged('#:uid#')\"></a>#}#")
+                   .Title("<i class='fa fa-undo' title='Undo'></i>").HtmlAttributes(new { style = "text-align:center;" }).HeaderHtmlAttributes(new { style = "text-align:center;" }).Width(45).Sortable(false).Filterable(false).Visible(c.Container.ViewContext.HasAccess(Rights.Approve)); ;
+
+        c.Bound(p => p.RefNoFormatted).Title("DRN").Width(140);
+        c.Bound(p => p.CustomerName).Width(230);
+        c.TelColumn(p => p.ContactNo).Width(130);
+        c.Bound(p => p.BillRefNo).Width(150);
+        c.DateColumn(p => p.RequiredDeliveryOn).Title("Req Delivery On").Width(150);
+        c.Bound(p => p.RequiredDeliveryOn).Format("{0:HH:mm tt}").Title("Req Delivery Time").Width(150);
+        c.Bound(p => p.DeliveryAddress).Title("Drop Off Location").Width(180);
+
+        c.Bound(p => p.VesselName).Width(150);
+        c.Bound(p => p.VesselContact).Width(150);
+
+        c.Bound(p => p.QuotationNo).Width(130);
+        c.Bound(p => p.AtollName).Title("Atoll").Width(150);
+        c.Bound(p => p.IslandName).Width(180);
+        c.Bound(p => p.IslandCode).Width(130);
+
+        c.Bound(p => p.CustomerAddress).Title("Delivery Label Address").Width(250);
+        c.Bound(p => p.DeliverTo).Width(130);
+
+        c.DateColumn(p => p.DeliveryDate).Title("Delivery On").Width(180);
+        c.Bound(p => p.DeliveryDate).Format("{0:HH:mm tt}").Title("Delivery Time").Width(170);
+
+        c.Bound(p => p.RequestReceivedTo).Width(180);
+        c.Bound(p => p.RequestReceivedBy).Width(180);
+        c.DateColumn(p => p.RequestReceivedOn).Title("Request On").Width(150);
+        c.Bound(p => p.RequestReceivedOn).Format("{0:HH:mm tt}").Title("Request Time").Width(140);
+
+        c.Bound(p => p.EntryBy).Width(150);
+        c.DateColumn(p => p.EntryDate).Title("Entry On").Width(150);
+        c.Bound(p => p.EntryDate).Format("{0:HH:mm tt}").Title("Entry Time").Width(110);
+
+        c.MoneyColumn(p => p.BillAmount).Width(130);
+        c.Bound(p => p.Currency).Width(110);
+        c.Bound(p => p.PaymentReferenceNo).Title("Payment Ref. No").Width(150);
+        c.DateColumn(p => p.PaymentReceivedOn).Title("Payment Ref. On").Width(160);
+        c.Bound(p => p.PaymentReceivedOn).Format("{0:HH:mm tt}").Title("Payment Ref.Time").Width(170);
+        c.Bound(p => p.BillEntryBy).Width(150);
+        c.DateColumn(p => p.BillEntryDate).Title("Billed Date").Width(150);
+        c.Bound(p => p.BillEntryDate).Format("{0:HH:mm tt}").Title("Billed Time").Width(150);
+
+        c.Bound(p => p.PackedEntryBy).Width(150);
+        c.DateColumn(p => p.PackedEntryDate).Title("Packing Entry On").Width(160);
+        c.Bound(p => p.PackedEntryDate).Format("{0:HH:mm tt}").Title("Packing Entry Time").Width(180);
+
+        c.Bound(p => p.ActualDeliveryTo).Width(160);
+        c.Bound(p => p.ActualDeliveryAddress).Width(250);
+        c.Bound(p => p.AssignedTo).Width(150);
+        c.DateColumn(p => p.AssignedDate).Width(180);
+        c.Bound(p => p.AssignedDate).Format("{0:HH:mm tt}").Title("Assigned Time").Width(180);
+
+        c.Bound(p => p.DeliveryBy).Width(180);
+        c.Bound(p => p.DeliveryEntryBy).Width(180);
+        c.DateColumn(p => p.DeliveryEntryDate).Width(180);
+        c.Bound(p => p.DeliveryEntryDate).Format("{0:HH:mm tt}").Title("Assigned Time").Width(180);
+
+        c.Bound(p => p.AcknowledgedBy).Width(180);
+        c.DateColumn(p => p.AcknowledgedDate).Title("Ack. Date").Width(150);
+        c.Bound(p => p.AcknowledgedDate).Format("{0:HH:mm tt}").Title("Ack. Time").Width(150);
+        c.Bound(p => p.AcknowledgedRemarks).Title("Ack. Remarks").Width(180);
+
+        c.Bound(p => p.ReasonForCancel).Width(350);
+        c.Bound(p => p.Product).Width(100);
+    })
+    .HtmlAttributes(new { @class = "h-grid v-grid" })
+    .Scrollable()
+    .Sortable()
+    .Selectable()
+    .EnableFilter()
+    .Resizable(x => x.Columns(true))
+    .Pageable(x => x.Refresh(true))
+    .Excel(x => x.AllPages(true))
+    .DataSource(dataSource => dataSource
+    .Ajax().ServerOperation(true).PageSize(50)
+    .Read(read => read.Action("ReadSparePartsRequest", "Sales").Data("app.grid_Data"))
+    .Sort(s => s.Add(x => x.ID).Descending())
+    )
+    )
+@{
+    var jsonData = Vue.Encode(new SparePartsRequest() { DeliverTo = "SPEED BOAT", Product = "PARTS", RequestReceivedOn = DateTime.Now, RequiredDeliveryOn = DateTime.Now, Currency = "MVR", RequestReceivedBy = _appUser.CommonEmpNo });
+}
+
+@Html.Kendo().Window().Name("wndReasonForCancel").Content(@<text>
+            <form id="appCancel" v-on:submit.prevent="submitForm">
+                <div class="form-group">
+                    @Html.Label("Reason For Cancel")
+                    <textarea class="k-textbox" v-model="ReasonForCancel" rows="3"></textarea>
+                </div>
+                <div class="form-group" style="text-align:right;padding-top:5px;">
+                    <button type="submit" class="btn btn-approve">Update</button>
+                    <button type="button" class="btn btn-cancel" @@click="closeCancelWindow">Cancel</button>
+                </div>
+            </form>
+        </text>).Visible(false).Title("").Width(300).Draggable(true)
+
+@Html.Kendo().Window().Name("wndReasonForRevert").Content(@<text>
+            <form id="appRFC" v-on:submit.prevent="submitForm">
+                <div class="form-group">
+                    @Html.Label("Reason For Cancel")
+                    <textarea class="k-textbox" v-model="ReasonForEdit" rows="3"></textarea>
+                </div>
+                <div class="form-group" style="text-align:right;padding-top:5px;">
+                    <button type="button" class="btn btn-approve" @@click="proceedDeliveryRevertReason">Proceed</button>
+                    <button type="button" class="btn btn-cancel" @@click="closeCancelWindow">Cancel</button>
+                </div>
+            </form>
+        </text>).Visible(false).Title("").Width(300).Draggable(true)
+
+<form asp-page="/General/DocumentViewer" method="POST" target="_blank" id="frmDoc" style="display:none;">
+    <input type="hidden" name="RPT_R" />
+    <input type="hidden" name="RPT_FromDate" />
+    <input type="hidden" name="RPT_ToDate" />
+    <input type="hidden" name="RPT_ID" />
+</form>
+
+@section Scripts {
+    @await Html.PartialAsync("DocumentsDialog", "")
+    @await Html.PartialAsync("../Pages/Shared/PickCustomer")
+    @await Html.PartialAsync("CallLog")
+
+    <script type="text/javascript">
+        var d = new Date();
+        var year = d.getFullYear();
+        var month = d.getMonth();
+        var day = d.getDate();
+        var time = d.getTime();
+
+        d.setMinutes(d.getMinutes() + 15);
+
+        var app = new Vue({
+            el: "#app",
+            data: {
+                input: @(jsonData),
+                params: {
+                    FromDate: new Date(year, month - 6, day),
+                    ToDate: new Date(),
+                },
+                rmaxDate: new Date(year, month, day + 60),
+                maxDate: d,
+                minDate: new Date(),
+                AtollID: null,
+                TabIndex: 0,
+                RegisteredCustomer: true,
+            },
+            computed: {
+                disableDeliveryDetails: function () {
+                    return this.input.ID <= 0 || !this.input.BillRefNo;
+                }
+            },
+            created: function () {
+                appDoc.init("@DocumentReference.SpareParts.ToString()", this.onSuccess);
+                appCustomer.onSelectCallBack = this.onCustomerSelected;
+            },
+            methods: {
+                validateForm: function () {
+                    var isValid = true;
+                    removeError();
+                    var setError = function (cntrl, msg) {
+                        isValid = false;
+                        showError(cntrl, msg, null, false);
+                    };
+                    var item = this.input;
+
+                    //if (this.TabIndex == 0) {
+                    if (!item.QuotationNo)
+                        setError('QuotationNo', '')
+                    if (!item.Product)
+                        setError('Product');
+
+                    if (!item.CustomerName)
+                        setError('CustomerName', '');
+                    if (!item.ContactNo)
+                        setError('ContactNo', '');
+                    if (item.ContactNo && !validateMobileNo(item.ContactNo))
+                        setError('ContactNo', 'Mobile no Format should be 1234567/+9601234567')
+                    if (!item.CustomerAddress)
+                        setError('CustomerAddress', '');
+
+                    if (item.CustomerAddress) {
+
+                        let matches = item.CustomerAddress.match(/[-]/g);
+
+                        if (item.CustomerAddress.length < 4)
+                            setError('CustomerAddress', 'Address should be minimum 4 character.');
+
+                        if (item.CustomerAddress.toUpperCase() == "TEST")
+                            setError('CustomerAddress', 'Please enter the valid data.');
+
+                        if (matches && matches.length >= 1)
+                            setError('CustomerAddress', 'Please enter the valid data.');
+                    }
+
+                    if (!item.AtollID)
+                        setError('AtollID');
+                    if (!item.IslandID)
+                        setError('IslandID');
+                    if (item.IslandID && this.$refs.ddIslandID && this.$refs.ddIslandID.kendoWidget().selectedIndex == -1)
+                        setError('IslandID');
+                    if (!item.IslandCode)
+                        setError('IslandCode', '');
+
+                    if (item.IslandCode) {
+                        let matches = item.IslandCode.match(/[-]/g);
+
+                        if (item.IslandCode.length < 3)
+                            setError('IslandCode', 'Island code should be minimum 3 character.');
+
+                        if (matches && matches.length >= 1 && item.IslandCode.length == 1)
+                            setError('IslandCode', 'Please enter the valid data.');
+                    }
+
+
+                    if (!item.DeliveryAddress)
+                        setError('DeliveryAddress', '');
+                    if (!item.DeliverTo)
+                        setError('DeliverTo', '');
+
+                    if (!item.VesselName)
+                        setError('VesselName');
+                    if (!item.VesselContact)
+                        setError('VesselContact');
+                    if (item.VesselContact && !validateMobileNo(item.VesselContact))
+                        setError('VesselContact', 'Vessel Contact Format should be 1234567/+9601234567')
+
+                    if (!item.RequestReceivedBy)
+                        setError('RequestReceivedBy');
+                    //if (item.RequestReceivedBy && this.$refs.ddRequestReceivedBy && this.$refs.ddRequestReceivedBy.kendoWidget().selectedIndex == -1)
+                    //    setError('RequestReceivedBy');
+
+                    if (item.PaymentReferenceNo && !item.PaymentReceivedOn)
+                        setError('PaymentReceivedOn');
+                    if (!item.PaymentReferenceNo && item.PaymentReceivedOn)
+                        setError('PaymentReferenceNo');
+
+                    if (item.BillRefNo && !item.PaymentReferenceNo)
+                        setError('PaymentReferenceNo', '')
+                    if (item.BillAmount > 0 && !item.PaymentReferenceNo)
+                        setError('PaymentReferenceNo', '')
+
+                    if (item.BillRefNo && item.BillAmount <= 0)
+                        setError('BillAmount', '')
+                    if (!item.BillRefNo && item.BillAmount > 0)
+                        setError('BillRefNo', '')
+                    if (item.BillRefNo && !item.Currency)
+                        setError('Currency');
+
+
+                    if (this.TabIndex == 1 || this.TabIndex == 3) {
+                        if (!item.BillRefNo)
+                            setError('BillRefNo')
+                        if (item.BillAmount <= 0)
+                            setError('BillAmount')
+                        if (!item.PaymentReferenceNo)
+                            setError('PaymentReferenceNo');
+                        if (!item.PaymentReceivedOn)
+                            setError('PaymentReceivedOn');
+                        if (this.$refs.ddCurrency && this.$refs.ddCurrency.kendoWidget().selectedIndex == -1)
+                            setError('Currency');
+                    }
+
+                    if (this.TabIndex == 3) {
+                        if (!item.ActualDeliveryAddress)
+                            setError('ActualDeliveryAddress', '')
+
+                        if (item.ActualDeliveryAddress) {
+
+                            let matches = item.ActualDeliveryAddress.match(/[-]/g);
+
+                            if (item.ActualDeliveryAddress.length < 4)
+                                setError('ActualDeliveryAddress', 'Address should be minimum 4 character.');
+
+                            if (item.ActualDeliveryAddress.toUpperCase() == "TEST")
+                                setError('ActualDeliveryAddress', 'Please enter the valid data.');
+
+                            if (matches && matches.length >= 1)
+                                setError('ActualDeliveryAddress', 'Please enter the valid data.');
+                        }
+
+                        if (!item.ActualDeliveryTo)
+                            setError('ActualDeliveryTo', '')
+                        if (!item.AssignedTo)
+                            setError('AssignedTo', '')
+                        if (item.AssignedTo && this.$refs.ddAssignedTo && this.$refs.ddAssignedTo.kendoWidget().selectedIndex == -1)
+                            setError('AssignedTo');
+                        if (!item.AssignedDate)
+                            setError('AssignedDate', '')
+
+                        if (!item.DeliveryBy && item.DeliveryDate)
+                            setError('DeliveryBy', '')
+                        if (item.DeliveryBy && this.$refs.ddDeliveryBy && this.$refs.ddDeliveryBy.kendoWidget().selectedIndex == -1)
+                            setError('DeliveryBy');
+                        if (!item.DeliveryDate && item.DeliveryBy)
+                            setError('DeliveryDate', '')
+                    }
+
+                    if (this.TabIndex == 4) {
+                        if (!item.AcknowledgedRemarks)
+                            setError('AcknowledgedRemarks', '')
+                    }
+
+                    if (!isValid)
+                        return false;
+
+                    var errors = [];
+                    if (errors.length) {
+                        isValid = false;
+                    }
+                    return isValid;
+                },
+
+                submitForm: function () {
+                    if (!this.validateForm())
+                        return;
+
+                    $.postData("@Url.Action("SaveSparePartsRequest", "Sales")", this.input, this.onSuccess);
+                },
+                onSuccess: function (res) {
+                    kendoAlert(res.Message, res.HasError);
+                    if (res.HasError)
+                        return;
+                    // $('.toggle-btn.btn-minus').close();
+                    hideModal('SpareParts');
+                    $('#grid').getKendoGrid().dataSource.read();
+                    this.AtollID = 0;
+
+                    if (this.TabIndex == 4 || this.TabIndex == 3)
+                        lapp.resetCount();
+
+                    if (this.TabIndex == 4)
+                        $('#wndReasonForRevert').getKendoWindow().close();
+                },
+                addSpareParts: function () {
+                    showModal('SpareParts');
+                    this.input = @(jsonData);
+                },
+                deleteItem: function (uid) {
+                    var dataItem = $('#grid').getKendoGrid().dataSource.getByUid(uid);
+
+                    kendoConfirm("Do you want to delete this Spare Parts Request?", function () {
+                        appCancel.open(dataItem.ID, dataItem.QuotationNo)
+                    });
+                },
+                selectItem: function (uid) {
+                    var dataItem = $('#grid').getKendoGrid().dataSource.getByUid(uid);
+                    this.input = cloneAndDecode(dataItem);
+                },
+                editItem: function editItem(uid) {
+                    // $('.toggle-btn.btn-minus').open();
+                    showModal('SpareParts');
+                    this.selectItem(uid);
+
+                    this.AtollID = this.input.AtollID;
+                    this.$refs.dsIslandID.kendoWidget().read({ AtollId: this.AtollID });
+                    this.input.Atoll = this.input.Atoll;
+                },
+                grid_Data: function () {
+                    return { StatusFilter: this.TabIndex, FromDate: StdDate(this.params.FromDate), ToDate: StdDate(this.params.ToDate) };
+                },
+                tabChange: function (index) {
+                    this.TabIndex = index;
+                    $('#grid').getKendoGrid().dataSource.read();
+
+                    var $grid = $('#grid').getKendoGrid();
+
+                    if (this.TabIndex == 2) {
+                        $grid.showColumn("CheckedColumn");
+                    }
+                    else {
+                        $grid.hideColumn("CheckedColumn");
+                    }
+
+                    if (this.TabIndex == 6) {
+                        $grid.hideColumn("DeleteColumn");
+                        $grid.hideColumn("RevertColumn");
+                    }
+                    else {
+                        $grid.showColumn("DeleteColumn");
+                        $grid.showColumn("RevertColumn");
+                    }
+
+                    if (this.TabIndex == 0) {
+                        $grid.showColumn("DeleteColumn");
+                    }
+                    else {
+                        $grid.hideColumn("DeleteColumn");
+                    }
+                },
+                onAtollChange: function (e) {
+                    if (e.sender.selectedIndex != -1) {
+                        this.input.Atoll = e.sender.text();
+                        this.$refs.dsIslandID.kendoWidget().read({ AtollId: e.sender.value() });
+                    }
+                    else {
+                        this.$refs.dsIslandID.kendoWidget().data([]);
+                        this.input.Atoll = null;
+                    }
+                },
+                onIslandChange: function (e) {
+                    var item = e.sender.dataItem(e.sender.selectedIndex);
+                    if (e.sender.selectedIndex != -1) {
+                        this.input.IslandCode = item.IslandCode;
+                    }
+                    else {
+                        this.input.IslandCode = null;
+                    }
+                },
+                pickCustomer: function () {
+                    appCustomer.open();
+                },
+                onCustomerSelected: function (item) {
+                    var data = $("#gridPickCustomer").getKendoGrid().dataSource.data();
+
+                    this.input.CustomerID = item.tbl_ID;
+                    this.input.ContactNo = item.Cust_ContactNo;
+                    this.input.CustomerAddress = item.Cust_PresentAddress_En;
+                    this.input.CustomerName = item.Cust_Name_EN + ' - ' + item.Cust_Ref;
+                    this.getDeliveryAddress();
+                },
+                onCustomerChange: function (e) {
+                    var item = e.sender.dataItem(e.sender.selectedIndex);
+
+                    if (!item) {
+                        this.input.CustomerID = 0;
+                        this.input.ContactNo = "";
+                    }
+                    else {
+                        this.input.CustomerName = item.Text;
+                        this.input.CustomerID = item.Id;
+                        $.getData("@Url.Action("ReadCustomerDetails", "Sales")", { CustomerId: this.input.CustomerID }, function (res) {
+                            app.input.ContactNo = res.Value
+                            app.input.CustomerAddress = res.Value1
+                        });
+                        //this.getDeliveryAddress();
+                    }
+                },
+                getDeliveryAddress: function () {
+                    app.$refs.dsDeliveryAddress.kendoWidget().read({ CustomerID: this.input.CustomerID });
+                },
+                onData: function () {
+                    return { SearchText: $("#ddCustomerID").val() };
+                },
+                onVesselNameChange: function (e) {
+                    var item = e.sender.dataItem(e.sender.selectedIndex);
+                    if (item) {
+                        $.getData("@Url.Action("ReadVesselContactNo", "Sales")", { VesselName: item }, function (res) {
+                            app.input.VesselContact = res.Value
+                        });
+                    }
+                    else
+                        app.input.VesselContact = null;
+                },
+                updateBilling: function () {
+                    if (!this.validateForm())
+                        return;
+
+                    if (!this.input.ID) {
+                        kendoAlert("Please select the billing request", true);
+                        return;
+                    }
+                    $.postData("@Url.Action("UpdateBilling", "Sales")", this.input, this.onSuccess);
+                },
+                addDoc: function () {
+                    var Id = this.input.ID
+                    appDoc.open(Id);
+                },
+                viewDocument: function (uid) {
+                    var dataItem = $('#grid').getKendoGrid().dataSource.getByUid(uid);
+                    this.input.ID = dataItem.ID;
+                    this.addDoc();
+                },
+                updatePacking: function () {
+                    var dataItem = $('#grid').getKendoGrid().dataSource.data();
+
+                    var selectedPackingItem = $.grep(dataItem, function (item) {
+                        return item.dirty;
+                    });
+
+                    if (!selectedPackingItem.length) {
+                        kendoAlert("Please select packing list", true);
+                        return;
+                    }
+
+                    var packingItemlst = [];
+                    $.each(selectedPackingItem, function (i, item) {
+                        packingItemlst.push({ ID: item.ID, BillRefNo: item.BillRefNo });
+                    });
+
+                    $.postData("@Url.Action("UpdatePacking", "Sales")", { datas: packingItemlst }, app.onSuccess);
+                },
+                updateDelivery: function () {
+                    if (!this.validateForm())
+                        return;
+
+                    if (!this.input.ID) {
+                        kendoAlert("Please select the delivery request", true);
+                        return;
+                    }
+
+                    //this.input.DeliveryDate = StdDateTime(this.input.DeliveryDate);
+                    $.postData("@Url.Action("UpdateDelivery", "Sales")", app.input, app.onSuccess);
+                },
+                updateAcknowledge: function () {
+                    if (!this.validateForm())
+                        return;
+
+                    $.postData("@Url.Action("UpdateAcknowledge", "Sales")", this.input, this.onSuccess);
+                },
+                approveItem: function (uid) {
+                    this.selectItem(uid)
+                    $.postData("@Url.Action("ApprovedAcknowledgedProcess", "Sales")", this.input, this.onSuccess);
+                },
+                rejectItem: function (uid) {
+                    this.selectItem(uid);
+
+                    var msg = this.TabIndex == 1 ? "payment process?" : this.TabIndex == 2 ? "billing process?" : this.TabIndex == 3 ? "packing process?" : this.TabIndex == 4 ? "Delivery details?" : this.TabIndex == 5 ? "Acknowledged process?" : "";
+                    kendoConfirm("Do you want to revert the" + ' ' + msg, function (res) {
+                        if (app.TabIndex == 4) {
+                            appRFC.open()
+                        }
+                        else
+                            $.postData("@Url.Action("RevertSparePartsRequest", "Sales")", { datas: app.input, StatusFilter: app.TabIndex }, app.onSuccess);
+
+                    });
+                },
+                undoAcknowledged: function (uid) {
+                    this.selectItem(uid);
+
+                    kendoConfirm("Do you want do undo the process?", function (res) {
+                        $.postData("@Url.Action("RevertAcknowledgedProcess", "Sales")", app.input, app.onSuccess);
+                    });
+                },
+                callLog: function (uid) {
+                    var dataItem = $('#grid').getKendoGrid().dataSource.getByUid(uid);
+                    appCL.open(dataItem.ID, dataItem.QuotationNo);
+                },
+                onAssignedToChange: function (e) {
+                    var item = e.sender.dataItem(e.sender.selectedIndex);
+                    if (item)
+                        this.input.AssignedTo = item.Text;
+                    else
+                        this.input.AssignedTo = "";
+                },
+                onDeliveryByToChange: function (e) {
+                    var item = e.sender.dataItem(e.sender.selectedIndex);
+                    if (item)
+                        this.input.DeliveryBy = item.Text;
+                    else
+                        this.input.DeliveryBy = "";
+                },
+                changePaymentRefNo: function (e) {
+                    var item = e.sender.dataItem(e.sender.selectedIndex);
+
+                    if (item) {
+                        $.getData("@Url.Action("ReadRemittanceDetails", "Sales")", { PaymentReferenceNo: this.input.PaymentReferenceNo }, function (res) {
+                            app.input.PaymentReceivedOn = res.Value
+                        });
+                    }
+                    else {
+                        this.input.PaymentReceivedOn = null;
+                    }
+                },
+                changeRequestReceivedOn: function () {
+                    var mins = this.input.RequestReceivedOn.getMinutes();
+                    var Hrs = this.input.RequestReceivedOn.getHours();
+
+                    if (this.input.RequestReceivedOn && Hrs == 0 && mins == 0)
+                        this.input.RequestReceivedOn = new Date(StdDate(this.input.RequestReceivedOn) + ' ' + kendo.toString(new Date(), "HH:mm"));
+                },
+                changePaymentReceivedOn: function () {
+                    var mins = this.input.PaymentReceivedOn.getMinutes();
+                    var Hrs = this.input.PaymentReceivedOn.getHours();
+
+                    if (this.input.PaymentReceivedOn && Hrs == 0 && mins == 0)
+                        this.input.PaymentReceivedOn = new Date(StdDate(this.input.PaymentReceivedOn) + ' ' + kendo.toString(new Date(), "HH:mm"));
+                },
+                changeAssignedDate: function () {
+                    var mins = this.input.AssignedDate.getMinutes();
+                    var Hrs = this.input.AssignedDate.getHours();
+
+                    if (this.input.AssignedDate && Hrs == 0 && mins == 0)
+                        this.input.AssignedDate = new Date(StdDate(this.input.AssignedDate) + ' ' + kendo.toString(new Date(), "HH:mm"));
+                },
+                changeDeliveryDate: function () {
+                    var mins = this.input.DeliveryDate.getMinutes();
+                    var Hrs = this.input.DeliveryDate.getHours();
+
+                    if (this.input.DeliveryDate && Hrs == 0 && mins == 0)
+                        this.input.DeliveryDate = new Date(StdDate(this.input.DeliveryDate) + ' ' + kendo.toString(new Date(), "HH:mm"));
+                }
+            }
+        })
+
+    </script>
+    <script type="text/javascript">
+        function toggle_Change() {
+            app.input = @(jsonData);
+
+            var d = new Date();
+            d.setMinutes(d.getMinutes() + 15);
+            app.maxDate = d;
+        }
+        $(function () {
+            $('#grid').on('dblclick', 'tbody tr', function () {
+                app.editItem($(this).attr('data-uid'));
+            });
+        });
+    </script>
+    <script type="text/javascript">
+        $(function () {
+            $("#grid").on("change", ".chkcol", function () {
+                var dataItem = $("#grid").getKendoGrid().dataItem($(this).parent().parent());
+                dataItem.dirty = $(this).prop("checked");
+            });
+        });
+
+        function onSelectAll() {
+            var checked = $('#chkGrid').prop('checked');
+            $('#grid .k-grid-content .chkcol').prop('checked', checked);
+            $('#grid .k-grid-content .chkcol').each(function () {
+                var uid = $(this).parent().parent().attr("data-uid");
+                var dataItem = $('#grid').getKendoGrid().dataSource.getByUid(uid);
+                dataItem.dirty = checked;
+            });
+        }
+    </script>
+    <script type="text/javascript">
+        $(function () {
+            $('#lstPrint a:not(.smenu)').click(printReport);
+            $('.dropdown-submenu a.smenu').on("click", function (e) {
+                $(this).next('ul').toggle();
+                e.stopPropagation();
+                e.preventDefault();
+            });
+        });
+
+        function printReport(e) {
+            e.preventDefault();
+            var dataItem = $("#grid").getKendoGrid().dataItem($('#grid .k-state-selected'));
+
+            var reportName = $(this).attr('data-report');
+            if (!dataItem && (reportName == "POS/SparePartsDeliveryReport" || reportName == "POS/SparePartsDeliveryReport1")) {
+                kendoAlert("Please select spare parts request record in the below list before printing Report", true);
+                return;
+            }
+
+            if (reportName == "POS/SparePartsDeliveryReport" || reportName == "POS/SparePartsDeliveryReport1") {
+                $('#frmDoc [name=RPT_ID]').val(dataItem.ID);
+            }
+            if ($(this).attr('data-report')) {
+                $('#frmDoc [name=RPT_R]').val($(this).attr('data-report'));
+                $('#frmDoc [name=RPT_FromDate]').val(StdDate(app.params.FromDate));
+                $('#frmDoc [name=RPT_ToDate]').val(StdDate(app.params.ToDate));
+                $('#frmDoc').submit();
+            }
+            if ($(this).attr('data-xl')) {
+                window.open("@Url.Action("ExportSparePartsRequest", "Sales")?FromDate=" + StdDate(app.params.FromDate) + "&ToDate=" + StdDate(app.params.ToDate) + "&StatusFilter=" + app.TabIndex);
+            }
+        }
+    </script>
+    <script type="text/javascript">
+        var appCancel = new Vue({
+            el: '#appCancel',
+            data: {
+                ID: 0,
+                QuotationNo: "",
+                ReasonForCancel: "",
+            },
+            methods: {
+                open: function (ID, QuotationNo) {
+                    $('#wndReasonForCancel').getKendoWindow().open().center();
+                    this.ID = ID;
+                    this.QuotationNo = QuotationNo;
+                },
+                submitForm: function () {
+                    if (!appCancel.ReasonForCancel) {
+                        kendoAlert("Please enter the reason.");
+                        return;
+                    }
+
+                    $.postData("@Url.Action("DeleteSparePartsRequest", "Sales")", { ID: appCancel.ID, QuotationNo: appCancel.QuotationNo, ReasonForCancel: appCancel.ReasonForCancel }, appCancel.onSuccess);
+                },
+                onSuccess: function (res) {
+                    if (res.HasError) {
+                        kendoAlert(res.Message, res.HasError);
+                        return;
+                    }
+
+                    kendoAlert(res.Message, res.HasError);
+                    this.closeCancelWindow();
+                    $('#grid').getKendoGrid().dataSource.read();
+                },
+                closeCancelWindow: function () {
+                    $('#wndReasonForCancel').getKendoWindow().close();
+                }
+            }
+        });
+    </script>
+
+    <script type="text/javascript">
+        var appRFC = new Vue({
+            el: '#appRFC',
+            data: {
+                ReasonForEdit: "",
+            },
+            methods: {
+                open: function () {
+                    $('#wndReasonForRevert').getKendoWindow().open().center();
+                },
+                proceedDeliveryRevertReason: function () {
+                    if (!this.ReasonForEdit) {
+                        kendoAlert("Please enter the reason.");
+                        return;
+                    }
+                    if (this.ReasonForEdit.length < 5) {
+                        kendoAlert("Reason should be minimum 5 letter.");
+                        return;
+                    }
+
+                    $.postData("@Url.Action("RevertSparePartsRequest", "Sales")", { datas: app.input, StatusFilter: app.TabIndex, ReasonForEdit: this.ReasonForEdit }, app.onSuccess);
+                    this.ReasonForEdit = null;
+                },
+                closeCancelWindow: function () {
+                    this.ReasonForEdit = null;
+                    $('#wndReasonForRevert').getKendoWindow().close();
+                }
+            }
+        });
+    </script>
+}

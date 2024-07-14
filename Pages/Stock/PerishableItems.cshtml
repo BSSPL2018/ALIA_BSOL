@@ -1,0 +1,547 @@
+﻿@page
+@using BSOL.Core.Models.Procurement
+@using BSOL.Core.Entities
+@{
+    ViewData["Title"] = "Perishable Items";
+    Layout = "~/Pages/Shared/_Layout.cshtml";
+    ViewBag.IsFolded = true;
+}
+@if (!await Html.HasAccess(Forms.Procurement.ReceiveItems))
+{
+    return;
+}
+
+@{
+    var filter = Convert.ToString(Request.Query["q"]).IsValid() ? Request.Query["q"].ToString() : "1";
+    string statusFilter = filter == "2" ? "Received" :
+                          filter == "1" ? "UnReceived" : "UnCleared";
+}
+<div id="app">
+    <div class="g-title">
+        <div class="g-left" style="  display: flex;">
+            <ul class="tg-btn tg-fixed" style="margin-right: 20px;">
+                <li @(statusFilter == "UnCleared" ? "class=tg-active" : "")>
+                    <a href="@Url.Page("/Stock/PerishableItems")?q=0">Un Cleared</a>
+                </li>
+                <li @(statusFilter == "UnReceived" ? "class=tg-active" : "")>
+                    <a href="@Url.Page("/Stock/PerishableItems")?q=1">Un Received</a>
+                </li>
+                <li @(statusFilter == "Received" ? "class=tg-active" : "")>
+                    <a href="@Url.Page("/Stock/PerishableItems")?q=2">Received</a>
+                </li>
+            </ul>
+            @if (statusFilter == "Received")
+            {
+                <kendo-datepicker :value="param.FromDate" :format="'dd-MMM-yyyy'" @@change="function(e){setModel(e,param,'FromDate')}" style="width:120px;"></kendo-datepicker>
+                <kendo-datepicker :value="param.ToDate" :format="'dd-MMM-yyyy'" @@change="function(e){setModel(e,param,'ToDate')}" style="width:120px;"></kendo-datepicker>
+                <button type='submit' @@click="submitForm" class='btn btn-save' title='View'><i class='fa fa-check'></i>View</button>
+            }
+        </div>
+        <div class="g-right">
+            @if (statusFilter == "UnReceived")
+            {
+                <button type="button" @@click="receiveItems" title='Mark as Received' class='btn btn-print'><span class='fa fa-cogs'></span> Mark as Received</button>
+            }
+            @Html.ExcelButton()
+        </div>
+    </div>
+
+    @(Html.Kendo().Grid<ItemStatus>().Name("grid")
+        .Columns(c =>
+        {
+            if (statusFilter == "UnReceived")
+            {
+                c.Bound(x => x.ItemCostingId).ClientTemplate("#if(!IsNonSerialed){#<a class='btn-grid btn-grid-print fa fa-cog' target='_self' title='Clear Shipment' href='javascript:appPI.open(\"#:uid#\")'></a>#}else{#" +
+                "<input class='k-checkbox chkcol' id='chkGrid_#:ItemCostingId#' value='#:ItemCostingId#' type='checkbox'><label class='k-checkbox-label' for='chkGrid_#:ItemCostingId#'></label>#}#")
+                .ClientHeaderTemplate("<input class='k-checkbox chkhdr' id='chkGrid' onchange='javascript:app.onSelectAll()' type='checkbox'><label class='k-checkbox-label' for='chkGrid'></label>")
+                .Width(40).Sortable(false).Filterable(false).Center().ClearTitle();
+            }
+            if (statusFilter == "Received")
+            {
+                c.Bound(x => x.ItemCostingId).ClientTemplate(@"<button data-id-u='#:uid#' onclick='app.unReceive(""#:uid#"")' title='Mark as Un-Received' class='i-btn btn-r'><span class='fa fa-undo'></span> Un-Receive</button>").ClearTitle().Width(120).Sortable(false).Filterable(false).Center();
+            }
+            if (statusFilter != "UnCleared")
+                c.NumberColumn(x => x.ReceivedQty).EditorTemplateName("DecimalEditor").Editable("app.receivedQtyEdit").Width(130);
+            c.NumberColumn(x => x.ConfirmedQty).Width(130);
+            c.Bound(x => x.SKUFormatted).Title("SKU").Width(120);
+            c.Bound(x => x.ItemCode).Width(120).Title("Item Code");
+            c.Bound(x => x.RefNo).Width(120);
+            c.Bound(x => x.Unit).Width(100);
+            c.Bound(x => x.Size).HtmlAttributes(new { @class = "fs-11" }).Width(140);
+            c.DescriptionColumn(x => x.Description).Width(300);
+            c.Bound(x => x.Category).Width(140);
+            if (statusFilter == "UnReceived")
+                c.DateColumn(x => x.ClearedDate).Title("Cleared On").Width(100);
+            if (statusFilter == "Received")
+            {
+                c.Bound(x => x.ReceivedBy).Width(140);
+                c.DateColumn(x => x.ReceivedDate).Title("Received On").Width(160);
+            }
+        })
+        .Editable(editable => editable.Mode(GridEditMode.InCell))
+        .Events(x => x.CellClose("app.gridCellClose").DataBound("app.gridDataBound"))
+        .DataSource(dataSource => dataSource
+        .Ajax()
+        .Batch(true)
+        .ServerOperation(true)
+        .PageSize(50)
+        .Read(read => read.Action("ReadPerishableItems", "Stock", new { StatusFilter = filter }).Data("app.gridData"))
+        .Model(m =>
+        {
+            m.Id(p => p.ItemCostingId);
+            m.Field(p => p.ItemCostingId).Editable(false);
+            m.Field(p => p.ConfirmedQty).Editable(false);
+            m.Field(p => p.SKUFormatted).Editable(false);
+            m.Field(p => p.ItemCode).Editable(false);
+            m.Field(p => p.RefNo).Editable(false);
+            m.Field(p => p.Unit).Editable(false);
+            m.Field(p => p.Size).Editable(false);
+            m.Field(p => p.Description).Editable(false);
+            m.Field(p => p.Category).Editable(false);
+            m.Field(p => p.ClearedDate).Editable(false);
+            m.Field(p => p.ReceivedBy).Editable(false);
+            m.Field(p => p.ReceivedDate).Editable(false);
+            m.Field(p => p.ReceivedQty).Editable(statusFilter == "UnReceived");
+        }))
+        .EnableFilter()
+        .Excel(x => x.AllPages(true))
+        .Resizable(x => x.Columns(true))
+        .Pageable(x => x.Refresh(true))
+        .Sortable()
+        .Scrollable()
+        .HtmlAttributes(new { @class = "h-grid v-grid" })
+        )
+</div>
+
+@section Scripts
+{
+    @(Html.Kendo().Window()
+        .Name("wndPI")
+        .Title("Perishable Items")
+        .Content(@<text>
+    <form id="appPI" v-on:submit.prevent="submitForm">
+        <div class="g-title">
+            <div class="g-left">
+                @Html.AddButton("appPI.addItem()")
+                &nbsp;&nbsp;&nbsp;Confirmed Qty: <b>{{ConfirmedQty}}</b>
+            </div>
+            <div class="g-right">
+                <input type="checkbox" id="serialNo" name="serialNo" v-model="AutoFill" onclick="appPI.onChangeAutoFill()">
+                <label for="serialNo"> Auto Fill Serial No</label>
+                @Html.SaveButton()
+                @Html.DeleteButton("appPI.delete()")
+                <button @@click="receive" type="button" title='Mark as Received' class='btn btn-print'><span class='fa fa-cogs'></span> Mark as Received</button>
+            </div>
+        </div>
+    </form>
+    @(Html.Kendo().Grid<SerialedItem>()
+    .Name("gridPI")
+    .Editable(editable => editable.Mode(GridEditMode.InCell))
+    .AutoBind(false)
+    .Columns(x =>
+    {
+    x.DeleteColumn(p => p.Id, "appPI.deleteItem('#:uid#')");
+    x.Bound(c => c.SerialNo).Width(160).Title("Serial No/Lot No").Hidden().EditorTemplateName("DecimalEditor");
+    x.NumberColumn(c => c.Qty).Title("Received Qty").Width(130).EditorTemplateName("DecimalEditor");
+    x.DateColumn(c => c.ExpiryDate).Width(140).EditorTemplateName("DateEditor");
+    x.Bound(c => c.SKU).Title("SKU").Width(160);
+    x.Bound(c => c.Size).Width(130);
+    x.Bound(c => c.Unit).Width(120);
+    x.DescriptionColumn(c => c.Description);
+    })
+    .Sortable()
+    .Scrollable()
+    .Navigatable()
+    .Pageable(x => x.Refresh(true))
+    .Events(x => x.CellClose("appPI.gridCellClose"))
+    .Resizable(x => x.Columns(true))
+    .EnableFilter()
+    .HtmlAttributes(new { @class = "h-grid v-grid" })
+    .Events(x => x.DataBound("appPI.gridDataBound"))
+    .DataSource(d => d
+    .Ajax().ServerOperation(true).PageSize(50)
+    .Read(read => read.Action("ReadSIPerishableItems", "Stock").Data("appPI.gridData"))
+    .Model(model =>
+    {
+    model.Id(p => p.Id);
+    model.Field(p => p.Id).Editable(false);
+    model.Field(p => p.SKU).Editable(false);
+    model.Field(p => p.Description).Editable(false);
+    model.Field(p => p.ReceivedBy).Editable(false);
+    model.Field(p => p.ReceivedDate).Editable(false);
+    model.Field(p => p.CreatedBy).Editable(false);
+    model.Field(p => p.CreatedOn).Editable(false);
+    }))
+    )
+</text>)
+                                                    .Draggable()
+                                                    .Resizable()
+                                                    .Visible(false)
+                                                    .MaxWidth(1000)
+                                                )
+
+    <script type="text/javascript">
+        var fromDate = new Date();
+        fromDate.setMonth(fromDate.getMonth() - 1);
+        $(function () {
+            $("#grid").on("change", ".chkcol", function () {
+                var dataItem = $("#grid").getKendoGrid().dataItem($(this).parent().parent());
+                dataItem.dirty = $(this).prop("checked");
+            });
+        });
+
+        var app = new Vue({
+            el: '#app',
+            data: {
+                param: {
+                    FromDate: fromDate,
+                    ToDate: new Date()
+                },
+                StatusFilter: "@statusFilter"
+            },
+            methods: {
+                submitForm: function () {
+                    if (this.param.FromDate && this.param.ToDate)
+                        $('#grid').getKendoGrid().dataSource.read();
+                },
+                unReceive: function (uid) {
+                    var dataItem = $('#grid').getKendoGrid().dataSource.getByUid(uid);
+                    kendoConfirm("Do you want to Un-Receive this Item?", function () {
+                        ShowProgress($('#grid [data-id-u=' + uid + ']'));
+                        $.postData("@Url.Action("UnReceivePerishableItems", "Stock")",
+                            {
+                                ItemCostingId: dataItem.ItemCostingId,
+                                RefNo: dataItem.RefNo + ' - ' + dataItem.SKU
+                            },
+                            function (res) {
+                                kendoAlert(res.Message, res.HasError);
+                                if (res.HasError)
+                                    return;
+                                $('#grid').getKendoGrid().dataSource.read();
+                            });
+                    });
+                },
+                gridData: function () {
+                    if (this.StatusFilter == "Received")
+                        return { FromDate: StdDate(this.param.FromDate), ToDate: StdDate(this.param.ToDate) };
+                },
+                gridDataBound: function () {
+                    var $tr = $("#grid .k-grid-content tr");
+                    $tr.find('.btn-r').parent().addClass('col-r');
+                },
+                gridCellClose: function (e) {
+                    var $grid = $('#grid').getKendoGrid();
+                    var fieldName = $grid.columns[e.container.index()].field;
+                    var item = e.model;
+
+                    if (fieldName == "ReceivedQty") {
+                        if (item.ReceivedQty > item.ConfirmedQty) {
+                            kendoAlert("Received Qty cannot be greater than " + item.ConfirmedQty, true);
+                            item.set("ReceivedQty", item.ConfirmedQty);
+                        }
+                        else if (item.ReceivedQty == 0) {
+                            kendoAlert("Received Qty cannot be zero", true);
+                            item.set("ReceivedQty", 1);
+                        }
+                        if (item.dirty)
+                            e.container.parent().find(".chkcol").prop("checked", true);
+                    }
+                },
+                receivedQtyEdit: function (dataItem) {
+                    return dataItem.IsNonSerialed;
+                },
+                onSelectAll: function () {
+                    var checked = $('#chkGrid').prop('checked');
+                    $('#grid .k-grid-content .chkcol').prop('checked', checked);
+                    $('#grid .k-grid-content .chkcol').each(function () {
+                        var uid = $(this).parent().parent().attr("data-uid");
+                        var dataItem = $('#grid').getKendoGrid().dataSource.getByUid(uid);
+                        dataItem.dirty = checked;
+                    });
+                },
+                receiveItems: function () {
+                    var data = $('#grid').getKendoGrid().dataSource.data();
+                    var selectedItems = $.grep(data, function (item) {
+                        return item.dirty || item.Id === 0;
+                    });
+                    if (!selectedItems.length) {
+                        kendoAlert("Please select some items to Receive", true);
+                        return;
+                    }
+                    var itemsToReceive = [];
+                    $.each(selectedItems, function (i, item) {
+                        itemsToReceive.push({ ItemCostingId: item.ItemCostingId, ReceivedQty: item.ReceivedQty });
+                    });
+                    $.postData("@Url.Action("ReceiveItems", "Stock")", { datas: itemsToReceive }, function (res) {
+                        kendoAlert(res.Message, res.HasError);
+                        if (res.HasError)
+                            return;
+
+                        $('#grid').getKendoGrid().dataSource.read();
+                        $('#chkGrid').prop('checked', false);
+                    });
+                },
+                unReceiveItems: function () {
+                    var data = $('#grid').getKendoGrid().dataSource.data();
+                    var selectedItems = $.grep(data, function (item) {
+                        return item.dirty || item.Id === 0;
+                    });
+                    if (!selectedItems.length) {
+                        kendoAlert("Please select some items to Un-Receive", true);
+                        return;
+                    }
+                    var itemsToUnReceive = [];
+                    $.each(selectedItems, function (i, item) {
+                        itemsToUnReceive.push({ ItemCostingId: item.ItemCostingId });
+                    });
+                    kendoConfirm("Do you want to Un-Receive these Items (" + itemsToUnReceive.length + ")?", function () {
+                        $.postData("@Url.Action("UnReceiveItems", "Stock")", { datas: itemsToUnReceive }, function (res) {
+                            kendoAlert(res.Message, res.HasError);
+                            if (res.HasError)
+                                return;
+
+                            $('#grid').getKendoGrid().dataSource.read();
+                            $('#chkGrid').prop('checked', false);
+                        });
+                    });
+                },
+            }
+        });
+    </script>
+    <script type="text/javascript">
+        var appPI = new Vue({
+            el: '#appPI',
+            data: {
+                ItemCostingId: null,
+                RefNo: "",
+                SKU: "",
+                Description: "",
+                ConfirmedQty: 0,
+                Unit: "",
+                Size: "",
+                ItemId: null,
+                AutoFill: true
+            },
+            methods: {
+                onChangeAutoFill: function () {
+                    this.AutoFill = this.AutoFill == true ? false : true;
+                    if (this.AutoFill == true) {
+                        var grid = $("#gridPI").data("kendoGrid");
+                        grid.hideColumn("SerialNo");
+                    } else {
+                        var grid = $("#gridPI").data("kendoGrid");
+                        grid.showColumn("SerialNo");
+                    }
+                },
+                validateForm: function () {
+                    removeError();
+                    var isValid = true;
+                    var setError = function (cntrl, msg) {
+                        isValid = false;
+                        showError(cntrl, msg);
+                    };
+
+                    var items = $('#gridPI').getKendoGrid().dataSource.data();
+                    if (!items.length) {
+                        kendoAlert("There is no data to Save", true);
+                        return false;
+                    }
+                    var qty = 0, hasZeroQty = 0, emptySerialNos = 0, emptyExpiryDates = 0, duplicatedSerialNos = 0, duplicatedExpiryDates = 0, serialNoLen = 0;
+                    $.each(items, function (i, x) {
+                        x.SerialNo = x.SerialNo == null ? "" : x.SerialNo;
+                        if (x.SerialNo.length > 10) {
+                            serialNoLen++;
+                        }
+                        if ((!x.SerialNo || !x.SerialNo.trim().length) && appPI.AutoFill == false)
+                            emptySerialNos++;
+                        else if ($.grep(items, function (y) { return y.uid != x.uid && y.SerialNo && y.SerialNo.trim() == x.SerialNo.trim() && appPI.AutoFill == false }).length)
+                            duplicatedSerialNos++;
+
+                        if (!x.ExpiryDate)
+                            emptyExpiryDates++;
+                        else if ($.grep(items, function (y) { return y.uid != x.uid && (y.ExpiryDate && y.ExpiryDate.toDate().getTime() == x.ExpiryDate.toDate().getTime()) }).length)
+                            duplicatedExpiryDates++;
+
+                        if (x.Qty <= 0)
+                            hasZeroQty++;
+                        qty += x.Qty;
+                    });
+
+                    var errors = [];
+                    if (serialNoLen > 0)
+                        errors.push("Serial No must have 10 digits only.");
+
+                    if (emptySerialNos > 0)
+                        errors.push(emptySerialNos + " row(s) has empty Serial No");
+
+                    if (duplicatedSerialNos > 0)
+                        errors.push(duplicatedSerialNos + " row(s) has duplicated Serial No");
+
+                    if (duplicatedExpiryDates > 0)
+                        errors.push(duplicatedExpiryDates + " row(s) has duplicated Expiry Date");
+
+                    if (emptyExpiryDates > 0)
+                        errors.push(emptyExpiryDates + " rows has empty Expiry Date(s)");
+
+                    if (qty > this.ConfirmedQty)
+                        errors.push("Total Qty should not be greated than " + this.ConfirmedQty);
+
+                    if (hasZeroQty > 0)
+                        errors.push("Qty should not be zero");
+
+                    if (errors.length) {
+                        isValid = false;
+                        kendoAlert(errors.join("\n"), true);
+                    }
+
+                    return isValid;
+                },
+                submitForm: function () {
+                    if (!this.validateForm())
+                        return;
+
+                    var items = $('#gridPI').getKendoGrid().dataSource.data();
+
+                    var self = this;
+                    var perishableItems = [];
+                    $.each(items, function (i, x) {
+                        perishableItems.push({
+                            Id: x.Id,
+                            SerialNo: self.AutoFill == false ? x.SerialNo : "",
+                            Qty: x.Qty,
+                            ExpiryDate: StdDate(x.ExpiryDate)
+                        })
+                    });
+
+                    $.postData("@Url.Action("SavePerishableItems", "Stock")",
+                        {
+                            ItemId: this.ItemId,
+                            ItemCostingId: this.ItemCostingId,
+                            RefNo: this.RefNo + ' - ' + this.SKU,
+                            PerishableItems: perishableItems
+                        },
+                        this.onSuccess);
+                },
+                receive: function () {
+                    $.postData("@Url.Action("ReceivePerishableItems", "Stock")",
+                        {
+                            ItemCostingId: this.ItemCostingId,
+                            RefNo: this.RefNo + ' - ' + this.SKU
+                        },
+                        function (res) {
+                            kendoAlert(res.Message, res.HasError);
+                            if (res.HasError)
+                                return;
+                            $('#gridPI').getKendoGrid().dataSource.read();
+                            $('#grid').getKendoGrid().dataSource.read();
+                        });
+                },
+                delete: function () {
+                    var itemsCount = $('#gridPI').getKendoGrid().dataSource.data().length;
+                    if (!itemsCount) {
+                        kendoAlert("There is no data to Delete.", true);
+                        return;
+                    }
+                    var self = this;
+
+                    kendoConfirm("Do you want to delete these Entries (" + itemsCount + ")?", function () {
+                        $.postData("@Url.Action("DeletePerishableItems", "Stock")",
+                            {
+                                ItemCostingId: self.ItemCostingId,
+                                RefNo: self.RefNo + ' - ' + self.SKU
+                            }, self.onSuccess);
+                    });
+                },
+                onSuccess: function (res) {
+                    kendoAlert(res.Message, res.HasError);
+                    if (res.HasError)
+                        return;
+                    $('#gridPI').getKendoGrid().dataSource.read();
+                },
+                addItem: function () {
+                    var newItem = @(Vue.Encode(new SerialedItem()));
+                    newItem.SKU = this.SKU;
+                    newItem.Description = this.Description;
+                    newItem.Unit = this.Unit;
+                    newItem.Size = this.Size;
+                    $('#gridPI').getKendoGrid().dataSource.add(newItem);
+                },
+                deleteItem: function (uid) {
+                    var dataSource = $('#gridPI').getKendoGrid().dataSource;
+                    var dataItem = dataSource.getByUid(uid);
+                    var self = this;
+                    if (!dataItem.Id)
+                        dataSource.cancelChanges(dataItem);
+                    else {
+                        kendoConfirm("Do you want to delete this Entry?", function () {
+                            $.postData("@Url.Action("DeleteSerialedItem", "Stock")", {
+                                Id: dataItem.Id,
+                                RefNo: self.RefNo + ' - ' + self.SKU + ' - ' + dataItem.SerialNo
+                            }, self.onSuccess);
+                        });
+                    }
+                },
+                open: function (uid) {
+                    var item = $('#grid').getKendoGrid().dataSource.getByUid(uid);
+                    this.RefNo = item.RefNo;
+                    this.ItemCostingId = item.ItemCostingId;
+                    this.ItemId = item.ItemId;
+                    this.ConfirmedQty = item.ConfirmedQty;
+                    this.SKU = item.SKU;
+                    this.Description = item.Description;
+                    this.Unit = item.Unit;
+                    this.Size = item.Size;
+                    $('#gridPI').getKendoGrid().dataSource.read();
+                    $('#wndPI').getKendoWindow().setOptions({ title: "Perishable Items - " + item.RefNo + ' - ' + item.Description });
+                    $('#wndPI').getKendoWindow().open().center();
+                },
+                gridCellClose: function (e) {
+                    var $grid = $('#gridPI').getKendoGrid();
+                    var fieldName = $grid.columns[e.container.index()].field;
+                    var item = e.model;
+
+                    var getColIndex = function (field) {
+                        return $('#gridPI').find('[data-field="' + field + '"]').index()
+                    };
+
+                    var items = $grid.dataSource.data();
+                    if (fieldName == "SerialNo") {
+                        if (!item.SerialNo || !item.SerialNo.trim().length) {
+                            e.container.parent().find("td:eq(" + getColIndex('SerialNo') + ")").addClass('r-red');
+                        }
+                        else {
+                            var exists = $.grep(items, function (x) { return x.uid != item.uid && x.SerialNo == item.SerialNo });
+                            if (exists.length) {
+                                e.container.parent().find("td:eq(" + getColIndex('SerialNo') + ")").addClass('r-red');
+                                kendoAlert(item.SerialNo + " already exists", true);
+                            }
+                            else
+                                e.container.parent().find("td:eq(" + getColIndex('SerialNo') + ")").removeClass('r-red');
+                        }
+                    }
+                    else if (fieldName == "ExpiryDate") {
+                        if (!item.ExpiryDate) {
+                            e.container.parent().find("td:eq(" + getColIndex('ExpiryDate') + ")").addClass('r-red');
+                        }
+                        else {
+                            var exists = $.grep(items, function (x) { return x.uid != item.uid && (x.ExpiryDate && x.ExpiryDate.toDate().getTime() == item.ExpiryDate.toDate().getTime()) });
+                            if (exists.length) {
+                                e.container.parent().find("td:eq(" + getColIndex('ExpiryDate') + ")").addClass('r-red');
+                                kendoAlert(StdDate(item.ExpiryDate) + " already exists", true);
+                            }
+                            else
+                                e.container.parent().find("td:eq(" + getColIndex('ExpiryDate') + ")").removeClass('r-red');
+                        }
+                    }
+                },
+                gridDataBound: function () {
+                    $('#wndPI').getKendoWindow().center();
+                },
+                gridData: function () {
+                    return { ItemCostingId: this.ItemCostingId };
+                }
+            }
+        });
+    </script>
+
+}

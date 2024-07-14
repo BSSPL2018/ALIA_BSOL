@@ -1,0 +1,118 @@
+﻿@page
+@using BSOL.Core.Models.Accounts
+@{
+    ViewData["Title"] = "Payment Requested List";
+    Layout = "~/Pages/Shared/_Layout.cshtml";
+}
+@if (!await Html.HasAccess(Forms.Accounts.PaymentVoucher))
+{
+    return;
+}
+
+<div id="app">
+    <div class="g-title v-edit">
+        <div class="g-left">
+            <ul class="tg-btn tg-fixed" style="display: inline-flex;">
+                <li :class="{'tg-active': TabIndex == 0}">
+                    <a href="javascript:app.tabChange(0)">Pending</a>
+                </li>
+                <li :class="{'tg-active': TabIndex == 1}">
+                    <a href="javascript:app.tabChange(1)">Completed</a>
+                </li>
+            </ul>
+        </div>
+        <span class="g-text">Payments Requested List</span>
+        <div class="g-right">
+            @Html.ExcelButton()
+        </div>
+    </div>
+</div>
+<div>
+    @(Html.Kendo().Grid<PaymentRequestListModel>()
+        .Name("grid")
+        .Columns(x =>
+        {
+            /* Document */
+            x.Bound("").ClientTemplate("<a class='btn-grid c-lnk fa fa-paperclip' title='View Doc' href=\"javascript:app.viewDocument('#:uid#')\"></a>"
+            )
+            .Title("<i class='fa fa-paperclip' title='View Doc'></i>").HtmlAttributes(new { style = "text-align:center;" }).HeaderHtmlAttributes(new { style = "text-align:center;" }).Width(45).Sortable(false).Filterable(false);
+
+            x.Bound("").Width(50).ClientTemplate(@"<a class='fa fa-external-link' style='font-size: 15px;' title='Make Payment' onclick='app.makePayment(""#:uid#"")'></a>").Title("").Width(41).Sortable(false).Filterable(false);
+            x.Bound(c => c.RefNoFormatted).Title("RefNo").Width(220);
+            x.Bound(c => c.Category).Title("Category").Width(100);
+            x.Bound(c => c.PaymentType).Title("Type").Width(100);
+            x.MoneyColumn(c => c.TotalAmount).Title("Amount").Width(110);
+            x.Bound(c => c.RequestedBy).Width(180);
+            x.DateColumn(c => c.RequestedDate).Title("Requested On").Width(200);
+            x.Bound(c => c.ApprovedBy).Width(150);
+            x.DateColumn(c => c.ApprovedDate).Title("Approved On").Width(150);
+            x.Bound(c => c.PaidBy).Width(150);
+            x.DateColumn(c => c.PaidDate).Width(200);
+            x.Bound(c => c.ChequeNo).Width(160);
+            x.DateColumn(c => c.ChequeDate).Width(150);
+            x.Bound(c => c.ProcessName).Width(150);
+        })
+        .Scrollable()
+        .Sortable()
+        .EnableEdit(Html)
+        .EnableFilter()
+        .Resizable(x => x.Columns(true))
+        .Pageable(x => x.Refresh(true))
+        .Excel(x => x.AllPages(true))
+        .DataSource(dataSource => dataSource
+        .Ajax().ServerOperation(true).PageSize(50)
+        .Read(read => read.Action("ReadPaymentRequestList", "Accounts").Data("app.grid_Data"))
+        )
+        )
+</div>
+
+<script type="text/javascript">
+    var app = new Vue({
+        el: '#app',
+        data: {
+            TabIndex: 0,
+        },
+        methods: {
+            tabChange: function (index) {
+                this.TabIndex = index;
+                $("#grid").getKendoGrid().dataSource.read();
+            },
+            grid_Data: function () {
+                return { statusFilter: app.TabIndex };
+            },
+            makePayment: function (uid) {
+                var dataItem = $('#grid').getKendoGrid().dataSource.getByUid(uid);
+                window.open("@Url.Page("/Accounts/PaymentVoucher")?id=" + dataItem.ID);
+            },
+            viewDocument: function (uid) {
+                var dataItem = $('#grid').getKendoGrid().dataSource.getByUid(uid);
+
+                var dReference = "";
+                if (dataItem.Category == "Expatriate")
+                    dReference = "@DocumentReference.ExpatriateProcess.Description()";
+                else if (dataItem.Category == "HUMAN RESOURCE")
+                    dReference = "@DocumentReference.Deductions.Description()";
+                else if (dataItem.Category == "Official Trip")
+                    dReference = "@DocumentReference.OfficialTrip.Description()";
+                else if (dataItem.Category == "TICKET")
+                    dReference = "@DocumentReference.TicketRequest.Description()";
+                else if (dataItem.Category == "Petty Cash")
+                    dReference = "@DocumentReference.PettyCash.Description()";
+                else if (dataItem.Category == "HP")
+                    dReference = "@DocumentReference.HP.Description()";
+                else if (dataItem.Category == "SHIPMENT")
+                    dReference = "@DocumentReference.SHIPMENT.Description()";
+
+                window.open("@Url.Page("/Document/DocumentViewer")?id=" + ((dataItem.Reference == "Deductions" || dataItem.Reference == "SHIPMENT") ? dataItem.ReferenceId : dataItem.ID) + "&Reference=" + dReference + "&RefNo=" + dataItem.RefNoFormatted);
+            }
+        }
+    });
+</script>
+<script type="text/javascript">
+    $(function () {
+        $("#grid").on("dblclick", ".k-grid-content tr", function () {
+            var dataItem = $("#grid").getKendoGrid().dataItem($(this));
+            window.open("@Url.Page("/Accounts/PaymentVoucher")?id=" + dataItem.ID);
+        });
+    });
+</script>

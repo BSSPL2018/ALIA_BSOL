@@ -1,0 +1,337 @@
+﻿@page
+@using BSOL.Core.Entities
+@{
+    ViewData["Title"] = "Shipments";
+    Layout = "~/Pages/Shared/_Layout.cshtml";
+    ViewBag.IsFolded = true;
+}
+@section BreadCrumb {
+    @await Html.PartialAsync("Tabs", "Material Management/Shipments")
+}
+@if (!await Html.HasAccess(Forms.Procurement.Shipments))
+{
+    return;
+}
+
+@{
+    string statusFilter = Request.Query["q"] == "1" ? "Cleared" : "Pending";
+}
+<div class="g-title">
+    <div class="g-left" style="display:flex">
+        <div style="margin:12px 15px 14px 3px">
+            @Html.AddUrlButton("/Shipment/EditShipment")
+        </div>
+        <ul class="tg-btn tg-fixed">
+            <li @(statusFilter == "Pending" ? "class=tg-active" : "")>
+                <a href="@Url.Page("/Shipment/Shipments")?q=0">Pending</a>
+            </li>
+            <li @(statusFilter == "Cleared" ? "class=tg-active" : "")>
+                <a href="@Url.Page("/Shipment/Shipments")?q=1">Cleared</a>
+            </li>
+        </ul>
+    </div>
+    <span class="g-text">Shipments</span>
+    <div class="g-right">
+        @Html.ExcelButton()
+    </div>
+</div>
+@(Html.Kendo().Grid<Shipment>()
+            .Name("grid")
+            .Columns(c =>
+            {
+                c.EditUrlColumn(Url.Page("/Shipment/EditShipment") + "?id=#:Id#");
+                if (statusFilter == "Pending")
+                {
+                    c.DeleteColumn("deleteItem('#:uid#')");
+                    c.Bound("").ClientTemplate(@"<a class='btn-grid btn-grid-print fa fa-cog' target='_self' title='Clear Shipment' href='javascript:clearShipment(""#:uid#"")'></a>").Width(50).Sortable(false).Filterable(false).Center();
+                }
+                if (statusFilter == "Cleared")
+                    c.Bound("").ClientTemplate(@"<a class='btn-grid btn-grid-print fa fa-undo' target='_self' title='Undo' href='javascript:undoShipment(""#:uid#"")'></a>").Width(50).Sortable(false).Filterable(false).Center();
+                @* c.Bound("").ClientTemplate("<a class='btn-grid viewbtncolor fa fa-usd' href='javascript:shipmentExpenses(\"#:uid#\")' title='Expenses'></a>").Title("").HtmlAttributes(new { style = "text-align:center;" }).Width(50).Sortable(false).Filterable(false); *@
+                //c.Bound("").ClientTemplate("<a class='actionbtn btn-circle viewbtncolor fa fa-usd' href='javascript:ViewExpenses(\"#:uid#\")' title='View Expenses'></a>").Title("").HtmlAttributes(new { style = "text-align:center;" }).Width(42).Sortable(false).Filterable(false);
+                c.Bound(x => x.RefNoFormatted).Title("Ref No").Width(120);
+                c.DateColumn(x => x.ETD).Width(120);
+                c.DateColumn(x => x.ETA).Width(120);
+                c.DateColumn(x => x.ActualArrivalDate).Width(160);
+                c.DateColumn(x => x.ClearedDate).Width(160);
+                c.Bound(x => x.ClearanceType).Width(150);
+                c.Bound(x => x.ContainerLoadType).Title("Type").Width(120);
+                c.Bound(x => x.ShipmentMode).Title("Mode").Width(120);
+                c.Bound(x => x.PortOfOrigin).Width(150);
+                c.Bound(x => x.PortOfLoading).Title("Port Of Loading").Width(150);
+                c.Bound(x => x.CustomsRefNo).Width(150);
+                c.Bound(x => x.LCNo).Width(150);
+                c.Bound(x => x.ContainerNo).Width(130);
+                c.Bound(x => x.Feet20).Width(100).Center();
+                c.Bound(x => x.Feet40).Width(100).Center();
+                c.Bound(x => x.CreatedBy).Width(160);
+                c.DateColumn(c => c.CreatedOn).Width(160);
+            })
+                .Scrollable()
+                .Sortable()
+                .EnableEdit(Html)
+                .EnableFilter()
+                .Resizable(x => x.Columns(true))
+                .Pageable(x => x.Refresh(true))
+                .Excel(x => x.AllPages(true))
+                .DataSource(dataSource => dataSource
+                .Ajax().ServerOperation(true).PageSize(50)
+                    .Read(read => read.Action("ReadShipments", "Shipment", new { StatusFilter = statusFilter == "Pending" ? 0 : 1 }))
+                    .Model(m => m.Field("Id", typeof(string)))
+                    .Sort(s => s.Add(x => x.Id).Descending())
+            )
+)
+
+@section Scripts {
+    @(Html.Kendo().Window()
+                                                        .Name("wndProcess")
+                                                        .Title("Shipment Process")
+                                                        .Content(@<text>
+    <div class="form-group">
+        <label>Cleared Date</label>
+        @Html.DatePicker().Name("dtDate").Value(DateTime.Now).HtmlAttributes(new { style = "width:100%" })
+    </div>
+    <div style="text-align: center">
+        @Html.SaveButton("processShipment()")
+    </div>
+</text>)
+                                                        .Draggable()
+                                                        .Resizable()
+                                                        .Visible(false)
+                                                        .MaxWidth(300)
+                                                        )
+
+    @(Html.Kendo().Window()
+                        .Name("wndExpenses")
+                        .Title("Shipment Expenses")
+                        .Content(@<text>
+    <div class="g-title">
+        <div class="g-right">
+            @Html.SaveButton("SubmitForm()")
+        </div>
+    </div>
+    @(Html.Kendo().Grid<ShipmentExpense>()
+    .Name("gridExpenses")
+    .Editable(Html, "Shipment Settings", AllowAdd: false, AllowSave: false)
+    .AutoBind(false)
+    .Columns(c =>
+    {
+    c.Bound(x => x.Id).ClientTemplate(@"#if(Id>0){# <a class='btn-grid btn-grid-delete fa fa-trash-o' title='Delete' href=""javascript:deleteExpenses('#:uid#')""></a>
+    #}#").Width(50).ClearTitle().Filterable(false).Sortable(false).HtmlAttributes(new { style = "text-align:center;" }).HeaderHtmlAttributes(new { style = "text-align:center;" });
+    c.Bound(p => p.ExpenseName).Width(150);
+    c.Bound(p => p.Description).Width(220);
+    c.Bound(p => p.Currency).ClientTemplate("#: Currency?Currency:'' #").EditorTemplateName("ComboBoxEditor").EditorViewData(new { Data = new EditorData(Url.Action("ReadCurrencies", "Common"), "Currency", "Currency") { OnChange = "onCurrencyChange" } }).Title("Currency").Width(120);
+    c.MoneyColumn(p => p.Amount).Width("150");
+    c.Bound(p => p.GSTSettingId).ClientTemplate("#: GST?GST:'' #").EditorTemplateName("ComboBoxEditor").EditorViewData(new { Data = new EditorData(Url.Action("ReadGSTSettings", "Common"), "GST", "Name") { OnChange = "onGSTChange" } }).Title("GST").Width(120);
+    c.MoneyColumn(p => p.GSTAmount).Width("150").Editable("editAmount");
+    c.MoneyColumn(p => p.TotalAmount).Width("150").Editable("editAmount"); ;
+    c.DateColumn(p => p.ExpenseDate).EditorTemplateName("DateEditor").Format("{0:dd-MMM-yyyy}").Title("Expense Date").Width(150);
+    })
+    .Events(x => x.DataBound("gridExpenses_DataBound").CellClose("gridExpenses_Cellclose"))
+    .DataSource(d => d.Ajax()
+    .Batch(true)
+    .ServerOperation(false)
+    .Read(read => read.Action("ReadShipmentExpenses", "Shipment").Data("gridData"))
+    .Model(m =>
+    {
+    m.Id(f => f.Id);
+    m.Field("Id", typeof(long)).Editable(false);
+    m.Field("EntryBy", typeof(string)).Editable(false);
+    m.Field("EntryDate", typeof(DateTime)).Editable(false);
+    m.Field("ExpenseName", typeof(string)).Editable(false);
+    m.Field("Description", typeof(string)).Editable(false);
+    })
+    .Create("UpdateShipmentExpenses", "Shipment")
+    .Update("UpdateShipmentExpenses", "Shipment")
+    .Events(events => events.Error("grid_ErrorHandler")))
+    .Sortable()
+    .AutoBind(false)
+    .Navigatable()
+    )
+</text>)
+                        .Draggable()
+                        .Resizable()
+                        .Visible(false)
+                        .MaxWidth(850)
+                        )
+    <script type="text/javascript">
+        var gridUid = "";
+        var shipmentId = 0;
+        var maxAmount = 0;
+        $(function () {
+            $("#grid.grid-edit").on("dblclick", ".k-grid-content tr", function () {
+                var dataItem = $("#grid").getKendoGrid().dataItem($(this));
+                window.open("@Url.Page("/Shipment/EditShipment")?id=" + dataItem.Id);
+            });
+        });
+
+        function deleteItem(uid) {
+            var dataItem = $('#grid').getKendoGrid().dataSource.getByUid(uid);
+            kendoConfirm("Do you want to delete this Shipment?", function () {
+                $.postData("@Url.Action("DeleteShipment", "Shipment")", { Id: dataItem.Id, RefNoFormatted: dataItem.RefNoFormatted }, function (res) {
+                    kendoAlert(res.Message, res.HasError);
+                    if (res.HasError)
+                        return;
+                    $('#grid').getKendoGrid().dataSource.read();
+                    lapp.refreshNotification();
+                });
+            });
+        }
+
+        function clearShipment(uid) {
+            gridUid = uid;
+            $('#wndProcess').getKendoWindow().open().center();
+        }
+        function processShipment() {
+            var dataItem = $("#grid").getKendoGrid().dataSource.getByUid(gridUid);
+            $.postData("@Url.Action("ProcessShipment", "Shipment")", {
+                Id: dataItem.Id,
+                RefNoFormatted: dataItem.RefNoFormatted,
+                ClearedDate: StdDate($('#dtDate').getKendoDatePicker().value())
+            }, function (res) {
+                kendoAlert(res.Message, res.HasError);
+                if (res.HasError)
+                    return;
+                $('#grid').getKendoGrid().dataSource.read();
+                $('#wndProcess').getKendoWindow().close();
+                lapp.refreshNotification();
+            });
+        }
+        function undoShipment(uid) {
+            var dataItem = $("#grid").getKendoGrid().dataSource.getByUid(uid);
+            $.postData("@Url.Action("UndoShipment", "Shipment")", {
+                Id: dataItem.Id,
+                RefNoFormatted: dataItem.RefNoFormatted,
+                ClearedDate: StdDate($('#dtDate').getKendoDatePicker().value())
+            }, function (res) {
+                kendoAlert(res.Message, res.HasError);
+                if (res.HasError)
+                    return;
+                $('#grid').getKendoGrid().dataSource.read();
+                $('#wndProcess').getKendoWindow().close();
+                lapp.refreshNotification();
+            });
+        }
+        function shipmentExpenses(uid) {
+            var dataItem = $('#grid').getKendoGrid().dataSource.getByUid(uid);
+            shipmentId = dataItem.Id;
+            $('#gridExpenses').getKendoGrid().dataSource.read();
+            $('#wndExpenses').getKendoWindow().open().center().setOptions({ title: "Shipment Expenses For " + dataItem.RefNoFormatted });
+        }
+        function gridExpenses_DataBound() {
+            $('#wndExpenses').getKendoWindow().center();
+        }
+
+        function onExpenseChange(expense, gridItem, ddSender) {
+            if (!expense && ddSender && gridItem)
+                gridItem.set("ExpenseName", ddSender.text());
+        }
+
+        function deleteExpenses(uid) {
+            var dataItem = $('#gridExpenses').getKendoGrid().dataSource.getByUid(uid);
+            if (!dataItem.Id) {
+                return;
+            }
+            kendoConfirm("Do you want to delete this shipment expense?", function () {
+                $.postData("@Url.Action("DeleteShipmentExpenses", "Shipment")", { Id: dataItem.Id },
+                    function (data) {
+                        kendoAlert(data.Message, data.HasError);
+                        if (!data.HasError)
+                            $('#gridExpenses').getKendoGrid().dataSource.read();
+                    });
+            });
+        }
+        function onCurrencyChange(selectedItem, gridItem) {
+            gridItem.set("CurrencyRate", selectedItem.ConversionRate);
+        }
+        function onGSTChange(selectedItem, gridItem) {
+            if (selectedItem && gridItem) {
+                gridItem.set("GSTPercent", selectedItem.Percentage);
+                gridItem.set("GSTSettingId", selectedItem.Id);
+            }
+            else {
+                gridItem.set("GSTPercent", 0.0);
+                gridItem.set("GSTSettingId", null);
+            }
+        }
+        function gridData() {
+            return { shipmentId: shipmentId };
+        }
+        function editAmount() {
+            return false;
+        }
+        function gridExpenses_Cellclose(e) {
+            var fieldName = e.sender.columns[e.container.index()].field;
+            var item = e.model;
+
+            if (fieldName == "Amount") {
+                item.set("TotalAmount", item.Amount);
+            }
+
+            if (item.Amount > 0) {
+                item.set("GSTAmount", ((item.GSTPercent / 100.0) * item.Amount));
+                item.set("TotalAmount", (item.Amount + item.GSTAmount));
+            }
+            else {
+                item.set("GSTAmount", null);
+                item.set("TotalAmount", null);
+            }
+        }
+        function validateForm() {
+            var data = $('#gridExpenses').getKendoGrid().dataSource.data();
+            var expenses = $.grep(data, function (item) {
+                return item.Amount > 0 || item.Id > 0;
+            });
+
+
+            var errors = [];
+            var error = false;
+            if (expenses && expenses.length > 0) {
+                $.each(expenses, function (i) {
+                    if (!expenses[i].ExpenseDate) {
+                        errors.push("Please select expenses date");
+                        error = true;
+                    }
+                    if (!expenses[i].Currency) {
+                        errors.push("Please select currency");
+                        error = true;
+                    }
+                    if (!expenses[i].Amount) {
+                        errors.push("Please enter amount");
+                        error = true;
+                    }
+                });
+            }
+
+
+            if (errors.length && error) {
+                kendoAlert(errors.join("\n"), true);
+                return error;
+            }
+
+        }
+        function SubmitForm() {
+            if (validateForm()) {
+                return;
+            }
+
+            var data = $('#gridExpenses').getKendoGrid().dataSource.data();
+            var expenses = $.grep(data, function (item) {
+                return item.Amount > 0 || item.Id > 0;
+            });
+
+            var expenselst = [];
+            $.each(expenses, function (i, item) {
+                expenselst.push({ Id: item.Id, ExpenseName: item.ExpenseName, Description: item.Description, Currency: item.Currency, Amount: item.Amount, GSTSettingId: item.GSTSettingId, GSTAmount: item.GSTAmount, TotalAmount: item.TotalAmount, ExpenseDate: StdDate(item.ExpenseDate), CurrencyRate: item.CurrencyRate, ShipmentId: item.ShipmentId, ExpenseCategoriesId: item.ExpenseCategoriesId });
+            });
+
+
+            $.postData("@Url.Action("UpdateShipmentExpenses", "Shipment")", { datas: expenselst },
+                function (data) {
+                    kendoAlert(data.Message, data.HasError);
+                    if (!data.HasError)
+                        $('#gridExpenses').getKendoGrid().dataSource.read();
+                });
+        }
+    </script>
+}

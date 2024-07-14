@@ -1,0 +1,415 @@
+﻿@page
+@using Core.Entities
+@inject AppUser appUser
+@model PurchaseOrder
+@{
+    ViewBag.Title = "Purchase";
+    Layout = "~/Pages/Shared/_Layout.cshtml";
+}
+@section BreadCrumb {
+    @await Html.PartialAsync("Tabs", "Material Management/Purchase")
+}
+@if (!await Html.HasAccess(Forms.Procurement.Purchase))
+{
+    return;
+}
+
+@{
+    string status = Request.Query["q"] == "3" ? "Cancelled" : Request.Query["q"] == "2" ? "Verified" : Request.Query["q"] == "1" ? "Checked" : "Pending";
+}
+<style type="text/css">
+
+    .grp-btn .dropdown-btn-content .fa {
+        margin-right: 10px;
+        font-size: 15px;
+    }
+
+    .grp-btn .fa-cloud-download {
+        color: #45459f;
+    }
+
+    .grp-btn .fa-cloud-upload {
+        color: #2bd5e2;
+    }
+
+    .grp-btn .fa-trash-o {
+        color: #d9534f;
+    }
+
+    .dropbtn {
+        /*background-color: #4CAF50;*/
+        color: white;
+        padding: 16px;
+        font-size: 16px;
+        border: none;
+        cursor: pointer;
+    }
+
+    .dropdown-btn {
+        /*position: relative;*/
+        display: inline-block;
+        /*background-color: #c01c79;*/
+        padding: 3px 5px;
+        color: white;
+        cursor: pointer;
+    }
+
+    .dropdown-btn-content {
+        display: none;
+        position: absolute;
+        background-color: #f9f9f9;
+        min-width: 160px;
+        box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2);
+        z-index: 1;
+        text-align: left;
+    }
+
+        .dropdown-btn-content a {
+            color: #5A738E;
+            padding: 8px 16px;
+            text-decoration: none;
+            display: block;
+            border: 1px solid #ececec;
+        }
+
+            .dropdown-btn-content a:hover {
+                background-color: #f1f1f1;
+                color: gray;
+            }
+
+    .dropdown-btn:hover .dropdown-btn-content {
+        display: block;
+    }
+
+    /* Change the background color of the dropdown-btn button when the dropdown-btn content is shown */
+    .dropdown-btn:hover .dropbtn {
+        background-color: #3e8e41;
+    }
+
+    .dropdown-btn .fa-caret-down {
+        margin-left: 5px;
+        font-size: 10px;
+    }
+
+    #ddTag_listbox .k-selected {
+        display: none;
+    }
+</style>
+<div class="g-title">
+    <div class="g-left" style="display:flex">
+        <div style="margin:12px 15px 14px 3px">
+            @Html.AddUrlButton("/Procurements/EditPurchaseOrder")
+        </div>
+
+        <ul class="tg-btn tg-fixed">
+            <li @(status == "Pending" ? "class=tg-active" : "")>
+                <a id="lnkPending" href="/Procurements/PurchaseOrder?q=0">Pending</a>
+            </li>
+            <li @(status == "Checked" ? "class=tg-active" : "")>
+                <a id="lnkVerified" href="/Procurements/PurchaseOrder?q=1">Checked</a>
+            </li>
+            <li @(status == "Verified" ? "class=tg-active" : "")>
+                <a id="lnkVerified" href="/Procurements/PurchaseOrder?q=2">Approved</a>
+            </li>
+            <li @(status == "Cancelled" ? "class=tg-active" : "")>
+                <a id="lnkCancelled" href="/Procurements/PurchaseOrder?q=3">Cancelled</a>
+            </li>
+        </ul>
+
+    </div>
+    <div class="g-right">
+        @*TODO
+        @if (Html.HasAccess(Rights.Approve) && status != "Approved")
+        {
+        <button type='button' class='btn btn-save btn-cntrls' id='btnSave' value='APPROVE' OnClick='ApprovePurchaseOrder()' title='Approve'><i class='fa fa-check'></i>Approve</button>
+        }*@
+        @Html.ExcelButton()
+    </div>
+</div>
+
+@(
+Html.Kendo().Grid<PurchaseOrder>()
+                        .Name("grid")
+                        .Columns(c =>
+                        {
+                            @*   c.PrintColumn();
+                            if (status == "Pending")
+                            {
+                                c.EditUrlColumn(Url.Page("/Procurements/EditPurchaseOrder") + "?id=#:Id#");
+                                 window.open("@Url.Page("/Procurements/EditPurchaseOrder")+ "?id=#:Id#");
+                                c.DeleteColumn(x => x.Id);
+                                c.Bound("").ClientTemplate("#if(!ClosedOn){#<a class='btn-grid btn-grid-check fa fa-check-circle' title='Mark as Checked' href='javascript:app.checkPO(\"#:uid#\")'></a>#}#").Title('\0'.ToString()).HtmlAttributes(new { style = "text-align:center;" }).Width(41).Sortable(false).Filterable(false);
+                            }
+                            if (status == "Checked")
+                                c.Bound("").ClientTemplate("#if(!ClosedOn){#<a class='btn-grid btn-grid-uncheck fa fa-undo' title='Mark as UnChecked' href='javascript:app.unCheckPO(\"#:uid#\")'></a>#}#").Title('\0'.ToString()).HtmlAttributes(new { style = "text-align:center;" }).Width(41).Sortable(false).Filterable(false);
+
+                            if (status != "Cancelled" && status != "Pending")
+                                c.VerifyColumn(c => c.VerifiedOn).Title(status == "Checked" ? "Verify" : "Revert").Width(70).Center();
+                            if (status == "Verified")
+                            {
+                                c.Bound("").ClientTemplate("#if(Mode=='Shipment' && !ClosedOn){#<a class='btn-grid btn-grid-close fa fa-bolt' title='Mark as Closed' href='javascript:app.closePO(\"#:uid#\")'></a>#}else if(Mode=='Shipment' && ClosedOn){#<a class='btn-grid btn-grid-undo fa fa-undo' title='Mark as Open' href='javascript:app.openPO(\"#:uid#\")'></a>#}else{# #}#").Title('\0'.ToString()).HtmlAttributes(new { style = "text-align:center;" }).Width(41).Sortable(false).Filterable(false);
+                            } *@
+
+                            if (status == "Pending")
+                            {
+                                c.Bound("").ClientTemplate(
+                                     "<div class='grp-btn dropdown-btn'>" +
+                                     "<i style='color:black;' class='fa fa-ellipsis-v'></i>" +
+                                     "<div class='dropdown-btn-content'>" +
+                                     "<a href='javascript:app.printItem(\"#:uid#\")'>Print</a>" +
+                                     "#if(!Active && !VerifiedBy ){#<a href='javascript:app.editItem(\"#:uid#\")'>Edit</a>#}#" +
+                                     "#if(!Active && !VerifiedBy){#<a  href='javascript:app.deleteItem(\"#:uid#\")'>Delete</a>#}#" +
+                                     "#if((! Active && !VerifiedBy ) ){#<a  href='javascript:app.checkPO(\"#:uid#\")'>Mark as Checked</a>#}#" +
+
+                                     "#if(!ClosedOn && Active){#<a  href='javascript:app.unCheckPO(\"#:uid#\")'>Mark as UnChecked</a>#}#" +
+                                      "#if(!ClosedOn && Active){#<a  href='javascript:app.verifyItem(\"#:uid#\")'>Verify</a>#}#" +
+                                     "#if(Mode=='Shipment' && !ClosedOn){#<a class='btn-grid btn-grid-close fa fa-bolt' title='Mark as Closed' href='javascript:app.closePO(\"#:uid#\")'></a>#}else if(Mode=='Shipment' && ClosedOn){#<a class='btn-grid btn-grid-undo fa fa-undo' title='Mark as Open' href='javascript:app.openPO(\"#:uid#\")'>Mark as Open</a>#}else{# #}#" +
+                                     "</div>" +
+                                     "</div>"
+                               ).Editable("disableEditor").Width(40).Filterable(false);
+                            }
+                            if (status == "Checked")
+                            {
+                                c.Bound("").ClientTemplate(
+                                         "<div class='grp-btn dropdown-btn'>" +
+                                         "<i style='color:black;' class='fa fa-ellipsis-v'></i>" +
+                                         "<div class='dropdown-btn-content'>" +
+                                         "<a href='javascript:app.printItem(\"#:uid#\")'>Print</a>" +
+                                         "#if(!ClosedOn){#<a  href='javascript:app.unCheckPO(\"#:uid#\")'>Mark as UnChecked</a>#}#" +
+                                         "#if(!ClosedOn){#<a  href='javascript:app.verifyItem(\"#:uid#\")'>Verify</a>#}#" +
+                                         "</div>" +
+                                         "</div>"
+                                   ).Editable("disableEditor").Width(40).Filterable(false);
+                            }
+                            if (status != "Cancelled" && status != "Pending" && status != "Checked")
+                            {
+                                c.Bound("").ClientTemplate(
+                                            "<div class='grp-btn dropdown-btn'>" +
+                                            "<i style='color:black;' class='fa fa-ellipsis-v'></i>" +
+                                            "<div class='dropdown-btn-content'>" +
+                                            "<a href='javascript:app.printItem(\"#:uid#\")'>Print</a>" +
+                                            "#if(!ClosedOn){#<a  href='javascript:app.revertItem(\"#:uid#\")'>Revert</a>#}#" +
+                                            "</div>" +
+                                            "</div>"
+                                      ).Editable("disableEditor").Width(40).Filterable(false);
+                            }
+                            if (status == "Cancelled")
+                            {
+                                c.Bound("").ClientTemplate(
+                                              "<div class='grp-btn dropdown-btn'>" +
+                                              "<i style='color:black;' class='fa fa-ellipsis-v'></i>" +
+                                              "<div class='dropdown-btn-content'>" +
+                                             "<a href='javascript:app.printItem(\"#:uid#\")'>Print</a>" +
+                                              "</div>" +
+                                              "</div>"
+                                        ).Editable("disableEditor").Width(40).Filterable(false);
+                            }
+
+
+                            c.Bound(x => x.RefNoFormatted).Title("Ref No").Width(130);
+                            c.Bound(x => x.SupplierName).Width(250);
+                            c.DateColumn(x => x.PurchaseOrderDate).Title("PO Date").Width(120);
+                            c.Bound(x => x.ShopGroupName).Title("Business Unit").Width(150);
+                            c.Bound(x => x.Notes).Width(150);
+                            c.Bound(x => x.OtherRefNo).Width(150);
+                            if (status == "Verified")
+                                c.Bound(x => x.PaymentRefNo).Width(150);
+                            c.Bound(x => x.Remarks).Width(150);
+                            c.MoneyColumn(x => x.TotalAmount, 4).Width(120);
+                            c.MoneyColumn(x => x.GSTAmount).Title("GST").Width(120);
+                            c.MoneyColumn(x => x.DiscountAmount).Title("Discount").Width(100);
+                            c.Bound(x => x.Mode).Width(160);
+                            c.Bound(x => x.ContactName).Width(150);
+                            c.TelColumn(x => x.ContactNo).Width(120);
+                            c.Bound(x => x.Currency).Width(100);
+                            c.Bound(x => x.IncoTerm).Width(220);
+                            c.Bound(x => x.CreatedBy).Width(150);
+                            c.DateColumn(x => x.CreatedOn).Width(180);
+                            if (status == "Checked")
+                            {
+                                c.Bound(x => x.CheckedBy).Width(150);
+                                c.DateColumn(x => x.CheckedOn).Width(180);
+                            }
+                            if (status == "Verified")
+                            {
+                                c.Bound(x => x.CheckedBy).Width(150);
+                                c.DateColumn(x => x.CheckedOn).Width(180);
+                                c.Bound(x => x.VerifiedBy).Width(150).Title("Approved By");
+                                c.DateColumn(x => x.VerifiedOn).Width(180).Title("Approved On");
+                                c.Bound(x => x.ClosedBy).Width(150);
+                                c.DateColumn(x => x.ClosedOn).Width(180);
+                                c.Bound(x => x.ReasonForCancel).Title("Remarks").Width(150);
+                                @* c.Bound(x => x.PaymentRequest).Width(150).ClientTemplate("<button type='button' class='btn-btn-primary btn-payment-request' title='Payment Request' onclick='javascript:app.onPaymentRequest(\"#:uid#\")'><i class='fa fa-arrow-circle-right' style='padding: 0 2px;'></i> Payment Request</button>").Title("Payment Request"); *@
+                                c.Bound(x => x.PaymentRequest).Width(150).ClientTemplate("#if(RemainingBalance <= 0){#<button type='button' class='btn btn-primary btn-payment-request-disabled' title='Requested' disabled><i class='fa fa-check' style='padding: 0 2px;'></i>Requested</button>#} else {#<button type='button' class=' btn-payment-request' title='Payment Request' onclick='javascript:app.onPaymentRequest(\"#:uid#\")'><i class='fa fa-arrow-circle-right' style='padding: 0 2px;'></i> Payment Request</button>#}#").Title("Payment Request");
+
+                            }
+
+                        })
+                        .HtmlAttributes(new { @class = "h-grid v-grid" })
+                        .EnableEdit(Html)
+                        .Scrollable()
+                        .Sortable()
+                        .EnableFilter()
+                        .Resizable(x => x.Columns(true))
+                        .Pageable(x => x.Refresh(true))
+                        .Excel(x => x.AllPages(true))
+                        .Events(e =>
+                        {
+                            e.DataBound("function(e) { fixedGridColumn('" + @status + "'); }");
+                        })
+                         .DataSource(dataSource => dataSource
+                            .Ajax().ServerOperation(true).PageSize(50)
+                            .Read(read => read.Action("ReadPurchaseOrder", "Procurements", new { ApprovedStatus = status == "Pending" ? 0 : status == "Checked" ? 1 : status == "Verified" ? 2 : 3 }))
+                            .Model(m => m.Field("Id", typeof(string)))
+                        )
+)
+
+<form asp-page="@Url.Page("/General/DocumentViewer")" method="POST" target="_blank" id="frmDoc" style="display:none;">
+    <input type="hidden" name="RPT_R" value="PurchaseOrder" />
+    <input type="hidden" name="RPT_ENC_Id" />
+    <input type="hidden" name="RPT_EntityID" />
+    <input type="hidden" name="RPT_IsVerified" />
+    <input type="submit" value="Submit">
+</form>
+
+@{
+    var jsonData = Vue.Encode(new PurchaseOrder());
+}
+
+@(Html.Kendo().Window()
+        .Name("wndPOClosed")
+        .Title("Purchase Order")
+        .Content(@<text>
+    <form id="appCancel" v-on:submit.prevent="submitForm">
+        <div class="row">
+            <div class="form-group">
+                @Html.Label("Reason For Close")
+                <textarea class="k-textbox" v-model="ReasonForCancel" rows="3"></textarea>
+            </div>
+            <div class="form-group" style="text-align:right;padding-top:5px;">
+                <button type="submit" class="btn btn-save">Update</button>
+            </div>
+        </div>
+    </form>
+</text>)
+.Draggable()
+.Resizable()
+.Width(400)
+.Visible(false)
+    )
+
+@await Html.PartialAsync("PurchasePaymentRequest")
+<script type="text/javascript">
+    var app = new Vue({
+        el: '#app',
+        data: {
+            input: @(jsonData),
+            isVerified: false,
+        },
+        methods: {
+            deleteItem: function (uid) {
+                var dataItem = $('#grid').getKendoGrid().dataSource.getByUid(uid);
+                kendoConfirm("Do you want to delete this purchase order?", function () {
+                    $.postData("@Url.Action("DeletePurchaseOrder", "Procurements")", { Id: dataItem.Id, RefNo: dataItem.RefNoFormatted },
+                        function (data) {
+                            kendoAlert(data.Message, data.HasError);
+                            if (data.HasError)
+                                return;
+                            $('#grid').getKendoGrid().dataSource.read();
+                            lapp.refreshNotification();
+                        });
+                });
+            },
+            editItem: function (uid) {
+                var dataItem = $('#grid').getKendoGrid().dataSource.getByUid(uid);
+                window.open("@Url.Page("/Procurements/EditPurchaseOrder")?id=" + dataItem.Id);
+            },
+            verifyItem: function (uid) {
+                var dataItem = $('#grid').getKendoGrid().dataSource.getByUid(uid);
+                $.postData("@Url.Action("VerifyPurchaseOrder", "Procurements")", { Id: dataItem.Id, RefNo: dataItem.RefNoFormatted }, function (res) { app.onSuccess(res); lapp.refreshNotification(); });
+            },
+            checkPO: function (uid) {
+                var dataItem = $('#grid').getKendoGrid().dataSource.getByUid(uid);
+                $.postData("@Url.Action("CheckPurchaseOrder", "Procurements")", { Id: dataItem.Id, RefNo: dataItem.RefNoFormatted }, function (res) { app.onSuccess(res); lapp.refreshNotification(); });
+            },
+            unCheckPO: function (uid) {
+                var dataItem = $('#grid').getKendoGrid().dataSource.getByUid(uid);
+                $.postData("@Url.Action("UnCheckPurchaseOrder", "Procurements")", { Id: dataItem.Id, RefNo: dataItem.RefNoFormatted }, function (res) { app.onSuccess(res); lapp.refreshNotification(); });
+            },
+            revertItem: function (uid) {
+                var dataItem = $('#grid').getKendoGrid().dataSource.getByUid(uid);
+                kendoConfirm("Do you want to revert verified purchase order?", function () {
+                    $.postData("@Url.Action("UnVerifyPurchaseOrder", "Procurements")", { Id: dataItem.Id, RefNo: dataItem.RefNoFormatted }, function (res) { app.onSuccess(res); lapp.refreshNotification(); });
+                });
+            },
+            closePO: function (uid) {
+                var dataItem = $('#grid').getKendoGrid().dataSource.getByUid(uid);
+                this.input.Id = dataItem.Id;
+                this.input.RefNoFormatted = dataItem.RefNoFormatted;
+                $('#wndPOClosed').getKendoWindow().open().center();
+                // $.postData("@Url.Action("ClosePO", "Procurements")", { Id: dataItem.Id, RefNo: dataItem.RefNoFormatted }, function (res) { app.onSuccess(res); });
+            },
+            openPO: function (uid) {
+                var dataItem = $('#grid').getKendoGrid().dataSource.getByUid(uid);
+                kendoConfirm("Do you want to mark this purchase order as Open?", function () {
+                    $.postData("@Url.Action("OpenPO", "Procurements")", { Id: dataItem.Id, RefNo: dataItem.RefNoFormatted }, function (res) { app.onSuccess(res); });
+                });
+            },
+            onSuccess: function (res) {
+                kendoAlert(res.Message, res.HasError);
+                if (res.HasError)
+                    return;
+                $('#grid').getKendoGrid().dataSource.read();
+            },
+            printItem: function (uid) {
+                var dataItem = $('#grid').getKendoGrid().dataSource.getByUid(uid);
+                if (dataItem.VerifiedBy)
+                    this.isVerified = true;
+
+                $('#frmDoc [name=RPT_ENC_Id]').val(dataItem.Id);
+                $('#frmDoc [name=RPT_EntityID]').val(@(appUser.EntityID));
+                $('#frmDoc [name=RPT_IsVerified]').val(app.isVerified);
+                $('#frmDoc').submit();
+            },
+            onPaymentRequest: function (uid) {
+                appEdit.open(uid);
+
+
+            }
+        }
+    });
+</script>
+<script type="text/javascript">
+    var appCancel = new Vue({
+        el: '#appCancel',
+        data: {
+            ReasonForCancel: "",
+        },
+        methods: {
+            submitForm: function (uid) {
+                if (!this.ReasonForCancel) {
+                    kendoAlert("Please enter the reason.")
+                    return;
+                }
+                $.postData("@Url.Action("ClosePO", "Procurements")", { Id: app.input.Id, RefNo: app.input.RefNoFormatted, ReasonForCancel: appCancel.ReasonForCancel }, function (res) { appCancel.onSuccess(res); });
+            },
+            onSuccess: function (res) {
+                kendoAlert(res.Message, res.HasError);
+                if (res.HasError)
+                    return;
+                $('#grid').getKendoGrid().dataSource.read();
+                $('#wndPOClosed').getKendoWindow().close();
+            }
+        }
+    });
+</script>
+
+<script type="text/javascript">
+    $(function () {
+        $("#grid.grid-edit").on("dblclick", ".k-grid-content tr", function () {
+            var dataItem = $("#grid").getKendoGrid().dataItem($(this));
+            window.open("@Url.Page("/Procurements/EditPurchaseOrder")?id=" + dataItem.Id);
+        });
+    });
+</script>
+

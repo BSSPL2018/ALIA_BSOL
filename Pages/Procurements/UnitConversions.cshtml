@@ -1,0 +1,96 @@
+﻿@page
+@using Core.Entities
+@model UnitConversions
+
+@if (!await Html.HasAccess(Forms.Procurement.Items))
+{
+    return;
+}
+
+@{
+    ViewData["Title"] = "UnitConversions";
+    Layout = "~/Pages/Shared/_Layout.cshtml";
+}
+
+@(Html.Kendo().Grid<UnitConversions>().Name("gridUnit")
+        .Editable(Html, "Unit Conversion")
+           .Columns(c =>
+           {
+               c.DeleteColumn(x => x.ID,"deleteUnit('#:uid#')");
+               c.Bound(x => x.FromUnit).Width(100);
+               c.Bound(x => x.ToUnit).Width(100);
+               c.Bound(x => x.Conversion).Width(100);
+           })
+            .DataSource(d => d.Ajax()
+            .Batch(true)
+            .ServerOperation(false)
+            .Events(events => events.Error("grid_ErrorHandler"))
+            .Create("UpdateUnitConversions", "Procurements")
+            .Read("ReadUnitConversions", "Procurements")
+            .Model(model =>
+            {
+                model.Id(p => p.ID);
+                model.Field("ID", typeof(long)).Editable(false);
+            })
+            .Update("UpdateUnitConversions", "Procurements")
+            )
+            .Events(x => x.SaveChanges("gridUnit_SaveChanges"))
+            .HtmlAttributes(new { @class = "h-grid v-grid" })
+            .Sortable()
+            .Scrollable()
+            .Navigatable()
+            )
+
+@section Scripts{
+<script type="text/javascript">
+        function gridUnit_SaveChanges(e) {
+            var data = $(e.sender.element).getKendoGrid().dataSource.data();
+            var dirty = $.grep(data, function (item) {
+                return item.dirty || item.ID === 0;
+            });
+
+            var FromUnitEmpty = $.grep(dirty, function (item) {
+                return !item.FromUnit;
+            });
+            var ToUnitEmpty = $.grep(dirty, function (item) {
+                return !item.ToUnit;
+            });
+            var ConversionEmpty = $.grep(dirty, function (item) {
+                return !item.Conversion;
+            });
+
+            var errors = [];
+
+            if (FromUnitEmpty && FromUnitEmpty.length)
+                errors.push("FromUnit Should not be empty");
+
+            if (ToUnitEmpty && ToUnitEmpty.length)
+                errors.push(" ToUnit Should not be empty");
+
+            if (ConversionEmpty && ConversionEmpty.length)
+                errors.push(" Conversion Should not be empty");
+
+
+            if (errors.length) {
+                e.preventDefault();
+                kendoAlert(errors.join("\n"), true);
+            }
+        }
+
+        function deleteUnit(uid) {
+            var dataItem = $('#gridUnit').getKendoGrid().dataSource.getByUid(uid);
+            if (dataItem.ID == 0) {
+                $('#gridUnit').getKendoGrid().dataSource.cancelChanges(dataItem);
+                return;
+            }
+            kendoConfirm("Do you want to Delete this UnitConversion?", function () {
+                $.post("@Url.Action("DeleteUnitConversions", "Procurements")", { ID: dataItem.ID, FromUnit: dataItem.FromUnit, ToUnit: dataItem.ToUnit, Conversion: dataItem.Conversion},
+                    function (data) {
+                        kendoAlert(data.Message, data.HasError);
+                        if (!data.HasError)
+                            $('#gridUnit').getKendoGrid().dataSource.read();
+                    });
+            });
+        }
+    </script>
+}

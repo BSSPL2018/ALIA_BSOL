@@ -1,0 +1,124 @@
+﻿@page
+@using BSOL.Core.Models.DashBoard
+@{
+    ViewBag.Title = "Sales Status";
+    Layout = "~/Pages/Shared/_Layout.cshtml";
+}
+@section BreadCrumb {
+    @await Html.PartialAsync("Tabs", "Hire Purchase/Dashboard")
+}
+<form id="app">
+    <div class="g-title">
+        <div class="g-left">
+            <table>
+                <tr>
+                    <td>
+                        <kendo-datepicker v-model="input.FromDate" :max="maxDate" :format="'dd-MMM-yyyy'" @@change="function(e){setModel(e,input,'FromDate')}" style="width:130px"></kendo-datepicker>
+                    </td>
+                    <td>
+                        <kendo-datepicker v-model="input.ToDate" :max="maxDate" :format="'dd-MMM-yyyy'" @@change=" function(e){setModel(e,input,'ToDate')}" style="width:130px"></kendo-datepicker>
+                    </td>
+                    <td>
+                        <kendo-datasource ref="dsproduct" :transport-read-url="'@Url.Action("ReadProduct", "DashBoard")'" :transport-read-type="'POST'"></kendo-datasource>
+                        <kendo-combobox ref="ddproduct" v-model="input.Product" :data-source-ref="'dsproduct'" :data-text-field="'Value'" :data-value-field="'Value'" :filter="'contains'" style="width:100%"></kendo-combobox>
+                    </td>
+                    <td>
+                        <button type="button" title="View" class="btn btn-save btn-cntrls" @@click="app.viewSalesStatus()"><i class="fa fa-search"></i>View</button>
+                    </td>
+                </tr>
+            </table>
+        </div>
+        <span class="g-text">Sales Status</span>
+        <div class="g-right">
+            @Html.ExcelButton()
+        </div>
+    </div>
+</form>
+
+@(Html.Kendo().Grid<SalesStatus>()
+        .Name("grid")
+        .Columns(c =>
+        {
+            c.PrintColumn("app.printItem('#:uid#')");
+            c.Bound(p => p.Unit).Width(80);
+            c.Bound(p => p.ItemCode).Width(150);
+            c.Bound(p => p.Cust_Name_EN).Title("Customer Name").Width(180);
+            c.Bound(p => p.Cust_Ref).Title("Nic No").Width(100);
+            c.Bound(p => p.Registration_No).Title("Reg. No").Width(110);
+            c.Bound(p => p.InvoiceNo).Width(150);
+            c.DateColumn(p => p.Invoice_Date).Title("Sold Date").Width(120);
+            c.Bound(p => p.InvoiceType).Width(120);
+            c.NumberColumn(p => p.No_Payment).Title("No Payment").Width(120);
+            c.MoneyColumn(p => p.InitialAmount).Width(120);
+            c.MoneyColumn(p => p.TotalPrice).Width(100);
+            c.MoneyColumn(p => p.Paid_Amount).Title("Settled").Width(100);
+            c.MoneyColumn(p => p.BalanceAmount).Title("Balance").Width(100);
+            c.MoneyColumn(p => p.Default_Amt).Title("Default").Width(100);
+            c.MoneyColumn(p => p.StaffPrice).Width(100);
+            c.Bound(p => p.CustomerType).Width(140);
+            c.Bound(p => p.ProformaNo).Width(140);
+            
+
+            
+            c.Bound(p => p.SalesType).Width(120).Width(150);
+            c.Bound(p => p.SoldBy).Width(150);
+            c.Bound(p => p.PromotionCode).Width(100);
+            c.Bound(p => p.EntryBy).Width(150);
+        })
+            .HtmlAttributes(new { @class = "h-grid v-grid" })
+            .Scrollable()
+            .AutoBind(false)
+            .Selectable()
+            .Sortable()
+            .EnableFilter()
+            .Resizable(x => x.Columns(true))
+            .Pageable(x => x.Refresh(true))
+            .Excel(x => x.AllPages(true))
+            .DataSource(dataSource => dataSource
+            .Ajax().ServerOperation(true).PageSize(500)
+            .Read(read => read.Action("ReadSalesStatus", "DashBoard").Data("app.grid_Data"))
+            .Sort(s => s.Add(x => x.Invoice_Date).Descending())
+            )
+        )
+
+<form asp-page="/General/DocumentViewer" method="POST" target="_blank" id="frmDoc" style="display:none;">
+    <input type="hidden" name="RPT_R" />
+    <input type="hidden" name="RPT_InvoiceNo" />
+</form>
+
+@section Scripts{
+    <script type="text/javascript">
+        var dt = new Date();
+        var year = dt.getFullYear();
+        var month = dt.getMonth();
+        var date = dt.getDate();
+
+        var app = new Vue({
+            el: '#app',
+            data: {
+                input: {
+                    FromDate: new Date(year - 14, month, date),
+                    ToDate: new Date(),
+                    Product: ""
+                },
+                maxDate: new Date(),
+            },
+            methods: {
+                grid_Data: function () {
+                    return { FromDate: StdDate(this.input.FromDate), ToDate: StdDate(this.input.ToDate), Product: this.input.Product };
+                },
+                viewSalesStatus: function () {
+                    $('#grid').getKendoGrid().dataSource.read();
+                },
+                printItem: function (uid) {
+                    var dataItem = $('#grid').getKendoGrid().dataSource.getByUid(uid);
+
+
+                    $('#frmDoc [name=RPT_R]').val("CustomerStatement");
+                    $('#frmDoc [name=RPT_InvoiceNo]').val(dataItem.InvoiceNo);
+                    $('#frmDoc').submit();
+                }
+            }
+        });
+    </script>
+}

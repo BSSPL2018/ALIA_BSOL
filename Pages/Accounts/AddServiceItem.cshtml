@@ -1,0 +1,68 @@
+﻿@using Core.Models.Accounts
+@using BSOL.Core.Entities;
+
+<div id="appSItem">
+    <div id="servicelst" class="modal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered modal-lg ">
+            <div class="modal-content" style="border-radius:0px;">
+                <div class="header-modal" style="display :flex; background: blueviolet !important;border-radius: inherit !important ; ">
+                    <h5 class="modal-title title-modal">Service List</h5>
+                    <button style="position: absolute; right: 8px;" type="button" @@click="wndClose" class="btn-close close-btn" data-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    @(Html.Kendo().Grid<BusinessService>()
+                        .Name("gridServiceItem")
+                        .AutoBind(false)
+                        .Columns(x =>
+                        {
+                            x.Bound(c => c.ID).ClientTemplate("<i class='btn-grid btn-grid-plus fa fa-plus' title='Select Item'></i>").Center().HtmlAttributes(new { onclick = "appSItem.addItem(this)" }).Width(30).Filterable(false).Sortable(false).ClearTitle();
+                            x.Bound(c => c.ServiceCategory).Width(120);
+                            x.Bound(c => c.ServiceName).Width(150);
+                            x.Bound(c => c.ServiceNo).Width(120);
+                        })
+                        .Sortable()
+                        .EnableFilter()
+                        .Resizable(x => x.Columns(true))
+                        @* .Scrollable() *@
+                        .HtmlAttributes(new { @class = "h-grid v-grid" })
+                        .Events(x => x.DataBound("appSItem.gridSItemDataBound"))
+                        .DataSource(d => d
+                        .Ajax().ServerOperation(true).PageSize(50)
+                        .Read(read => read.Action("ReadAvailableService", "PaymentMaster").Data("appSItem.grid_ServiceItemData"))
+                        ))
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-danger" @@click="wndClose"  data-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script type="text/javascript">
+    var appSItem = new Vue({
+        el: '#appSItem',
+        data: {
+        },
+        methods: {
+            open: function () {
+                $('#gridServiceItem').getKendoGrid().dataSource.read();
+                showModal('servicelst');
+            },
+            grid_ServiceItemData: function () {
+                return { ServiceCategory: appEdit.input.PaymentCategory, BusinessUnitId: appEdit.input.BusinessUnitId };
+            },
+            addItem: function (sender) {
+                var $grid = $('#gridServiceItem').getKendoGrid();
+                var item = $grid.dataItem($(sender).parent());
+                $(sender).find('i').removeClass("fa-plus").addClass("fa-spinner fa-spin");
+                $grid.dataSource.remove(item);
+                if (this.addServiceCallBack)
+                    this.addServiceCallBack(item);
+            },
+            wndClose: function () {
+                hideModal('servicelst');
+            }
+        }
+    });
+</script>

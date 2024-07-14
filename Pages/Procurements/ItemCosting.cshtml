@@ -1,0 +1,122 @@
+﻿@page
+@using Core.Entities
+@using Core.Models.Procurement
+@{
+    ViewData["Title"] = "Item Costing";
+    Layout = "~/Pages/Shared/_Layout.cshtml";
+}
+@if (!await Html.HasAccess(Forms.Procurement.Costing))
+{
+    return;
+}
+
+<div id="app">
+    <div class="g-title">
+        <div class="g-left">
+            <ul class="tg-btn tg-fixed" style="float: right; margin-left: 15px; margin-top: 1px;">
+                <li :class="{'tg-active': TabIndex == 0}">
+                    <a href="javascript:app.tabChange(0)">Pending</a>
+                </li>
+                <li :class="{'tg-active': TabIndex == 1}">
+                    <a href="javascript:app.tabChange(1)">Completed</a>
+                </li>
+                <li :class="{'tg-active': TabIndex == 2}">
+                    <a href="javascript:app.tabChange(2)">Verified</a>
+                </li>
+            </ul>
+        </div>
+        <span class="g-text">Costing Details</span>
+        <div class="g-right">
+            @Html.ExcelButton()
+        </div>
+    </div>
+    @(Html.Kendo().Grid<ItemCostingMasterModel>()
+        .Name("grid")
+        .Columns(c =>
+        {
+            c.PrintColumn().Hidden();
+            c.Bound("").ClientTemplate("<a class='btn-grid viewbtncolor fa fa-usd' href='javascript:appCos.open(\"#:uid#\")' title='Expenses'></a>").Title("").HtmlAttributes(new { style = "text-align:center;" }).Width(40).Sortable(false).Filterable(false);
+            c.Bound(x => x.RefNo).Width(140);
+            c.MoneyColumn(x => x.TotalValue).Title("Total").Width(120);
+            c.Bound(x => x.CreatedBy).Width(120).Hidden();
+            c.DateColumn(x => x.CreatedOn).Width(150).Hidden();
+            c.Bound(x => x.VerifiedBy).Width(120).Hidden();
+            c.DateColumn(x => x.VerifiedOn).Width(150).Hidden();
+            c.DateColumn(x => x.ETD).Width(120);
+            c.DateColumn(x => x.ETA).Width(120);
+            c.DateColumn(x => x.ActualArrivalDate).Title("Actual Arvl. Date").Width(140);
+            c.DateColumn(x => x.ClearedDate).Width(160);
+            c.Bound(x => x.ClearanceType).Width(150);
+            c.Bound(x => x.ShipmentMode).Title("Mode").Width(120);
+            c.Bound(x => x.CustomsRefNo).Width(150);
+        })
+        .Scrollable()
+        .Sortable()
+        .EnableEdit(Html)
+        .EnableFilter()
+        .Resizable(x => x.Columns(true))
+        .Pageable(x => x.Refresh(true))
+        .Excel(x => x.AllPages(true))
+        .DataSource(dataSource => dataSource
+        .Ajax().ServerOperation(true).PageSize(50)
+        .Read(read => read.Action("ReadShipmentsForCosting", "Costing").Data("app.gridData"))
+        .Sort(s => s.Add(x => x.ShipmentId).Descending()))
+        )
+    <form asp-page="@Url.Page("/General/DocumentViewer")" method="POST" target="_blank" id="frmDoc" style="display:none;">
+        <input type="hidden" name="RPT_R" value="Sales/ReceivedNote" />
+        <input type="hidden" name="RPT_ShipmentId" />
+        <input type="hidden" name="RPT_PurchaseOrderId" />
+        <input type="submit" value="Submit">
+    </form>
+
+</div>
+
+@section scripts{
+    @await Html.PartialAsync("AddItemCosting")
+
+    <script type="text/javascript">
+        var app = new Vue({
+            el: '#app',
+            data: {
+                TabIndex: 0
+            },
+            methods: {
+                tabChange: function(index){
+                    this.TabIndex = index;
+                    var $grid = $("#grid").getKendoGrid();
+                    if(index == 0){
+                        $grid.hideColumn(0);
+                        $grid.hideColumn("CreatedBy");
+                        $grid.hideColumn("CreatedOn");
+                        $grid.hideColumn("VerifiedBy");
+                        $grid.hideColumn("VerifiedOn");
+                    }
+                    else if(index == 1){
+                        $grid.hideColumn(0);
+                        $grid.showColumn("CreatedBy");
+                        $grid.showColumn("CreatedOn");
+                        $grid.hideColumn("VerifiedBy");
+                        $grid.hideColumn("VerifiedOn");
+                    }
+                    else if (index == 2) {
+                        $grid.showColumn(0);
+                        $grid.showColumn("CreatedBy");
+                        $grid.showColumn("CreatedOn");
+                        $grid.showColumn("VerifiedBy");
+                        $grid.showColumn("VerifiedOn");
+                    }
+                    $grid.dataSource.read();
+                },
+                gridData: function () {
+                    return { StatusFilter: this.TabIndex };
+                },
+                printItem: function (uid) {
+                    var dataItem = $('#grid').getKendoGrid().dataSource.getByUid(uid);
+                    $('#frmDoc [name=RPT_ShipmentId]').val(dataItem.ShipmentId);
+                    $('#frmDoc [name=RPT_PurchaseOrderId]').val(dataItem.PurchaseOrderId);
+                    $('#frmDoc').submit();
+                }
+            }
+        });
+    </script>
+}

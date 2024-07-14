@@ -1,0 +1,53 @@
+﻿@model object
+@{
+    /**/
+
+    var data = ViewData["Data"] as EditorData;
+}
+@(Html.Kendo().ComboBoxFor(x => x)
+                            //.ValuePrimitive(true)
+                            .Filter(FilterType.Contains)
+                                .DataSource(x => x.Read(r => r.Url(data.Url).Type(HttpVerbs.Post)
+                                .Data(@<text>
+                                    function(){
+                                    var gridDataItem = $(".k-edit-cell").closest(".k-grid").data("kendoGrid").dataItem($(".k-edit-cell").closest("tr"));
+                                        @if (!string.IsNullOrEmpty(data.DataEvent))
+                                        {
+                                            <text>
+                                                return @(data.DataEvent)(gridDataItem);
+                                            </text>
+                                        }
+                                        else if (!string.IsNullOrEmpty(data.AdditionalData))
+                                        {
+                                            <text>
+
+                                                return {@(data.AdditionalData): gridDataItem.@(data.AdditionalData)};
+                                            </text>
+                                        }
+                                        }
+                                    </text>)
+                                                                    ))
+                                                                    .DataTextField(data.TextField).DataValueField(data.ValueField)
+                                                                    .Events(x => x.Change(@<text>
+                                                                        function(arg){
+                                                                        var selectedItem = arg.sender.dataItem(arg.sender.selectedIndex);
+                                                                        var gridDataItem = $(".k-edit-cell").closest(".k-grid").data("kendoGrid").dataItem($(".k-edit-cell").closest("tr"));
+                                                                        @if(data.TextField.IsValid()){
+                                                                                <text>
+                                                                                    gridDataItem.@(data.DisplayMember) = selectedItem ? selectedItem.@(data.TextField) : null;
+                                                                                </text>
+                                                                        }
+                                                                        else{
+                                                                                <text>
+                                                                                    gridDataItem.@(data.DisplayMember) = selectedItem;
+                                                                                </text>
+                                                                        }
+                                                                        
+                                                                            @if (data.OnChange.IsValid())
+                                                                            {
+                                                                                <text>
+                                                                                    @(data.OnChange)(selectedItem, gridDataItem, arg.sender);
+                                                                                </text>
+                                                                            }
+                                                                            }
+                                                                        </text>)))

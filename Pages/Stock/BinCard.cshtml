@@ -1,0 +1,183 @@
+﻿@page
+@using BSOL.Core.Entities
+@using BSOL.Core.Models.Procurement
+@{
+    ViewData["Title"] = "Bin Card";
+    Layout = "~/Pages/Shared/_Layout.cshtml";
+    ViewBag.IsFolded = true;
+}
+@if (!await Html.HasAccess(Forms.Procurement.BinCard))
+{
+    return;
+}
+@section BreadCrumb{
+    @await Html.PartialAsync("BreadCrumb", "Procurement")
+    @await Html.PartialAsync("Tabs", "Procurement/Stock")
+}
+<style>
+    .pos-search {
+        margin: 4px 0px 4px 0px !important;
+    }
+</style>
+<form id="app" v-on:submit.prevent="submitForm">
+    <div class="g-title v-edit">
+        <div class="g-left">
+            <div class="pos-search">
+                <table>
+                    <tr>
+                        <td>
+                            <input type="text" v-model.trim="param.SearchText" placeholder="Enter sku or UPC or item name or Description" v-on:input="onSearch" />
+                        </td>
+                        <td class="pos-icon" @@click="onSearch">
+                            <i class="fa fa-search" aria-hidden="true"></i>
+                        </td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+        <div style="margin-top:5px;">
+            <span class="g-text">Bin Card</span>
+            <div class="g-right">
+                <kendo-datepicker :value="param.FromDate" :format="'dd-MMM-yyyy'" @@change="function(e){setModel(e,param,'FromDate')}" :disabled="!param.ItemId" style="width:120px;"></kendo-datepicker>
+                <kendo-datepicker :value="param.ToDate" :format="'dd-MMM-yyyy'" @@change="function(e){setModel(e,param,'ToDate')}" :disabled="!param.ItemId" style="width:120px;"></kendo-datepicker>
+                <button type='submit' class='btn btn-save' title='View' :disabled="!param.ItemId"><i class='fa fa-check'></i>View</button>
+                @Html.ExcelButton(@"ExportToExcel(""gridBinCard"")")
+            </div>
+        </div>
+    </div>
+</form>
+<div class="row">
+    <div class="col-md-5">
+        @(Html.Kendo().Grid<Item>()
+            .Name("gridItems")
+            .Columns(x =>
+            {
+                x.Bound(c => c.SKUFormatted).Title("SKU").Width(100);
+                x.Bound(c => c.Unit).Width(130);
+                x.Bound(c => c.ItemCode).Title("Item code").Width(160);
+                x.Bound(c => c.Description);
+                x.Bound(c => c.ItemCategory).Title("Category").Width(160);
+                x.NumberColumn(c => c.Stock).Width(100);
+            })
+            .Sortable()
+            .Scrollable()
+            .Selectable()
+            .Pageable(x => x.Refresh(true))
+            .Resizable(x => x.Columns(true))
+            .EnableFilter()
+            .HtmlAttributes(new { @class = "h-grid v-grid" })
+            .DataSource(d => d
+            .Ajax().ServerOperation(true).PageSize(50)
+            .Read(read => read.Action("ReadBinCardItems", "Stock"))))
+    </div>
+    <div class="col-md-7">
+        @(Html.Kendo().Grid<BinCardDetailModel>()
+            .Name("gridBinCard")
+            .AutoBind(false)
+            .Columns(x =>
+            {
+                x.DateColumn(c => c.TransactionDate).Width(150);
+                x.Bound(c => c.Process).Width(130);
+                x.Bound(c => c.RefNo).Width(120);
+                x.Bound(c => c.Unit).Width(90);
+                x.NumberColumn(c => c.Qty).Width(90);
+                x.NumberColumn(c => c.Stock).Width(90);
+                x.MoneyColumn(c => c.UnitPrice).Width(100);
+                x.MoneyColumn(c => c.Value).Width(100);
+                x.MoneyColumn(c => c.WAC).Width(100);
+                x.MoneyColumn(c => c.InventoryValue).Width(140);
+            })
+            .Sortable()
+            .Scrollable()
+            //.Pageable(x => x.Refresh(true))
+            .Resizable(x => x.Columns(true))
+            .EnableFilter()
+            .HtmlAttributes(new { @class = "h-grid v-grid" })
+            .DataSource(d => d
+            .Ajax().ServerOperation(false)
+            //.PageSize(50)
+            .Read(read => read.Action("ReadBinCard", "Stock").Data("app.gridData"))))
+    </div>
+</div>
+@*@section Scripts{
+    @(Html.Kendo().Window()
+      .Name("wndDetails")
+      .Title("Reference No Details")
+      .Content(@<text>
+            @(Html.Kendo().Grid<BinCardModel>()
+                    .Name("gridDetails")
+                    .AutoBind(false)
+                    .Columns(c =>
+                    {
+                        c.Bound(c => c.ReferenceNo).Width(150);
+                        c.NumberColumn(c => c.Qty).Width(100);
+                    })
+                    .HtmlAttributes(new { @class = "h-grid v-grid" })
+                    .Sortable()
+                    .Navigatable()
+                    .Resizable(x => x.Columns(true))
+                    .Events(x => x.DataBound("app.gridDetailsDataBound"))
+                    .DataSource(d => d
+                    .Ajax().ServerOperation(false)
+                    .Read(read => read.Action("ReadBinCardDetails", "Stock").Data("app.gridDetails_Data"))
+              ))
+    </text>)
+.Draggable()
+.Resizable()
+.Visible(false)
+.MaxWidth(550)
+    )
+}*@
+<script type="text/javascript">
+    $(function () {
+        $("#gridItems").on("click", ".k-grid-content tr", function () {
+            var dataItem = $("#gridItems").getKendoGrid().dataItem($(this));
+            app.param.ItemId = dataItem.Id;
+            app.submitForm();
+        });
+    });
+
+    var fromDate = new Date();
+    fromDate.setMonth(fromDate.getMonth() - 1);
+
+    var app = new Vue({
+        el: '#app',
+        data: {
+            param: {
+                FromDate: fromDate,
+                ToDate: new Date(),
+                ItemId: null,
+                SearchText: "",
+                Date: null,
+                Process: null,
+            }
+        },
+        methods: {
+            submitForm: function () {
+                $('#gridBinCard').getKendoGrid().dataSource.read();
+            },
+            gridData: function () {
+                return { ItemId: this.param.ItemId, FromDate: StdDate(this.param.FromDate), ToDate: StdDate(this.param.ToDate) };
+            },
+            gridDetails_Data: function () {
+                return { ItemId: this.param.ItemId, FromDate: StdDate(this.param.FromDate), ToDate: StdDate(this.param.ToDate), TransactionDate: StdDate(this.param.Date), Process: this.param.Process };
+            },
+            showDetails: function (uid) {
+                var dataItem = $('#gridBinCard').getKendoGrid().dataSource.getByUid(uid);
+                this.param.Process = dataItem.Process;
+                this.param.Date = StdDate(dataItem.TransactionDate);
+
+                $('#gridDetails').getKendoGrid().dataSource.read();
+                $('#wndDetails').getKendoWindow().open().center().setOptions({ title: dataItem.Process + "s on " + ToDate(dataItem.TransactionDate) });
+            },
+            gridDetailsDataBound: function () {
+                $('#wndDetails').getKendoWindow().center();
+            },
+            onSearch: function () {
+                this.param.SearchText != null ? this.param.SearchText : "";
+                $('#gridItems').getKendoGrid().dataSource.read({ SearchText: this.param.SearchText });
+                $('#gridBinCard').getKendoGrid().dataSource.data([]);
+            }
+        }
+    });
+</script>

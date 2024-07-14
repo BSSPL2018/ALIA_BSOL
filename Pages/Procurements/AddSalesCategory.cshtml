@@ -1,0 +1,100 @@
+﻿@using Core.Entities
+@Html.Kendo().Window().Name("wndSalesCategory").Content(@<text>
+@(Html.Kendo().Grid<SalesCategory>().Name("gridSalesCategory")
+.Editable(Html, "Sales Categories")
+                .Columns(c =>
+                {
+                    c.DeleteColumn(x => x.Id, "deleteSalesCategory('#:uid#')");
+                    c.Bound(p => p.Category).Width(200);
+                    c.Bound(p => p.Description);
+                })             
+                .DataSource(d => d
+                    .Ajax()
+                    .Batch(true)
+                    .ServerOperation(true)
+                    .PageSize(50)
+                    .Model(model =>
+                    {
+                        model.Id(p => p.Id);
+                        model.Field(p => p.Id).Editable(false);
+                    })
+                    .Events(x => x.RequestEnd("gridSalesCategory_RequestEnd").Error("grid_ErrorHandler"))
+                    .Read(read => read.Action("ReadSalesCategories", "Procurements"))
+                    .Create(create => create.Action("UpdateSalesCategories", "Procurements"))
+                    .Update(update => update.Action("UpdateSalesCategories", "Procurements"))
+                )
+                .Events(x => x.SaveChanges("gridSalesCategory_SaveChanges").DataBound("gridSalesCategory_DataBound"))
+                .Sortable()
+                .AutoBind(false)
+                .HtmlAttributes(new { @class = "h-grid v-grid" })
+                .Scrollable()
+                .Pageable(x => x.Refresh(true))
+                .Navigatable()
+)    
+</text>).Visible(false).Title("Add Sales Category").Draggable(true).Events(e => e.Close("wndSalesCategory_Close")).Resizable().MaxWidth(750)
+
+<script type="text/javascript">
+     function addSalesCategory(){
+        $('#gridSalesCategory').getKendoGrid().dataSource.read();
+        $('#wndSalesCategory').getKendoWindow().open();
+        $('#wndSalesCategory').getKendoWindow().center();
+    }
+    function gridSalesCategory_DataBound(){
+        $('#wndSalesCategory').getKendoWindow().center();
+    }
+    function wndSalesCategory_Close(){
+        app.loadSalesCategory();
+    }
+    function deleteSalesCategory(uid){
+        var dataItem = $('#gridSalesCategory').getKendoGrid().dataSource.getByUid(uid);
+        if (dataItem.Id == 0) {
+            $('#gridSalesCategory').getKendoGrid().dataSource.cancelChanges(dataItem);
+            return;
+        }
+        kendoConfirm("Do you want to Delete this Sales Category?", function () {
+            $.postData("@Url.Action("DeleteSalesCategory", "Procurements")", { Id: dataItem.Id, Category: dataItem.Category, Description: dataItem.Description },
+                function (data) {
+                    kendoAlert(data.Message, data.HasError);
+                    if (!data.HasError)
+                        $('#gridSalesCategory').getKendoGrid().dataSource.read();
+                });
+        });
+    }
+    function gridSalesCategory_SaveChanges(e) {
+        var data = $(e.sender.element).getKendoGrid().dataSource.data();
+        var dirty = $.grep(data, function (item) {
+            return item.dirty || item.Id === 0;
+        });
+        var salesCategory = $.grep(dirty, function (item) {
+            return !item.Category;
+        });
+         var salesDescription = $.grep(dirty, function (item) {
+            return !item.Description;
+        });
+
+        var errors = [];
+        if (salesCategory && salesCategory.length > 0) {
+            $.each(salesCategory, function (i) {
+                if (salesCategory[i].Category == "")
+                    errors.push("Sales Category Should not be empty");
+                return;
+            });
+        }
+        if (salesDescription && salesDescription.length > 0) {
+            $.each(salesDescription, function (i) {
+                if (salesDescription[i].Description == "")
+                    errors.push("Sales Description Should not be empty");
+                return;
+            });
+        }
+
+        if (errors.length) {
+            e.preventDefault();
+            kendoAlert(errors.join("\n"), true);
+        }
+    }
+    function gridSalesCategory_RequestEnd (e) {
+        if ((e.type == "create" || e.type == "update") && !e.response.Errors)
+            kendoAlert("Sales Category Saved.");
+    }
+</script>

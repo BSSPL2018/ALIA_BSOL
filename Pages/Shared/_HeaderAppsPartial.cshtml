@@ -1,0 +1,17 @@
+﻿@{
+    BSOL.Helpers.Menu menu = new BSOL.Helpers.Menu();
+    var menus = menu.Get(Html);
+}
+
+<div class="header-apps-wrapper">
+
+    @foreach (var mainMenu in menus)
+    {
+        <a data-menu="@mainMenu.MenuName" href="javascript:navigateUrl('@(Url.Page(mainMenu.Url))', '@mainMenu.MenuName')" class="header-app-item">
+            <span class="material-symbols-outlined" style="color:@mainMenu.Color;">@mainMenu.ClassName</span>
+            <span class="display-name">@mainMenu.MenuName</span>
+        </a>
+    }
+
+</div>
+

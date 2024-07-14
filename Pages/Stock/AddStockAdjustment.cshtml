@@ -1,0 +1,82 @@
+﻿@(Html.Kendo().Window()
+.Name("wndAdjustment")
+.Title("Add Adjustment")
+.Content(@<text>
+    <form id="appA" v-on:submit.prevent="submitForm">
+		<div class="form-group">
+			<label for="Qty">Qty</label>
+			<kendo-numerictextbox v-model="Qty" :min="0" :spinners="false" :format="'n0'" style="width:100%;"></kendo-numerictextbox>
+		</div>
+		<div class="form-group">
+			<label for="Reason">Reason</label>
+			<textarea v-model.trim="Reason" class="k-textbox" rows="2" style="width:100%;"></textarea>
+		</div>
+		<div style="text-align:center;">
+			@Html.SaveButton()
+			<button type='button' class='btn btn-cancel btn-cntrls' title='Cancel' @@click="cancel"><i class='fa fa-close'></i>Cancel</button>
+		</div>
+    </form>
+</text>)
+.Draggable()
+.Resizable()
+.Visible(false)
+.Width(350)
+)
+
+<script type="text/javascript">
+    var appA = new Vue({
+		el: '#appA',
+		data: {
+			SerialId: null,
+			Stock: 0,
+			Qty: 0,
+			Reason: null
+		},
+		methods: {
+			validateForm: function(){
+				removeError();
+				var isValid = true;
+				var setError = function (cntrl, msg) {
+					isValid = false;
+					showError(cntrl, msg);
+				};
+				if(!this.Qty)
+					setError('Qty');
+				if (!this.Reason)
+					setError('Reason');
+
+				if (this.Qty && this.Qty > this.Stock) {
+					isValid = false;
+					kendoAlert("Qty should not be greater than "+this.Stock, true);
+				}
+						
+				return isValid;
+			},
+			open: function(uid){
+				var dataItem = $('#grid').getKendoGrid().dataSource.getByUid(uid);
+				this.SerialId = dataItem.Id;
+				this.Stock = dataItem.Stock;
+				this.Qty = 0;
+				this.Reason = null;
+				$('#wndAdjustment').getKendoWindow().setOptions({ title: "Add Adjustment - " + dataItem.SKUFormatted });
+				$('#wndAdjustment').getKendoWindow().open().center();
+			},
+			submitForm: function(){
+				if (!this.validateForm())
+					return;
+
+				$.postData("@Url.Action("SavePerishableStockAdjustment", "PerishableStock")", { Id: appA.SerialId, Qty: appA.Qty, Reason: appA.Reason }, this.onSuccess);
+			},
+			onSuccess: function(res){
+				kendoAlert(res.Message, res.HasError);
+				if (res.HasError)
+					return;
+				
+				this.cancel();
+			},
+			cancel: function () {
+				$("#wndAdjustment").getKendoWindow().close();
+			}
+		}
+	});
+</script>

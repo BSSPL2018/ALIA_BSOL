@@ -1,0 +1,63 @@
+﻿@using BSOL.Core.Entities
+
+@Html.Kendo().Window().Name("wndPickCustomer").Content(@<text>
+        @(Html.Kendo().Grid<CustomerDetail>()
+    .Name("gridPickCustomer")
+    .Columns(x =>
+    {
+    x.Bound("").ClientTemplate("<i class='btn-grid btn-grid-plus fa fa-plus' title='Select Item'></i>").HtmlAttributes(new { onclick = "appCustomer.selectItem(this)", @class = "col-icon" }).Width(50).Filterable(false).Sortable(false).Title("");
+    x.Bound(c => c.Cust_Ref).Title("Nic No").Width(100);
+    x.Bound(c => c.Cust_Name_EN).Title("Customer Name").Width("180");
+    x.Bound(c => c.Cust_ContactNo).Title("Contact No").Width("120");
+    })
+    .EnableEdit(Html)
+    .Scrollable(sc => sc.Endless(true))
+    .Sortable()
+    .EnableFilter()
+    .Resizable(x => x.Columns(true))
+    .Pageable(p => p.Refresh(true))
+    .Excel(x => x.AllPages(true))
+    .DataSource(d => d
+    .Ajax().ServerOperation(true).PageSize(50)
+    .Read(read => read.Action("ReadPickCustomer", "Common"))
+    )
+    .HtmlAttributes(new { @class = "h-grid v-grid", data_wnd = 1 })
+        )
+    </text>).Visible(false).Title("Customer List").Draggable(true).Resizable().HtmlAttributes(new { style = "width: 90vw;max-width:900px;" })
+
+<script type="text/javascript">
+    var appCustomer = new Vue({
+        data: {
+            onSelectCallBack: null,
+            MultiSelect: false
+        },
+        methods: {
+            open: function () {
+                var $grid = $('#gridPickCustomer').getKendoGrid();
+                if (!$grid.dataSource.data().length)
+                    $grid.dataSource.read();
+                else
+                    $grid.refresh();
+
+                $('#wndPickCustomer').getKendoWindow().open().center();
+            },
+            selectItem: function (sender, uid) {
+                var $grid = $('#gridPickCustomer').getKendoGrid();
+                var item = sender ? $grid.dataItem($(sender).parent()) : $grid.dataSource.getByUid(uid);
+                this.onSelectCallBack(item);
+                $('#gridPickCustomer').getKendoGrid().dataSource.cancelChanges(item);
+                if (!this.MultiSelect)
+                    $('#wndPickCustomer').getKendoWindow().close();
+            },
+            gridItemsDataBound: function () {
+                $('#wndPickCustomer').getKendoWindow().center();
+            }
+        }
+    });
+
+    $(function () {
+        $('#gridPickCustomer').on('dblclick', 'tbody tr', function () {
+            appEmp.selectItem(null, $(this).attr('data-uid'));
+        });
+    });
+</script>

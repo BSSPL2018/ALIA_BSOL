@@ -1,0 +1,217 @@
+﻿@page
+@using BSOL.Core.Models.HirePurchase
+@using BSOL.Helpers
+@using Kendo.Mvc.UI
+@model ChequeList
+@inject AppUser appuser
+
+@{
+    ViewBag.Title = "Cheque Handover List";
+    Layout = "~/Pages/Shared/_Layout.cshtml";
+}
+
+<div id="app">
+    <div class="g-title">
+        <div class="g-left">
+            <ul class="tg-btn tg-fixed" style="display: inline-flex;">
+                <li :class="{'tg-active': TabIndex == 0}">
+                    <a href="javascript:app.tabChange(0)">Pending</a>
+                </li>
+                <li :class="{'tg-active': TabIndex == 1}">
+                    <a href="javascript:app.tabChange(1)">HandedOver To Customer</a>
+                </li>
+            </ul>
+        </div>
+
+        <div class="g-right">
+            <div v-show="TabIndex==0" class="cntrl-inline">
+                <kendo-datasource ref="dsEmployee" :transport-read-url="'@Url.Action("ReadFinanceAndHPEmployees", "Common")'" :transport-read-type="'POST'"></kendo-datasource>
+                <kendo-combobox ref="ddEmployee" v-model="EmployeeId" :data-source-ref="'dsEmployee'" :filter="'contains'" style="width:250px"></kendo-combobox>
+                @Html.SaveButton("app.updateHandoverCheques()","Update","Update")
+            </div>
+            <div v-show="TabIndex==1" class="cntrl-inline">
+                @Html.VerifyButton(false,"app.undoHandedOverCheques()","Un-do")
+                <div class="btn-group">
+                    <button type="button" class="btn btn-primary dropdown-toggle" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                        <i class="fa fa-print" style="font-size: 15px;"></i> Print <span class="caret"></span>
+                    </button>
+                    <ul id="lstPrint" class="dropdown-menu">
+                        <li><a href="#" data-report="HP/ChequeHandedOver">Print HandOver Cheque List</a></li>
+                    </ul>
+                </div>
+            </div>
+            @Html.ExcelButton()
+        </div>
+    </div>
+</div>
+
+<div>
+    @(Html.Kendo().Grid<ChequeHanedOverModel>().Name("grid")
+        .Columns(c =>
+        {
+            c.SelectColumn(p => p.ID);
+            c.Bound(p => p.CustomerName).Width(300).Title("Customer Name");
+            c.Bound(p => p.AgrementRef).Title("Reference No").Width(160);
+            c.Bound(p => p.ChequeNo).Width(90);
+            c.DateColumn(p => p.ChequeDate).Title("Cheque Date").Width(130);
+            c.MoneyColumn(p => p.Amount).Width(90);
+            c.Bound(p => p.HandedOverBy).Width(150);
+            c.DateColumn(p => p.HandedOverOn).Title("HandedOver Date").Width(120);
+            c.Bound(p => p.EntryBy).Width(150);
+            c.DateColumn(p => p.EntryDate).Width(130);
+        })
+        .DataSource(dataSource => dataSource
+        .Ajax()
+        .Batch(true)
+        .ServerOperation(true)
+        .PageSize(50)
+        .Read(read => read.Action("ReadHandOverChequeList", "HirePurchase").Data("app.grid_Data"))
+        .Model(model =>
+        {
+            model.Id(x => x.ID);
+            model.Field(x => x.ID).Editable(false);
+        })
+        )
+        .EnableFilter()
+        .Excel(x => x.AllPages(true))
+        .Resizable(x => x.Columns(true))
+        .Pageable(x => x.Refresh(true))
+        .Sortable()
+        .Selectable()
+        .Scrollable()
+        .Editable(editable => editable.Mode(GridEditMode.InCell))
+        .HtmlAttributes(new { @class = "h-grid v-grid" })
+        )
+</div>
+<form asp-page="/General/DocumentViewer" method="POST" target="_blank" id="frmDoc" style="display:none;">
+    <input type="hidden" name="RPT_R" />
+    <input type="hidden" name="RPT_IDs" />
+</form>
+@section Scripts
+    {
+    <script type="text/javascript">
+        var app = new Vue({
+            el: '#app',
+            data: {
+                TabIndex: 0,
+                EmployeeId: "",
+            },
+            methods: {
+                updateHandoverCheques: function () {
+                    var dataItem = $('#grid').getKendoGrid().dataSource.data();
+
+                    var selectedCheques = $.grep(dataItem, function (item) {
+                        return item.dirty;
+                    });
+
+                    if (!selectedCheques.length) {
+                        kendoAlert("Please select cheque to handover", true);
+                        return;
+                    }
+
+                    if (!this.EmployeeId) {
+                        kendoAlert("Please select the HandedOverBy", true);
+                        return;
+                    }
+
+                    var editedCheques = [];
+                    $.each(selectedCheques, function (i, item) {
+                        editedCheques.push({ ID: item.ID, ChequeNo: item.ChequeNo, CustomerName: item.CustomerName, AgreementNo: item.AgrementRef });
+                    });
+
+                    $.postData("@Url.Action("UpdateHandOverCheques", "HirePurchase")", { datas: editedCheques, EmployeeId: this.EmployeeId }, this.onSuccess);
+                },
+                undoHandedOverCheques: function () {
+                    var dataItem = $('#grid').getKendoGrid().dataSource.data();
+
+                    var selectedCheques = $.grep(dataItem, function (item) {
+                        return item.dirty;
+                    });
+
+                    if (!selectedCheques.length) {
+                        kendoAlert("Please select cheque to handover", true);
+                        return;
+                    }
+
+                    var editedCheques = [];
+                    $.each(selectedCheques, function (i, item) {
+                        editedCheques.push({ ID: item.ID, ChequeNo: item.ChequeNo, CustomerName: item.CustomerName, AgreementNo: item.AgrementRef });
+                    });
+
+                    $.postData("@Url.Action("UndoHandOverCheques", "HirePurchase")", { datas: editedCheques }, this.onSuccess);
+                },
+                onSuccess: function (res) {
+                    kendoAlert(res.Message, res.HasError);
+                    if (res.HasError)
+                        return;
+
+                    $('#grid').getKendoGrid().dataSource.read();
+                    $('#chkGrid').prop('checked', false);
+
+                },
+                tabChange: function (index) {
+
+                    this.TabIndex = index;
+                    $('#grid').getKendoGrid().dataSource.read();
+                },
+                grid_Data: function () {
+                    return { StatusFilter: this.TabIndex };
+                }
+            }
+        });
+    </script>
+    <script type="text/javascript">
+        $(function () {
+            $("#grid").on("change", ".chkcol", function () {
+                var dataItem = $("#grid").getKendoGrid().dataItem($(this).parent().parent());
+                dataItem.dirty = $(this).prop("checked");
+            });
+        });
+
+        function onSelectAll() {
+            var checked = $('#chkGrid').prop('checked');
+            $('#grid .k-grid-content .chkcol').prop('checked', checked);
+            $('#grid .k-grid-content .chkcol').each(function () {
+                var uid = $(this).parent().parent().attr("data-uid");
+                var dataItem = $('#grid').getKendoGrid().dataSource.getByUid(uid);
+                dataItem.dirty = checked;
+            });
+        }
+        $(function () {
+            $('#lstPrint a:not(.smenu)').click(printReport);
+            $('.dropdown-submenu a.smenu').on("click", function (e) {
+                $(this).next('ul').toggle();
+                e.stopPropagation();
+                e.preventDefault();
+            });
+        });
+
+        function printReport(e) {
+            e.preventDefault();
+
+            var dataItem = $('#grid').getKendoGrid().dataSource.data();
+
+            var selectedCheques = $.grep(dataItem, function (item) {
+                return item.dirty;
+            });
+
+            if (!selectedCheques.length) {
+                kendoAlert("Please select valid cheque's", true);
+                return;
+            }
+
+            var printChequelst = [];
+            $.each(selectedCheques, function (i, item) {
+                printChequelst.push(item.ID);
+            });
+
+            var arraylist = printChequelst.join(",");
+
+            if ($(this).attr('data-report')) {
+                $('#frmDoc [name=RPT_R]').val($(this).attr('data-report'));
+                $('#frmDoc [name=RPT_IDs]').val(arraylist);
+                $('#frmDoc').submit();
+            }
+        }
+    </script>
+    }

@@ -1,0 +1,642 @@
+﻿@page
+@using BSOL.Core.Models.DashBoard
+@{
+    ViewBag.IsFolded = true;
+    ViewBag.Title = "Unit Status";
+    Layout = "~/Pages/Shared/_Layout.cshtml";
+}
+@section BreadCrumb {
+    @await Html.PartialAsync("Tabs", "Hire Purchase/Dashboard")
+}
+<style type="text/css">
+    .col-dynamic {
+        vertical-align: middle !important;
+        text-align: center;
+    }
+
+        .col-dynamic .k-link {
+            justify-content: center;
+        }
+
+        .col-dynamic .k-column-title {
+            white-space: normal !important;
+            font-size: 10px;
+            text-align: center;
+        }
+
+    .col-main {
+        vertical-align: middle !important;
+    }
+
+    .color-row {
+        background-color: white;
+    }
+
+    .k-grouping-header {
+        background-color: white;
+    }
+
+    .k-footer-template td {
+        background-color: white;
+        text-align: right;
+    }
+
+    .grp-filter {
+        display: flex;
+        align-items: center;
+    }
+
+        .grp-filter li {
+            padding: 5px;
+        }
+
+    .chk-cls-report li:not(:first-child) {
+        margin-left: 20px;
+    }
+
+    .page-template {
+        font-family: "DejaVu Sans", "Arial", sans-serif;
+        position: absolute;
+        width: 100%;
+        height: 100%;
+        top: 0;
+        left: 0;
+    }
+
+        .page-template .header {
+            position: absolute;
+            top: 30px;
+            left: 30px;
+            right: 30px;
+            border-bottom: 1px solid #888;
+            color: #888;
+        }
+
+        .page-template .footer {
+            position: absolute;
+            bottom: 30px;
+            left: 30px;
+            right: 30px;
+            border-top: 1px solid #888;
+            text-align: center;
+            color: #888;
+        }
+
+        .page-template .watermark {
+            font-weight: bold;
+            font-size: 400%;
+            text-align: center;
+            margin-top: 30%;
+            color: #aaaaaa;
+            opacity: 0.1;
+            transform: rotate(-35deg) scale(1.7, 1.5);
+        }
+
+    /* Content styling */
+    .customer-photo {
+        display: inline-block;
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        background-size: 32px 35px;
+        background-position: center center;
+        vertical-align: middle;
+        line-height: 32px;
+        box-shadow: inset 0 0 1px #999, inset 0 0 10px rgba(0,0,0,.2);
+        margin-left: 5px;
+    }
+
+    .customer-name {
+        display: inline-block;
+        vertical-align: middle;
+        line-height: 32px;
+        padding-left: 3px;
+    }
+
+    .chg-cus-clr.cus-all-sel {
+        border: 1px solid gray;
+    }
+
+    .chg-cus-sh.cus-all-sel {
+        border: 1px solid gray;
+    }
+
+    .chg-cus-in.cus-all-sel {
+        border: 1px solid gray;
+    }
+
+    .chg-cus-ca.cus-all-sel {
+        border: 1px solid gray;
+    }
+
+    .chg-cus-co.cus-all-sel {
+        border: 1px solid gray;
+    }
+
+    .chg-cus-br.cus-all-sel {
+        border: 1px solid gray;
+    }
+
+    .chg-cus-ve.cus-all-sel {
+        border: 1px solid gray;
+    }
+
+    fieldset.default {
+        width: 100%;
+        border: 1px solid #c0c0c0;
+        margin: 2px 0;
+        padding: 3px 5px;
+    }
+
+    .default legend {
+        all: unset;
+        padding: 0 5px;
+    }
+
+    .rpt-g-content {
+        position: relative !important;
+    }
+
+        .rpt-g-content .g-content-a {
+            position: absolute;
+            top: 7px;
+            right: 10px;
+            z-index: 1;
+        }
+
+        .rpt-g-content .g-content-i {
+            font-size: 30px !important;
+            color: green;
+        }
+
+    .k-grouping-header {
+        border-bottom-style: solid;
+        border-bottom-width: 1px;
+        border-bottom-color: #cec7c7;
+    }
+</style>
+<div id="app">
+
+
+    <div style="margin-top:20px">
+
+        <div class="g-left">
+            <ul class="grp-filter">
+                <li>
+                    <label class="k-radio-label">Product</label>
+                    <kendo-datasource ref="dsProduct" :transport-read-url="'@Url.Action("ReadSalesProduct", "Common")'" :transport-read-type="'POST'"></kendo-datasource>
+                    <kendo-multiselect ref="ddProduct" class="chg-cus-ca" v-model="input.Product" :data-source-ref="'dsProduct'" style="width:200px" placeholder="Select Product" :filter="'contains'"></kendo-multiselect>
+                </li>
+                <li style="margin: 17px 0px -3px 0px;">
+                    <button @@click="load" class="btn btn-save"><i class="fa fa-search"></i>View</button>
+                </li>
+                <li style="margin-top: 22px;">
+                    <label></label>
+                    <a onclick="app.Eeventchange()" class="c-lnk" style="cursor:pointer;"><i class="fa fa-search"></i>  Advanced Search</a>
+                </li>
+            </ul>
+        </div>
+        <div id="adv-search" style="display:none;">
+            <div>
+                <ul class="grp-filter">
+                    @* <li>
+                    <label class="k-radio-label">Product</label>
+                    <kendo-datasource ref="dsProduct" :transport-read-url="'@Url.Action("ReadSalesProduct", "Common")'" :transport-read-type="'POST'"></kendo-datasource>
+                    <kendo-multiselect ref="ddProduct" class="chg-cus-ca" v-model="input.Product" :data-source-ref="'dsProduct'" style="width:200px" placeholder="Select Product" :filter="'contains'"></kendo-multiselect>
+                    </li> *@
+                    @* <li>
+                    <label class="k-radio-label">Customer Name</label>
+                    <kendo-datasource ref="dsCustomer" :transport-read-url="'@Url.Action("ReadCustomers", "Common")'" :transport-read-type="'POST'"></kendo-datasource>
+                    <kendo-multiselect ref="ddCustomer" class="chg-cus-co" v-model="input.CustomerId" :data-source-ref="'dsCustomer'" :data-text-field="'Text'" :data-value-field="'Id'" placeholder="Select customer" :filter="'contains'" style="width:454px"></kendo-multiselect>
+                    </li> *@
+                </ul>
+
+                <fieldset class="default">
+                    <legend>Exclude Filter</legend>
+                    <ul class="grp-filter">
+                        <li>
+                            <input type="checkbox" id="chkShipment" v-model="input.Shipment" class="k-checkbox" @@change="onGroupByChange" />
+                            <label for="chkShipment" class="k-checkbox-label">Shipment</label>
+                        </li>
+                        <li>
+                            <input type="checkbox" id="chkAdvanceBooking" v-model="input.AdvanceBooking" class="k-checkbox" @@change="onGroupByChange" />
+                            <label for="chkAdvanceBooking" class="k-checkbox-label">Advance Booking</label>
+                        </li>
+                        <li>
+                            <input type="checkbox" id="chkCreditEvaluation" v-model="input.CreditEvaluation" class="k-checkbox" @@change="onGroupByChange" />
+                            <label for="chkCreditEvaluation" class="k-checkbox-label">Credit Evaluation</label>
+                        </li>
+                        <li>
+                            <input type="checkbox" id="chkAgreement" v-model="input.Agreement" class="k-checkbox" @@change="onGroupByChange" />
+                            <label for="chkAgreement" class="k-checkbox-label">Agreement</label>
+                        </li>
+                        <li>
+                            <input type="checkbox" id="chkHPSales" v-model="input.HPSales" class="k-checkbox" @@change="onGroupByChange" />
+                            <label for="chkHPSales" class="k-checkbox-label"> Sales</label>
+                        </li>
+                        @*                         <li>
+                        <input type="checkbox" id="chkCashSales" v-model="input.CashSales" class="k-checkbox" @@change="onGroupByChange" />
+                        <label for="chkCashSales" class="k-checkbox-label">Cash Sales</label>
+                        </li> *@
+                        <li>
+                            <input type="checkbox" id="chkHPProcess" v-model="input.HPProcess" class="k-checkbox" @@change="onGroupByChange" />
+                            <label for="chkHPProcess" class="k-checkbox-label">HP Process</label>
+                        </li>
+                    </ul>
+                </fieldset>
+            </div>
+        </div>
+    </div>
+
+
+    <div class="g-content rpt-g-content">
+        <div class="g-right">
+            <i class="fa fa-search"></i>
+            <input type="text" id="filter" class="k-textbox" style="border-radius: 5px; margin-bottom: 0px;z-index: 1;margin-right: 45px;margin-top: 3px;width:208px" placeholder="Search any Fields" />
+            <a class="g-content-a" onclick="app.export()" style="cursor:pointer;"><i class="fa fa-file-excel-o g-content-i" style="font-size: 29px;"></i></a>
+        </div>
+        @await Html.PartialAsync("Loader")
+        @(
+            Html.Kendo().Grid<UnitStatus>()
+            .Name("grid")
+            .Columns(c =>
+            {
+                c.Bound(p => p.Product);
+                c.Bound(p => p.Itemcode);
+                c.Bound(p => p.ModelCode);
+                c.Bound(p => p.FrameNo);
+                c.Bound(p => p.EngineNo);
+                c.Bound(p => p.REGNO);
+                c.Bound(p => p.Unit_Sts).Title("Unit Status");
+                c.Bound(p => p.Location);
+
+                c.Bound(p => p.ShipmentRef);
+                c.Bound(p => p.SupInvNo);
+                c.DateColumn(p => p.ClearedDate);
+
+                c.Bound(p => p.ProformaNo);
+                c.Bound(p => p.CustomerName);
+
+                c.Bound(p => p.BookedBy);
+                c.DateColumn(p => p.BookedDate);
+
+                c.Bound(p => p.EvaluatedBy);
+                c.DateColumn(p => p.EvaluatedDate);
+                c.Bound(p => p.VerifiedBy);
+                c.DateColumn(p => p.VerifiedDate);
+
+                c.Bound(p => p.AgreementNo);
+                c.Bound(p => p.AgreementType).Title("Type");
+                c.Bound(p => p.EntryBy);
+                c.DateColumn(p => p.EntryDate).Title("Agreement On");
+
+                c.Bound(p => p.InvoiceNo);
+                c.DateColumn(p => p.Invoice_Date);
+                c.Bound(p => p.InvoiceType);
+                c.NumberColumn(p => p.No_Payment);
+                c.MoneyColumn(p => p.DueAmount);
+                c.MoneyColumn(p => p.TotalPrice);
+                c.MoneyColumn(p => p.BalanceAmount);
+                c.Bound(p => p.SoldBy);
+                c.Bound(p => p.BilledBy);
+                c.Bound(p => p.SalesType);
+                c.Bound(p => p.ProformaType);
+
+                c.NumberColumn(p => p.RegCancel);
+                c.DateColumn(p => p.RG);
+                c.DateColumn(p => p.RWP);
+                c.DateColumn(p => p.RWP01);
+                c.DateColumn(p => p.ANP);
+                c.DateColumn(p => p.INP);
+                c.DateColumn(p => p.OCRequestOn);
+                c.DateColumn(p => p.OCSentOn);
+                c.DateColumn(p => p.OCReceivedOn);
+                c.DateColumn(p => p.A1SentOn);
+                c.DateColumn(p => p.A1ReceivedOn);
+                c.DateColumn(p => p.A1ExpiredOn);
+                c.DateColumn(p => p.LR1ReceivedOn);
+                c.DateColumn(p => p.VHFLicense);
+                c.DateColumn(p => p.SWC);
+                c.DateColumn(p => p.SWS);
+
+            })
+            .Pageable(x => x.Refresh(true))
+            .Sortable()
+            .Groupable()
+            .Scrollable()
+            .HtmlAttributes(new { @class = "h-grid v-grid" })
+            .Excel(excel => excel
+            .FileName("Unit Status.xlsx")
+            .Filterable(true)
+            .AllPages(true)
+            )
+            .Reorderable(r => r.Columns(true))
+            .Resizable(r => r.Columns(true))
+            .ColumnMenu()
+            .Filterable()
+            .Selectable(selectable => selectable
+            .Mode(GridSelectionMode.Multiple)
+            .Type(GridSelectionType.Cell))
+            .Events(x => x.DataBound("gridDataBound"))
+            .DataSource(dataSource => dataSource
+            .Ajax().ServerOperation(true)
+            .PageSize(50)
+            .Events(x => x.RequestEnd("app.gridRequestEnd"))
+            .Read(read => read.Action("ReadUnitStatus", "DashBoard").Data("app.gridData"))
+            )
+            )
+    </div>
+</div>
+@section Scripts {
+
+    <script type="text/javascript">
+        var dt = new Date();
+        var year = dt.getFullYear();
+        var month = dt.getMonth();
+        var date = dt.getDate();
+
+        var app = new Vue({
+            el: '#app',
+            data: {
+                input: {
+                    FromMonth: new Date(year, month - 1, date),
+                    ToMonth: new Date(),
+                    Product: [],
+                    CustomerId: [],
+                    Search: true,
+                    Shipment: false,
+                    AdvanceBooking: false,
+                    CreditEvaluation: false,
+                    Agreement: false,
+                    HPSales: false,
+                    CashSales: false,
+                    HPProcess: false,
+                    Month: ToMonthStart(new Date()),
+                    Year: ToMonthStart(new Date()),
+                },
+                SearchBy: "Date Range",
+                isLoaded: false
+            },
+            methods: {
+                load: function () {
+                    this.isLoaded = false;
+                    if (this.input.Product.length > 0)
+                        this.input.Product = this.input.Product.join(",");
+
+                    if (this.input.CustomerId.length > 0)
+                        this.input.CustomerId = this.input.CustomerId.join(",");
+
+                    var $grid = $('#grid').getKendoGrid();
+                    if ($grid.dataSource.page() != 1) {
+                        $grid.dataSource.page(1);
+                    }
+
+                    $grid.dataSource.read();
+                },
+                gridData: function () {
+                    return {
+                        Product: (this.input.Product == null ? '' : this.input.Product.toString()), CustomerId: (this.input.CustomerId == null ? '' : this.input.CustomerId.toString()), Shipment: this.input.Shipment, AdvanceBooking: this.input.AdvanceBooking, CreditEvaluation: this.input.CreditEvaluation, Agreement: this.input.Agreement, HPSales: this.input.HPSales, CashSales: this.input.CashSales, HPProcess: this.input.HPProcess
+                    };
+                },
+                Eeventchange: function () {
+                    if (!this.input.Search) {
+                        $('#adv-search').css('display', 'none');
+                        this.input.Search = true;
+                    }
+                    else {
+                        $('#adv-search').css('display', 'block');
+                        this.input.Search = false;
+                    }
+                    this.input.Product = [];
+                    this.input.CustomerId = [];
+                },
+                onGroupByChange: function () {
+                    var $grid = $("#grid").getKendoGrid();
+
+                    if (this.input.Shipment && this.input.AdvanceBooking && this.input.CreditEvaluation && this.input.Agreement && this.input.HPSales && this.input.HPProcess) {
+                        $grid.hideColumn("ProformaNo");
+                        $grid.hideColumn("CustomerName");
+                        // $grid.hideColumn("Product");
+                        // $grid.hideColumn("ItemCode");
+                    }
+                    else {
+                        $grid.showColumn("ProformaNo");
+                        $grid.showColumn("CustomerName");
+                        // $grid.showColumn("Product");
+                        // $grid.showColumn("ItemCode");
+                    }
+
+                    if (this.input.AdvanceBooking && this.input.CreditEvaluation && this.input.Agreement && this.input.HPSales) {
+                        $grid.hideColumn("ProformaNo");
+                        $grid.hideColumn("CustomerName");
+                    }
+                    else {
+                        $grid.showColumn("ProformaNo");
+                        $grid.showColumn("CustomerName");
+                    }
+
+
+                    if (!this.input.Shipment) {
+                        $grid.showColumn("ShipmentRef");
+                        $grid.showColumn("SupInvNo");
+                        $grid.showColumn("ClearedDate");
+                    }
+                    else {
+                        $grid.hideColumn("ShipmentRef");
+                        $grid.hideColumn("SupInvNo");
+                        $grid.hideColumn("ClearedDate");
+                    }
+
+                    if (!this.input.AdvanceBooking) {
+                        $grid.showColumn("BookedBy");
+                        $grid.showColumn("BookedDate");
+                        // $grid.showColumn("BookedCNT");
+                    }
+                    else {
+                        $grid.hideColumn("FrameNo");
+                        $grid.hideColumn("BookedBy");
+                        $grid.hideColumn("BookedDate");
+                        // $grid.hideColumn("BookedCNT");
+                    }
+                    if (!this.input.CreditEvaluation) {
+                        $grid.showColumn("EvaluatedBy");
+                        $grid.showColumn("EvaluatedDate");
+                        $grid.showColumn("VerifiedBy");
+                        $grid.showColumn("VerifiedDate");
+                        // $grid.showColumn("CreditEvaluationCNT");
+                    }
+                    else {
+                        $grid.hideColumn("EvaluatedBy");
+                        $grid.hideColumn("EvaluatedDate");
+                        $grid.hideColumn("VerifiedBy");
+                        $grid.hideColumn("VerifiedDate");
+                        // $grid.hideColumn("CreditEvaluationCNT");
+                    }
+
+                    if (!this.input.Agreement) {
+                        $grid.showColumn("AgreementType");
+                        $grid.showColumn("AgreementNo");
+                        $grid.showColumn("EntryBy");
+                        $grid.showColumn("EntryDate");
+                        // $grid.showColumn("AgreementCNT");
+                    }
+                    else {
+                        $grid.hideColumn("AgreementType");
+                        $grid.hideColumn("AgreementNo");
+                        $grid.hideColumn("EntryBy");
+                        $grid.hideColumn("EntryDate");
+                        // $grid.hideColumn("AgreementCNT");
+                    }
+
+                    if (this.input.HPSales) {
+                        $grid.hideColumn("InvoiceNo");
+                        $grid.hideColumn("InvoiceType");
+                        $grid.hideColumn("DueAmount");
+                        $grid.hideColumn("No_Payment");
+                        $grid.hideColumn("TotalPrice");
+                        $grid.hideColumn("BalanceAmount");
+                        $grid.hideColumn("SoldBy");
+                        $grid.hideColumn("Invoice_Date");
+                        $grid.hideColumn("BilledBy");
+                        $grid.hideColumn("ProformaType");
+                        $grid.hideColumn("SalesType");
+                    }
+                    else {
+                        $grid.showColumn("InvoiceNo");
+                        $grid.showColumn("InvoiceType");
+                        $grid.showColumn("DueAmount");
+                        $grid.showColumn("No_Payment");
+                        $grid.showColumn("TotalPrice");
+                        $grid.showColumn("BalanceAmount");
+                        $grid.showColumn("SoldBy");
+                        $grid.showColumn("Invoice_Date");
+                        $grid.showColumn("BilledBy");
+                        $grid.showColumn("ProformaType");
+                        $grid.showColumn("SalesType");
+                    }
+
+                    if (this.input.HPProcess) {
+                        $grid.hideColumn("RegCancel");
+                        $grid.hideColumn("RG");
+                        $grid.hideColumn("RWP");
+                        $grid.hideColumn("RWP01");
+                        $grid.hideColumn("ANP");
+                        $grid.hideColumn("INP");
+                        $grid.hideColumn("OCRequestOn");
+                        $grid.hideColumn("OCSentOn");
+                        $grid.hideColumn("OCReceivedOn");
+                        $grid.hideColumn("A1SentOn");
+                        $grid.hideColumn("A1ReceivedOn");
+                        $grid.hideColumn("A1ExpiredOn");
+                        $grid.hideColumn("LR1ReceivedOn");
+                        $grid.hideColumn("VHFLicense");
+                        $grid.hideColumn("SWC");
+                        $grid.hideColumn("SWS");
+                    }
+                    else {
+                        $grid.showColumn("RegCancel");
+                        $grid.showColumn("RG");
+                        $grid.showColumn("RWP");
+                        $grid.showColumn("RWP01");
+                        $grid.showColumn("ANP");
+                        $grid.showColumn("INP");
+                        $grid.showColumn("OCRequestOn");
+                        $grid.showColumn("OCSentOn");
+                        $grid.showColumn("OCReceivedOn");
+                        $grid.showColumn("A1SentOn");
+                        $grid.showColumn("A1ReceivedOn");
+                        $grid.showColumn("A1ExpiredOn");
+                        $grid.showColumn("LR1ReceivedOn");
+                        $grid.showColumn("VHFLicense");
+                        $grid.showColumn("SWC");
+                        $grid.showColumn("SWS");
+                    }
+
+                    $grid.dataSource.read();
+                },
+                export: function () {
+                    this.isLoaded = false;
+                    ExportToExcel('grid');
+                },
+                gridRequestEnd: function (e) {
+                    this.isLoaded = true;
+                }
+            }
+        })
+    </script>
+    <script type="text/javascript">
+        function gridDataBound() {
+            for (var i = 0; i < this.columns.length; i++) {
+                this.autoFitColumn(i);
+            }
+        }
+        function formatNumber(number) {
+            return kendo.toString(number, "#,###.###");
+        }
+    </script>
+    <script type="text/javascript">
+        function isNumeric(n) {
+            return !isNaN(parseFloat(n)) && isFinite(n);
+        }
+
+        function getBoolean(str) {
+            if ("true".startsWith(str)) {
+                return true;
+            } else if ("false".startsWith(str)) {
+                return false;
+            } else {
+                return null;
+            }
+        }
+
+        $('#filter').on('change', function (e) {
+            var grid = $('#grid').data('kendoGrid');
+            var columns = grid.columns;
+
+            var filter = { logic: 'or', filters: [] };
+            columns.forEach(function (x) {
+                if (x.field) {
+                    var type = grid.dataSource.options.schema.model.fields[x.field].type;
+                    if (type == 'string') {
+                        filter.filters.push({
+                            field: x.field,
+                            operator: 'contains',
+                            value: e.target.value
+                        })
+                    }
+                    else if (type == 'number') {
+                        if (isNumeric(e.target.value)) {
+                            filter.filters.push({
+                                field: x.field,
+                                operator: 'eq',
+                                value: e.target.value
+                            });
+                        }
+
+                    } else if (type == 'date') {
+                        var data = grid.dataSource.data();
+                        for (var i = 0; i < data.length; i++) {
+                            var dateStr = kendo.format(x.format, data[i][x.field]);
+                            // change to includes() if you wish to filter that way https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String/includes
+                            if (dateStr.startsWith(e.target.value)) {
+                                filter.filters.push({
+                                    field: x.field,
+                                    operator: 'eq',
+                                    value: data[i][x.field]
+                                })
+                            }
+                        }
+                    } else if (type == 'boolean' && getBoolean(e.target.value) !== null) {
+                        var bool = getBoolean(e.target.value);
+                        filter.filters.push({
+                            field: x.field,
+                            operator: 'eq',
+                            value: bool
+                        });
+                    }
+                }
+            });
+            grid.dataSource.filter(filter);
+        });
+    </script>
+}

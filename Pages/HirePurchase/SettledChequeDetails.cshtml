@@ -1,0 +1,114 @@
+﻿@page
+@using BSOL.Helpers
+@using BSOL.Web.Helpers
+@using BSOL.Core.Models.HirePurchase
+@using Kendo.Mvc.UI
+
+@{
+    ViewData["Title"] = "Cheque Settlement";
+    Layout = "~/Pages/Shared/_Layout.cshtml";
+}
+
+<div id="appChequeDetails">
+    <div class="g-title">
+        <div class="g-left">
+            <table>
+                <tr>
+                    <td>
+                        <kendo-datepicker :value="input.FromDate" :max="maxDate" :format="'dd-MMM-yyyy'" @@change="function(e){setModel(e,input,'FromDate')}" style="width:130px"></kendo-datepicker>
+                    </td>
+                    <td>
+                        <kendo-datepicker :value="input.ToDate" :max="maxDate" :format="'dd-MMM-yyyy'" @@change="function(e){setModel(e,input,'ToDate')}" style="width:130px"></kendo-datepicker>
+                    </td>
+                    <td>
+                        <button type="button" title="View" class="btn btn-save btn-cntrls" @@click="appChequeDetails.viewReport()"><i class="fa fa-search"></i>View</button>
+                    </td>
+                </tr>
+            </table>
+        </div>
+        <span class="g-text">Cheque Settlement</span>
+        <div class="g-right">
+            @Html.ExcelButton("appChequeDetails.exportChequeTransList()")
+        </div>
+    </div>
+</div>
+
+<div>
+    @(Html.Kendo().Grid<ChequeDetailsModel>().Name("gridChequeDetails")
+        .Columns(c =>
+        {
+            @*c.PrintColumn("appChequeDetails.printItem('#:uid#')");*@
+            c.Bound(p => p.CustomerName).Width(180);
+            c.Bound(p => p.ChequeNo).Width(130);
+            c.Bound(p => p.InvoiceNo).Width(130);
+            c.Bound(p => p.ReceiptNo).Width(130);
+            c.MoneyColumn(p => p.Paid).Title("Paid Amount").Width(130);
+            c.Bound(p => p.Paidby).Width(180);
+            c.DateColumn(p => p.PaidDate).Width(150);
+            c.Bound(p => p.Receipt_Category).Title("Category").Width(150);
+            c.Bound(p => p.PaymentFrom).Title("Payment To").Width(150);
+        })
+        .DataSource(dataSource => dataSource
+        .Ajax()
+        .Batch(true)
+        .ServerOperation(true)
+        .PageSize(50)
+        .Read(read => read.Action("ReadChequeDetailsList", "HirePurchase").Data("appChequeDetails.gridChequeSettled_Data"))
+        )
+        .EnableFilter()
+        .Excel(x => x.AllPages(true))
+        .Resizable(x => x.Columns(true))
+        .Pageable(x => x.Refresh(true))
+        .Sortable()
+        .Scrollable()
+        .AutoBind(false)
+        .HtmlAttributes(new { @class = "h-grid v-grid" })
+        .Events(e => e.DataBound("appChequeDetails.appChequeDataBound"))
+        .Selectable()
+        )
+</div>
+
+<form asp-page="/General/DocumentViewer" method="POST" target="_blank" id="frmDoc" style="display:none;">
+    <input type="hidden" name="RPT_R" />
+    <input type="hidden" name="RPT_InvoiceNo" />
+</form>
+
+<script type="text/javascript">
+    var dt = new Date();
+    var year = dt.getFullYear();
+    var month = dt.getMonth();
+    var date = dt.getDate();
+    var appChequeDetails = new Vue({
+        el: '#appChequeDetails',
+        data: {
+            input: {
+                FromDate: new Date(year, month - 6, date),
+                ToDate: new Date()
+            },
+            ChequeID: 0,
+            maxDate: new Date(),
+        },
+        methods: {
+            exportChequeTransList: function () {
+                ExportToExcel("gridChequeDetails");
+            },
+            gridChequeSettled_Data: function () {
+                return { FromDate: StdDate(this.input.FromDate), ToDate: StdDate(this.input.ToDate) };
+            },
+            viewReport: function () {
+                $('#gridChequeDetails').getKendoGrid().dataSource.read();
+            },
+            printItem: function (uid) {
+                var dataItem = $('#gridChequeDetails').getKendoGrid().dataSource.getByUid(uid);
+
+                if (!dataItem.IsHP){
+                    kendoAlert("Please select HP Invoice", true);
+                    return;
+                }
+                $('#frmDoc [name=RPT_R]').val("CustomerStatement");
+                $('#frmDoc [name=RPT_InvoiceNo]').val(dataItem.InvoiceNo);
+                $('#frmDoc').submit();
+            }
+        }
+    });
+</script>

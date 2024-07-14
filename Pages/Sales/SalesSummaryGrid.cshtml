@@ -1,0 +1,38 @@
+﻿@page
+@using System.Data
+@model BSOL.Pages.Sales.SalesSummaryGridModel
+@{
+    var dtData = (DataTable)ViewData["GRID_DATA"];
+}
+
+<div style="clear:both;">
+    @(
+        Html.Kendo().Grid<dynamic>().Name("gridDetail")
+        .Columns(x =>
+        {
+            if (dtData != null)
+            {
+                foreach (DataColumn column in dtData.Columns)
+                {
+                    if (column.ColumnName == "Column1")
+                        x.Bound(column.ColumnName).Title(column.Caption).Width(150).HeaderHtmlAttributes(new { @class = "col-main" });
+                    else
+                        x.Bound(column.ColumnName).Title(column.Caption).Width(100).Filterable(false).HeaderHtmlAttributes(new { @class = "col-dynamic" }).HtmlAttributes(new { style = "text-align:center" });
+                }
+            }
+        })
+        .AutoBind(false)
+        .Scrollable()
+        .EnableFilter()
+        .Sortable()
+        .Pageable()
+        .HtmlAttributes(new { @class = "h-grid v-grid" })
+        .DataSource(x => x.Ajax().PageSize(1000))
+        )
+</div>
+<script type="text/javascript">
+    $(function () {
+        $('#gridDetail').getKendoGrid().dataSource.data(@Vue.Encode(dtData));
+        ConfigureGrid();
+    });
+</script>

@@ -1,0 +1,131 @@
+﻿@page
+@using Core.Entities
+@model UnitOfMeasures
+@if (!await Html.HasAccess(Forms.Procurement.Items))
+{
+    return;
+}
+
+@{
+    ViewData["Title"] = "UnitOfMeasures";
+    Layout = "~/Pages/Shared/_Layout.cshtml";
+}
+
+@section BreadCrumb{
+    @await Html.PartialAsync("Tabs", "Material Management/Control Panel")
+}
+
+@(Html.Kendo().Grid<UnitOfMeasures>().Name("grid")
+        .Editable(Html, "UnitOfMeasures", true, true)
+        .Columns(c =>
+        {
+            c.DeleteColumn(x => x.ID, "app.deleteUnit('#:uid#')");
+            c.Bound(x => x.UOM);
+         
+        })
+        .DataSource(d => d.Ajax()
+            .Batch(true)
+            .ServerOperation(false)
+            .Events(events => events.Error("grid_ErrorHandler").RequestEnd("gridUnit_RequestEnd"))
+            .Read("ReadUnitOfMeasures", "Procurements")
+            .Model(model =>
+            {
+                model.Id(p => p.ID);
+                model.Field("ID", typeof(long)).Editable(false);
+            })
+            .Create("UpdateUnitOfMeasures", "Procurements")
+            .Update("UpdateUnitOfMeasures", "Procurements")
+        )
+        .HtmlAttributes(new { @class = "h-grid v-grid" })
+        .Events(x => x.SaveChanges("gridUnit_SaveChanges").DataBound("grid_DataBound"))
+        .AutoBind(true)
+        .Resizable(x => x.Columns(true))
+        .Sortable()
+        .Scrollable()
+        .Navigatable()
+        .Filterable()
+)
+
+@{
+    var jsonData = Vue.Encode(new UnitOfMeasures());
+}
+
+@section Scripts{
+    <script type="text/javascript">
+        var app = new Vue({
+            el: '#app',
+            data: {
+                input: @(jsonData),
+            },
+            methods: {
+                selectItem: function (uid) {
+                    var dataItem = $('#grid').getKendoGrid().dataSource.getByUid(uid);
+                    this.input = cloneAndDecode(dataItem);
+                },
+                onSuccess: function (res) {
+                    kendoAlert(res.Message, res.HasError);
+                    if (res.HasError)
+                        return;
+                    $('#grid').getKendoGrid().dataSource.read();
+                },
+                deleteUnit: function (uid) {
+                    var dataItem = $('#grid').getKendoGrid().dataSource.getByUid(uid);
+                    if (dataItem.ID == 0) {
+                        $('#grid').getKendoGrid().dataSource.cancelChanges(dataItem);
+                        return;
+                    }
+                    kendoConfirm("Do you want to delete this Unit details?", function () {
+                        $.postData("@Url.Action("DeleteUnit", "Procurements")", { ID: dataItem.ID, UOM: dataItem.UOM},
+                            function (data) {
+                                kendoAlert(data.Message, data.HasError);
+                                if (!data.HasError)
+                                    $('#grid').getKendoGrid().dataSource.read();
+                            });
+                    });
+                }
+            }
+        })
+    </script>
+
+
+    <script type="text/javascript">
+        function gridUnit_SaveChanges(e) {
+            var data = $(e.sender.element).getKendoGrid().dataSource.data();
+            var dirty = $.grep(data, function (item) {
+                return item.dirty || item.ID === 0;
+            });
+            var UOMEmpty = $.grep(dirty, function (item) {
+                return !item.UOM;
+            });
+            var errors = [];
+
+            if (UOMEmpty && UOMEmpty.length)
+                errors.push("UOM Should not be empty");
+
+            if (errors.length) {
+                e.preventDefault();
+                kendoAlert(errors.join("\n"), true);
+            }
+        }
+
+        function gridUnit_RequestEnd(e) {
+            if ((e.type == "create" || e.type == "update") && !e.response.Errors)
+                kendoAlert("Unit Of Measures details Saved.");
+        }
+
+
+        function grid_DataBound() {
+            var grid = $("#grid").data("kendoGrid");
+            var data = grid.dataSource.data();
+            grid.tbody.find('>tr').each(function () {
+                var dataItem = grid.dataItem(this);
+                if (dataItem.Status == 0 && dataItem.Active) {
+                    $(this).css('color', 'blue');
+                }
+                if (!dataItem.Active) {
+                    $(this).css('color', 'black');
+                }
+            });
+        }
+    </script>
+}

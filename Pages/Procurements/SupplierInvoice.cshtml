@@ -1,0 +1,859 @@
+@page
+@using Core.Entities
+@inject AppUser _appUser
+@inject ICommonHelper _commonHelper
+@model SupplierInvoice
+
+@{
+    ViewBag.Title = "Supplier Invoice";
+    Layout = "~/Pages/Shared/_Layout.cshtml";
+    ViewBag.IsFolded = true;
+}
+@section BreadCrumb{
+    @await Html.PartialAsync("Tabs", "Procurement/Supplier")
+}
+@if (!await Html.HasAccess(Forms.Procurement.Purchase))
+{
+    return;
+}
+
+@{
+    AccountSetting accountSetting = await _commonHelper.GetAccountSettings();
+}
+<style type="text/css">
+    #gridSupplierInvoice .k-grid-content {
+        height: 80px !important;
+    }
+
+    .na-border {
+        border: 1px solid #ccc;
+    }
+</style>
+<form id="app" v-on:submit.prevent="submitForm">
+    <div class="v-edit">
+        <div class="g-title">
+            <div class="g-left">
+                @Html.ToggleButton(Orientation.Vertical)
+            </div>
+
+            <span>Supplier Invoice</span>
+            <div class="g-right">
+                @Html.SaveButton()
+                @Html.ExcelButton()
+            </div>
+        </div>
+        <div id="editor" class="g-content" style="display:none;padding:10px;">
+            <div class="row">
+                <div id="displayContainer" class="col-md-6">
+                    <div class="row">
+                    </div>
+                    <div class="row">
+                        <div class="form-group col-md-6">
+                            @Html.LabelFor(x => x.ShopId, "Shop")
+                            <kendo-datasource ref="dsShops" :transport-read-url="'@Url.Action("ReadMyShops", "Common")'" :transport-read-type="'POST'"></kendo-datasource>
+                            <kendo-combobox ref="ddShop" v-model="input.ShopId" :data-source-ref="'dsShops'" :data-text-field="'Text'" :data-value-field="'Id'" :filter="'contains'" style="width:100%" placeholder="Select Shop"></kendo-combobox>
+                        </div>
+                        <div class="form-group col-md-4" style="padding-left:18px;">
+                            <input type="radio" name="rdoPO" id="rdoWithPO" class="k-radio" checked="checked" value="1" onchange="onPOChange(this);">
+                            <label for="rdoWithPO" class="k-radio-label">With Purchase Order</label>
+                            <br />
+                            <input type="radio" name="rdoPO" id="rdoWithoutPO" class="k-radio" value="0" onchange="onPOChange(this);">
+                            <label for="rdoWithoutPO" class="k-radio-label">Without Purchase Order</label>
+                            <br />
+                            <input type="radio" name="rdoPO" id="rdoShipment" class="k-radio" value="2" onchange="onPOChange(this);">
+                            <label for="rdoShipment" class="k-radio-label">Shipment</label>
+                        </div>
+                        <div class="form-group col-md-6">
+                            @Html.LabelFor(x => x.SupplierId, "Supplier")
+                            <kendo-datasource ref="dsSupplier" :transport-read-url="'@Url.Action("ReadSuppliers", "Common")'" :transport-read-type="'POST'"></kendo-datasource>
+                            <kendo-combobox ref="ddSupplier" v-model="input.SupplierId" :data-source-ref="'dsSupplier'" :data-text-field="'Text'" :data-value-field="'Id'" :disabled="input.Id!=0" :filter="'contains'" @@change="supplierChange" style="width:100%" placeholder="Select Supplier"></kendo-combobox>
+                        </div>
+                        <div class="form-group col-md-3" v-show="IsShipment">
+                            @Html.LabelFor(x => x.ShipmentId, "Shipment")
+                            <div>
+                                <kendo-datasource ref="dsShipment" :transport-read-url="'@Url.Action("ReadShipments", "Procurements")'" :transport-read-type="'POST'"></kendo-datasource>
+                                <kendo-combobox ref="ddShipment" v-model="input.ShipmentId" :data-source-ref="'dsShipment'" :data-text-field="'Text'" :data-value-field="'Id'" :filter="'contains'" style="width:100%"></kendo-combobox>
+                            </div>
+                        </div>
+                        <div class="form-group col-md-3" v-show="IsShipment">
+                            @Html.LabelFor(x => x.ExpenseCategory, "Expense Category")
+                            <div>
+                                <kendo-dropdownlist ref="ddExpense" v-model="input.ExpenseCategory" :data-source="['Invoice','Freight','Duty','Others']" :filter="'contains'" style="width:100%"></kendo-dropdownlist>
+                            </div>
+                        </div>
+                        <div class="form-group col-md-3" v-show="IsPOVisible || IsShipment">
+                            @Html.LabelFor(x => x.InvoiceNo, "Invoice No")
+                            <input type="text" v-model.trim="input.InvoiceNo" class="k-textbox" />
+                        </div>
+                        <div class="form-group col-md-3">
+                            @Html.LabelFor(x => x.InvoiceDate, "Invoice Date")
+                            <kendo-datepicker v-model="input.InvoiceDate" :max="new Date()" @@change="function(e){setModel(e,input,'InvoiceDate')}" :format="'dd-MMM-yyyy'" style="width:100%"></kendo-datepicker>
+                        </div>
+                        <div class="form-group col-md-3">
+                            @Html.LabelFor(x => x.Currency, "Currency")
+                            <kendo-datasource ref="dsCurrency" :transport-read-url="'@Url.Action("ReadCurrencies", "Common")'" :transport-read-type="'POST'"></kendo-datasource>
+                            <kendo-dropdownlist v-model="input.Currency" :data-source-ref="'dsCurrency'" :data-text-field="'Currency'" :data-value-field="'Currency'" :filter="'contains'" style="width:100%" @@change="currencyChange"></kendo-dropdownlist>
+                        </div>
+                        <div class="form-group col-md-3">
+                            @Html.LabelFor(x => x.Amount, "Amount")
+                            <kendo-numerictextbox :value="input.Amount" :min="0" :spinners="false" :format="'n2'" style="text-align:right;width:100%;" :disabled="!IsPOVisible && !IsShipment" @@change="function(e){setModel(e,input,'Amount', amountChange)}"></kendo-numerictextbox>
+                        </div>
+                        <div class="form-group col-md-3" v-show="IsPOVisible || IsShipment">
+                            @Html.LabelFor(x => x.GSTSettingId, "GST")
+                            <kendo-datasource ref="dsGST" :transport-read-url="'@Url.Action("ReadGSTSettings", "Common")'" :transport-read-type="'POST'"></kendo-datasource>
+                            <kendo-combobox ref="ddGST" v-model="input.GSTSettingId" :data-source-ref="'dsGST'" :data-text-field="'Name'" :data-value-field="'Id'" :filter="'contains'" style="width:100%" @@change="gstChange"></kendo-combobox>
+                        </div>
+                        <div class="form-group col-md-3" v-show="input.GSTSettingId>0 && (IsPOVisible || IsShipment)">
+                            @Html.LabelFor(x => x.GSTAmount, "GST Amount")
+                            <kendo-numerictextbox v-model="input.GSTAmount" :min="0" :spinners="false" :format="'n2'" style="text-align:right;width:100%;"></kendo-numerictextbox>
+                        </div>
+                        <div class="form-group col-md-6" v-show="IsPOVisible || IsShipment">
+                            @Html.LabelFor(x => x.DebitTo, "Debit To")
+                            <kendo-datasource ref="dsDebitAccounts" :transport-read-url="'@Url.Action("ReadAccountNames","Common")'" :transport-read-type="'POST'" style="width:100%"></kendo-datasource>
+                            <kendo-combobox ref="ddDebitAccount" v-model="input.DebitTo" :data-source-ref="'dsDebitAccounts'" :data-text-field="'Text'" :data-value-field="'Id'" :filter="'contains'" style="width:100%"></kendo-combobox>
+                        </div>
+                        <div class="form-group col-md-6">
+                            @Html.LabelFor(x => x.CreditTo, "Credit To")
+                            <kendo-datasource ref="dsCreditAccounts" :transport-read-url="'@Url.Action("ReadCreditAccountNames","Common")'" :transport-read-type="'POST'" style="width:100%"></kendo-datasource>
+                            <kendo-combobox ref="ddCreditAccount" v-model="input.CreditTo" :data-source-ref="'dsCreditAccounts'" :data-text-field="'Text'" :data-value-field="'Id'" :filter="'contains'" style="width:100%"></kendo-combobox>
+                        </div>
+                        @*<div class="form-group col-md-6" v-if="@_appUser.IsHeadShop.ToString().ToLower()">
+                        @Html.LabelFor(x => x.ShopId, "Shop")
+                        <kendo-datasource ref="dsShops" :transport-read-url="'@Url.Action("ReadMyShops","Common")'" :transport-read-type="'POST'" style="width:100%"></kendo-datasource>
+                        <kendo-combobox ref="ddShops" v-model="input.ShopId" :data-source-ref="'dsShops'" :data-text-field="'Text'" :data-value-field="'Id'" :filter="'contains'" style="width:100%" placeholder="Select Shop"></kendo-combobox>
+                        </div>*@
+                        <div class="form-group col-md-6" v-show="IsPOVisible || IsShipment">
+                            @Html.LabelFor(x => x.Description, "Remarks")
+                            <textarea v-model.trim="input.Description" class="k-textbox" style="resize:none;" rows="1" placeholder="Comments"></textarea>
+                        </div>
+                    </div>
+
+                    @*<div>
+                    <a href="javascript:app.addDoc()" class="c-lnk"><i class="fa fa-paperclip"></i> Attachments</a>
+                    </div>*@
+                </div>
+                <div :class="{'col-md-6': true, 'na-border':IsShipment }">
+                    <div v-show="IsPOVisible">
+                        <div class="wt-box">
+                            <div class="wt-box-header">
+                                Purchase Orders
+                                <a href="javascript:app.selectPO()" class="c-lnk" style="float: right;text-decoration:underline">Select Purchase Order</a>
+                            </div>
+                            @(Html.Kendo().Grid<SupplierInvoiceDetail>()
+                                .Name("gridSupplierInvoice")
+                                .Editable(Html, "", false, false)
+                                .Columns(c =>
+                                {
+                                    c.DeleteColumn(x => x.SupplierInvoiceId, "app.deletePO('#:uid#')", childEdit: true);
+                                    c.Bound(p => p.PORefNo).Title("Ref No").Width(40);
+                                    c.MoneyColumn(p => p.TotalAmount).Width(20);
+                                    c.MoneyColumn(p => p.Balance).Width(20).Width(100).HtmlAttributes(new { @class = "editable" }).Editable("disableEditor");
+                                    c.MoneyColumn(p => p.InvoiceAmount).Width(20).HtmlAttributes(new { @class = "editable" }).EditorTemplateName("MoneyEditor");
+
+                                })
+                                .Sortable()
+                                .Resizable(x => x.Columns(true))
+                                .HtmlAttributes(new { @class = "inl-grid" })
+                                .AutoBind(false)
+                                .NoRecords()
+                                .Navigatable()
+                                .DataSource(d => d
+                                .Ajax().Batch(true)
+                                .ServerOperation(false)
+                                .Read(read => read.Action("ReadSupplierInvoiceDetails", "Procurements").Data("app.gridData"))
+                                .Model(m =>
+                                {
+                                    m.Id(p => p.SupplierInvoiceId);
+                                    m.Field(p => p.SupplierInvoiceId).Editable(false);
+                                    m.Field(p => p.TotalAmount).Editable(false);
+                                    m.Field(x => x.PORefNo).Editable(false);
+                                }))
+                                .Events(x => x.CellClose("app.gridCellClose"))
+                                )
+                        </div>
+                    </div>
+                    <div v-if="IsShipment" style="text-align: center;margin-top: 17%;">
+                        <h4 style="color: #ddd">INVOICE WITHOUT PURCHASE ORDER</h4>
+                    </div>
+                </div>
+            </div>
+            <div v-show="!IsPOVisible && !IsShipment">
+                <div class="g-title">
+                    <div class="g-left">
+                        <a class='i-button b-icon' href='javascript:app.addRow()'><i class='fa fa-plus'></i></a>
+                    </div>
+                </div>
+                @(Html.Kendo().Grid<SupplierInvoice>()
+                    .Name("gridWOP")
+                    .Editable(Html, "", false, false, GridInsertRowPosition.Bottom)
+                    .Columns(c =>
+                    {
+                        c.DeleteColumn(p => p.Id, "app.deleteSupplierInvItem('#:uid#')");
+                        c.Bound(p => p.InvoiceNo).Width(180);
+                        c.Bound(p => p.DebitTo).ClientTemplate("#: Debit #").EditorTemplateName("ComboBoxEditor").EditorViewData(new { Data = new EditorData(Url.Action("ReadAccountsWithCurrency", "Common"), "Debit", "Text", "Id") }).Title("Debit Account").Width(300);
+                        c.MoneyColumn(p => p.Amount).EditorTemplateName("MoneyEditor").Title("Amount").Width(100);
+                        c.Bound(p => p.GSTSettingId).ClientTemplate("#: GST==null?'':GST #").EditorTemplateName("ComboBoxEditor").EditorViewData(new { Data = new EditorData(Url.Action("ReadGSTSettings", "Common"), "GST", "Name", "Id", "app.gstOnChange") }).Title("GST").Width(120);
+                        c.MoneyColumn(p => p.GSTAmount).EditorTemplateName("MoneyEditor").Title("GST Amount").Width(100);
+                        c.DescriptionColumn(p => p.Description).Width(300);
+                    })
+                    .Sortable()
+                    .Resizable(x => x.Columns(true))
+                    .HtmlAttributes(new { @class = "h-grid cb-grid" })
+                    .NoRecords()
+                    .Navigatable()
+                    .Events(x => x.CellClose("app.gridWOPCellClose").DataBound("app.gridWOPDataBound"))
+                    .DataSource(dataSource => dataSource
+                    .Ajax()
+                    .Batch(true)
+                    .ServerOperation(false)
+                    .Read(read => read.Action("ReadWOPSupplierInvoices", "Procurements").Data("app.gridWOPData"))
+                    .Model(model =>
+                    {
+                        model.Id(p => p.Id);
+                        model.Field(p => p.Id).Editable(false);
+                    })))
+            </div>
+        </div>
+
+    </div>
+</form>
+<div>
+
+    @(Html.Kendo().Grid<SupplierInvoice>()
+        .Name("grid")
+        .Columns(c =>
+        {
+            c.EditButtonColumn();
+            c.DeleteColumn(x => x.Id);
+            c.PrintColumn("printItem('#:uid#')");
+            c.Bound(x => x.RefNo).Title("Ref No").Width(150);
+            c.Bound(x => x.ShopName).Width(220);
+            c.Bound(x => x.SupplierName).Width(200);
+            c.Bound(x => x.PORefNos).Title("PO Ref No").Width(150);
+            c.Bound(x => x.ShipmentRefNo).Width(150);
+            c.Bound(x => x.Description).Width(250);
+            c.Bound(x => x.ExpenseCategory).Width(150);
+            c.Bound(x => x.InvoiceNo).Width(120);
+            c.DateColumn(x => x.InvoiceDate).Width(120);
+            c.Bound(x => x.Currency).Width(100);
+            c.MoneyColumn(x => x.Amount).Width(120);
+            c.MoneyColumn(x => x.GSTAmount).Width(120);
+            c.MoneyColumn(x => x.Balance).Width(120);
+            c.Bound(x => x.Debit).Width(180);
+            c.DateColumn(x => x.CreatedOn).Width(150);
+        })
+
+        .Scrollable()
+        .Sortable()
+        .EnableEdit(Html)
+        .EnableFilter()
+        .Resizable(x => x.Columns(true))
+        .Pageable(x => x.Refresh(true))
+        .Excel(x => x.AllPages(true))
+        .DataSource(dataSource => dataSource
+        .Ajax().ServerOperation(true).PageSize(50)
+        .Read(read => read.Action("ReadSupplierInvoices", "Procurements"))
+        .Sort(s => s.Add(x => x.Id).Descending())
+        )
+
+        )
+</div>
+<form asp-page="@Url.Page("/General/DocumentViewer")" method="POST" target="_blank" id="frmDoc" style="display:none;">
+    <input type="hidden" name="RPT_R" value="Purchase/SupplierInvoice" />
+    <input type="hidden" name="RPT_ReportTitle" value="SupplierInvoice" />
+    <input type="hidden" name="RPT_Id" />
+    <input type="submit" value="Submit">
+</form>
+
+@{
+    var jsonData = Vue.Encode(new SupplierInvoice() { InvoiceDate = DateTime.Now, PaymentType = "CASH", Currency = _appUser.BaseCurrency, ExpenseCategory = "Freight", CreditTo = accountSetting.PayableUSDAccountId, DebitTo = accountSetting.InventoryAccountId });
+}
+
+@section Scripts{
+
+    @(Html.Kendo().Window()
+        .Name("wndPO")
+        .Title("Purchase Orders")
+        .Content(@<text>
+            <div id="appPO">
+                @(Html.Kendo().Grid<PurchaseOrder>()
+        .Name("gridPO")
+        .AutoBind(false)
+        .Columns(x =>
+        {
+                        x.Bound(c => c.Id).ClientTemplate("<i class='btn-grid btn-grid-plus fa fa-plus' title='Select Item'></i>").Center().HtmlAttributes(new { onclick = "appPO.addItem(this)" }).Width(10).Filterable(false).Sortable(false).ClearTitle();
+                        x.Bound(c => c.RefNoFormatted).Title("Ref No").Width(40);
+                        x.MoneyColumn(c => c.Balance).Width(20);
+                        x.MoneyColumn(c => c.TotalAmount).Width(20);
+                    })
+        .Sortable()
+        .Scrollable()
+        .Pageable(x => x.Refresh(true))
+        .Resizable(x => x.Columns(true))
+        .EnableFilter()
+        .HtmlAttributes(new { @class = "h-grid v-grid" })
+        .Events(x => x.DataBound("appPO.gridPODataBound"))
+        .DataSource(d => d
+        .Ajax().ServerOperation(true).PageSize(50)
+        .Read(read => read.Action("ReadPurchaseOrders", "Procurements").Data("app.gridData"))
+        ))
+                </div>
+            </text>)
+    .Draggable()
+    .Resizable()
+    .Visible(false)
+    .MaxWidth(1000)
+        )
+
+    @await Html.PartialAsync("DocumentsDialog", "")
+
+    <script type="text/javascript">
+        var appPO = new Vue({
+            el: '#appPO',
+            data: {
+                addPOCallBack: null
+            },
+            methods: {
+                addItem: function (sender) {
+                    var $grid = $('#gridPO').getKendoGrid();
+                    var item = $grid.dataItem($(sender).parent());
+                    $(sender).find('i').removeClass("fa-plus").addClass("fa-spinner fa-spin");
+                    $grid.dataSource.remove(item);
+                    if (this.addPOCallBack)
+                        this.addPOCallBack(item);
+                },
+                open: function () {
+                    //if (!$('#gridPO').getKendoGrid().dataSource.data().length)
+                    $('#gridPO').getKendoGrid().dataSource.read();
+                    $('#wndPO').getKendoWindow().open().center();
+                },
+                gridPODataBound: function () {
+                    $('#wndPO').getKendoWindow().center();
+                }
+            }
+        });
+    </script>
+
+    <script type="text/javascript">
+        var app = new Vue({
+            el: '#app',
+            data: {
+                input: @(jsonData),
+                PORefNo: [],
+                IsPOVisible: true,
+                Documents: [],
+                Amount: 0,
+                InvoiceId: 0,
+                IsShipment: false
+            },
+            created: function () {
+                appPO.addPOCallBack = this.addItem;
+                appDoc.init("@DocumentReference.SupplierInvoices.ToString()", this.onSuccess);
+            },
+            methods: {
+                validateForm: function () {
+                    removeError();
+                    var isValid = true;
+                    var setError = function (cntrl, msg) {
+                        isValid = false;
+                        showError(cntrl, msg);
+                    };
+                    if (!this.input.ShopId)
+                        setError('ShopId');
+                    else if (this.$refs.ddShop && this.$refs.ddShop.kendoWidget().selectedIndex == -1)
+                        setError('ShopId', 'Invalid');
+
+                    if (!this.input.SupplierId)
+                        setError('SupplierId');
+                    else if (this.$refs.ddSupplier && this.$refs.ddSupplier.kendoWidget().selectedIndex == -1)
+                        setError('SupplierId', 'Invalid');
+
+                    if (this.IsPOVisible) {
+                        var items = $('#gridSupplierInvoice').getKendoGrid().dataSource.data();
+                        if (!items.length) {
+                            kendoAlert("Select purchase order", true);
+                            return;
+                        }
+                    }
+                    if (this.IsShipment) {
+                        if (!this.input.ShipmentId)
+                            setError('ShipmentId');
+                        else if (this.$refs.ddShipment && this.$refs.ddShipment.kendoWidget().selectedIndex == -1)
+                            setError('ShipmentId', 'Invalid');
+                        if (!this.input.ExpenseCategory)
+                            setError('ExpenseCategory');
+                    }
+                    if (!this.IsPOVisible && !this.IsShipment) {
+                        var items = $('#gridWOP').getKendoGrid().dataSource.data();
+                        if (!items.length) {
+                            kendoAlert("Please enter debit account details", true);
+                            return;
+                        }
+                    }
+                    //if (this.input.Id == 0 && !this.IsPOVisible && !this.input.Description)
+                    //    setError('Description');
+                    if (!this.input.InvoiceNo)
+                        setError('InvoiceNo');
+                    if (!this.input.InvoiceDate || !this.input.InvoiceDate.isValid())
+                        setError('InvoiceDate');
+                    if (!this.input.Amount)
+                        setError('Amount');
+                    //if (!this.input.GSTAccountId && this.$refs.ddGST.kendoWidget().selectedIndex == -1)
+                    //    setError('GSTSettingId','Invalid');
+                    if (this.input.GSTAccountId && !this.input.GSTAmount)
+                        setError('GSTAmount');
+                    if ('@_appUser.ShopId' == 0) {
+                        kendoAlert("Please assign shop for this employee");
+                        return;
+                    }
+
+                    if (this.IsPOVisible || this.IsShipment) {
+                        if (this.$refs.ddDebitAccount && this.$refs.ddDebitAccount.kendoWidget().selectedIndex == -1)
+                            setError('DebitTo');
+                    }
+                    if (this.$refs.ddCreditAccount && this.$refs.ddCreditAccount.kendoWidget().selectedIndex == -1)
+                        setError('CreditTo');
+        @*if (@(_appUser.IsHeadShop.ToString().ToLower()) && this.$refs.ddShops && this.$refs.ddShops.kendoWidget().selectedIndex == -1)
+                    setError('ShopId');*@
+
+                        if (!this.IsPOVisible && !this.IsShipment) {
+                        var emptyAccount = 0, emptyDescriptions = 0, zeroAmount = 0, emptyGSTAccount = 0, zeroGSTAmount = 0;;
+                        $('#gridWOP').find(".rw-err").removeClass("rw-err");
+                        var items = $('#gridWOP').getKendoGrid().dataSource.data();
+                        var editedRows = $.grep(items, function (item) {
+                            return item.DebitTo !== 0 || item.Description !== '' || item.Amount !== 0;
+                        });
+
+                        if (editedRows.length == 0) {
+                            kendoAlert('Please enter atleast one invoice detail.', true);
+                            return;
+                        }
+
+                        $.each(editedRows, function (i, x) {
+                            var setRowError = function () {
+                                $('#gridWOP').find("[data-uid=" + x.uid + "]:not('.rw-err')").addClass("rw-err");
+                            };
+
+                            if (!x.DebitTo) {
+                                emptyAccount++;
+                                setRowError();
+                            }
+
+                            if (!x.Description || !x.Description.trim().length) {
+                                emptyDescriptions++;
+                                setRowError();
+                            }
+
+                            if (!x.Amount) {
+                                zeroAmount++;
+                                setRowError();
+                            }
+
+                            if (x.GSTAmount && !x.GSTPercent) {
+                                emptyGSTAccount++;
+                                setRowError();
+                            }
+
+                            if (x.GSTPercent && !x.GSTAmount) {
+                                zeroGSTAmount++;
+                                setRowError();
+                            }
+                        });
+
+                        var errors = [];
+                        if (emptyAccount > 0)
+                            errors.push("Debit Account should not be empty");
+
+                        if (emptyDescriptions > 0)
+                            errors.push("Description should not be empty");
+
+                        if (zeroAmount > 0)
+                            errors.push("Amount should not be zero");
+
+                        if (emptyGSTAccount > 0)
+                            errors.push("GST Account should not be empty if GST Amount is entered");
+
+                        if (zeroGSTAmount > 0)
+                            errors.push("GST Amount should not be zero if GST Account is selected");
+
+                        if (errors.length) {
+                            isValid = false;
+                            kendoAlert(errors.join("\n"), true);
+                        }
+                    }
+
+                    return isValid;
+                },
+                selectPO: function () {
+                    if (!this.input.SupplierId) {
+                        kendoAlert('Please select supplier before selecting purchase order', true);
+                        return;
+                    }
+                    appPO.open();
+                },
+                addItem: function (items) {
+                    var newPO = @(Vue.Encode(new SupplierInvoiceDetail()));
+                    var dataSource = $('#gridSupplierInvoice').getKendoGrid().dataSource;
+                    var extItem = $.grep(dataSource.data(), function (x) { return x.PurchaseOrderId == items.Id });
+                    if (extItem.length) {
+                        return;
+                    }
+                    else {
+                        newPO.PurchaseOrderId = items.Id
+                        newPO.PORefNo = items.RefNoFormatted;
+                        newPO.Balance = items.Balance;
+                        newPO.TotalAmount = items.TotalAmount;
+                        dataSource.add(newPO);
+                    }
+                },
+                editItem: function (uid) {
+                    $('.toggle-btn.btn-minus').open();
+                    var dataItem = $('#grid').getKendoGrid().dataSource.getByUid(uid);
+                    app.input = cloneAndDecode(dataItem);
+                    app.IsPOVisible = app.input.POSelected;
+                    app.IsShipment = !app.input.POSelected && app.input.ShipmentId > 0;
+
+                    if (app.IsPOVisible) {
+                        $('#rdoWithPO').prop('checked', true);
+                        app.InvoiceId = dataItem.Id;
+                        app.input.SupplierId = dataItem.SupplierId;
+                        $('#gridSupplierInvoice').getKendoGrid().dataSource.read();
+                        $("#gridPO").getKendoGrid().dataSource.data([]);
+                    }
+                    else if (app.IsShipment)
+                        $('#rdoShipment').prop('checked', true);
+                    else {
+                        $('#rdoWithoutPO').prop('checked', true);
+                        $('#gridWOP').getKendoGrid().dataSource.read();
+                    }
+
+                    $("input:radio[name=rdoPO]").attr("disabled", true);
+                },
+                creditAccountDataBound: function (e) {
+                    var data = e.sender.dataSource.data();
+
+                    e.sender.select(function (dataItem) {
+                        return (dataItem.isdefault === 1);
+                    });
+                },
+                onSuccess: function (res) {
+                    kendoAlert(res.Message, res.HasError);
+                    if (res.HasError)
+                        return;
+
+                    $('.toggle-btn.btn-minus').close();
+                    $('.btn-cntrls').hide();
+                    $('#grid').data('kendoGrid').dataSource.read();
+                },
+                submitForm: function () {
+                    if (!this.validateForm())
+                        return;
+
+                    var supplierInvoiceDetails = [];
+                    var txtAmount = 0, isGreat = false;
+                    if (app.IsPOVisible) {
+                        var items = $('#gridSupplierInvoice').getKendoGrid().dataSource.data();
+                        this.input.POSelected = app.IsPOVisible;
+                        $.each(items, function (i, x) {
+                            if (x.InvoiceAmount > 0 && x.InvoiceAmount <= x.Balance) {
+                                supplierInvoiceDetails.push({
+                                    PurchaseOrderId: x.PurchaseOrderId,
+                                    InvoiceAmount: x.InvoiceAmount
+                                })
+                                txtAmount += x.InvoiceAmount;
+                            }
+                            else
+                                isGreat = true;
+                        });
+                        if (isGreat) {
+                            kendoAlert("Invoice amount should not be greater than balance amount", true);
+                            return;
+                        }
+                        this.input.Amount = txtAmount;
+                    }
+                    if (!app.IsShipment) {
+                        app.input.ShipmentId = null;
+                        app.input.ExpenseCategory = null;
+                    }
+
+                    var supplierInvoices = [];
+                    if (app.IsPOVisible || app.IsShipment) {
+                        supplierInvoices.push({
+                            Id: app.input.Id,
+                            ShopId: app.input.ShopId,
+                            SupplierId: app.input.SupplierId,
+                            ShipmentId: app.input.ShipmentId,
+                            Currency: app.input.Currency,
+                            Description: app.input.Description,
+                            InvoiceNo: app.input.InvoiceNo,
+                            InvoiceDate: app.input.InvoiceDate,
+                            Amount: app.input.Amount,
+                            DebitTo: app.input.DebitTo,
+                            CreditTo: app.input.CreditTo,
+                            GSTSettingId: app.input.GSTSettingId,
+                            GSTPercent: app.input.GSTPercent,
+                            GSTAccountId: app.input.GSTAccountId,
+                            GSTAmount: app.input.GSTAmount,
+                            ExpenseCategory: app.input.ExpenseCategory,
+                            POSelected: app.input.POSelected,
+                            GroupReferenceNo: app.input.GroupReferenceNo
+                        });
+                    }
+
+                    if (!app.IsPOVisible && !app.IsShipment) {
+                        var items = $('#gridWOP').getKendoGrid().dataSource.data();
+                        $.each(items, function (i, x) {
+                            if (x.Amount > 0) {
+                                supplierInvoices.push({
+                                    Id: x.Id,
+                                    ShopId: app.input.ShopId,
+                                    SupplierId: app.input.SupplierId,
+                                    ShipmentId: app.input.ShipmentId,
+                                    Currency: app.input.Currency,
+                                    Description: x.Description,
+                                    InvoiceNo: x.InvoiceNo,
+                                    InvoiceDate: app.input.InvoiceDate,
+                                    Amount: x.Amount,
+                                    DebitTo: x.DebitTo,
+                                    CreditTo: app.input.CreditTo,
+                                    GSTSettingId: x.GSTSettingId,
+                                    GSTPercent: x.GSTPercent,
+                                    GSTAccountId: x.GSTAccountId,
+                                    GSTAmount: x.GSTAmount,
+                                    ExpenseCategory: app.input.ExpenseCategory,
+                                    POSelected: app.input.POSelected,
+                                    GroupReferenceNo: app.input.GroupReferenceNo
+                                });
+                            }
+                        });
+                    }
+
+                    $.postData("@Url.Action("SaveSupplierInvoice", "Procurements")",
+                        {
+                            supplierInvoices: supplierInvoices,
+                            SupplierInvoiceDetails: supplierInvoiceDetails,
+                            RefNo: app.input.RefNo
+                        }, function (res) {
+                            if (res.HasError) {
+                                kendoAlert(res.Message, res.HasError);
+                                return;
+                            }
+                            app.onSuccess(res);
+                            //app.input.Id = res.Id;
+                            //if (!appDoc.save(res.Id))
+                            //    app.onSuccess(res);
+                        });
+                },
+                amountChange: function (e) {
+                    var data = $('#gridSupplierInvoice').getKendoGrid().dataSource.data();
+                    this.Amount = e.sender.value();
+                    var totalBalanceAmount = 0;
+                    this.calculateGST();
+                    if (!data.length && this.IsPOVisible) {
+                        kendoAlert("Please select purchase order", true);
+                        return;
+                    }
+                    if (data.length > 0) {
+                        $.each(data, function (i, x) {
+                            totalBalanceAmount += x.Balance;
+                            app.setPOInvoiceAmount(x, app.Amount);
+                        });
+                        if (e.sender.value() > totalBalanceAmount) {
+                            kendoAlert("Amount (" + toCurrency(e.sender.value()) + ") should not be greater than purchase order balance amount (" + toCurrency(totalBalanceAmount) + ")", true);
+                        }
+                    }
+                },
+                gstChange: function (e) {
+                    if (e.sender.selectedIndex == -1) {
+                        this.input.GSTSettingId = null;
+                        this.input.GSTPercent = 0;
+                        this.input.GSTAmount = 0;
+                        this.input.GSTAccountId = null;
+                        return;
+                    }
+                    var item = e.sender.dataItem(e.sender.selectedIndex);
+                    if (item) {
+                        this.input.GSTPercent = item.Percentage;
+                        this.input.GSTAccountId = item.GSTInAccountId;
+                        this.calculateGST();
+                    }
+                },
+                calculateGST: function () {
+                    if (this.input.GSTPercent > 0) {
+                        var amountWithoutGST = parseFloat(parseFloat((this.input.Amount * 100) / (100 + this.input.GSTPercent), 2).toFixed(2));
+                        this.input.GSTAmount = this.input.Amount - amountWithoutGST;
+                    }
+                    else
+                        this.input.GSTAmount = 0;
+                },
+                addRow: function () {
+                    $('#gridWOP').getKendoGrid().addRow();
+                },
+                gstOnChange: function (ddItem, gridItem) {
+                    if (!ddItem) {
+                        gridItem.set('GSTAmount', 0);
+                        gridItem.GSTPercent = null;
+                        gridItem.GSTAccountId = null;
+                        gridItem.GSTSettingId = null;
+                        return;
+                    }
+
+                    gridItem.GSTPercent = ddItem.Percentage;
+                    gridItem.GSTAccountId = ddItem.GSTInAccountId;
+                    if (gridItem.GSTPercent > 0 && gridItem.Amount > 0) {
+                        var amountWithoutGST = parseFloat(parseFloat((gridItem.Amount * 100) / (100 + gridItem.GSTPercent), 2).toFixed(2));
+                        gridItem.set('GSTAmount', gridItem.Amount - amountWithoutGST);
+                    }
+                    else
+                        gridItem.set('GSTAmount', 0);
+                },
+                setPOInvoiceAmount: function (data, amount) {
+                    if (amount > data.Balance) {
+                        data.set("InvoiceAmount", data.Balance);
+                        this.Amount = this.Amount - data.Balance;
+                    }
+                    else {
+                        data.set("InvoiceAmount", amount);
+                        this.Amount = this.Amount - amount;
+                    }
+                },
+                deleteItem: function (uid) {
+                    var dataItem = $('#grid').getKendoGrid().dataSource.getByUid(uid);
+                    kendoConfirm("Do you want to delete this supplier invoice?", function () {
+                        $.postData("@Url.Action("DeleteSupplierInvoice", "Procurements")", { Id: dataItem.Id, RefNo: dataItem.RefNo }, app.onSuccess);
+                    });
+                },
+                deleteSupplierInvItem: function (uid) {
+                    var dataSource = $('#gridWOP').getKendoGrid().dataSource;
+                    var dataItem = dataSource.getByUid(uid);
+                    if (!dataItem.Id)
+                        dataSource.cancelChanges(dataItem);
+                    else {
+                        kendoConfirm("Do you want to delete this supplier invoice?", function () {
+                            $.postData("@Url.Action("DeleteSupplierInvoice", "Procurements")", { Id: dataItem.Id, RefNo: dataItem.RefNo }, function (res) {
+                                kendoAlert(res.Message, res.HasError);
+                                if (res.HasError)
+                                    return;
+                                $('#gridWOP').data('kendoGrid').dataSource.read();
+                                $('#grid').data('kendoGrid').dataSource.read();
+                            });
+                        });
+                    }
+                },
+                deletePO: function (uid) {
+                    var dataSource = $('#gridSupplierInvoice').getKendoGrid().dataSource;
+                    var items = dataSource.data();
+                    var itemsToRemove = $.grep(items, function (x) { return x.uid == uid });
+                    $.each(itemsToRemove, function (i, item) {
+                        dataSource.remove(item);
+                    });
+                },
+                addDoc: function () {
+                    appDoc.open(this.input.Id);
+                },
+                gridCellClose: function (e) {
+                    var fieldName = e.sender.columns[e.container.index()].field;
+                    var item = e.model;
+                    if (fieldName == "InvoiceAmount") {
+                        if (item.InvoiceAmount > item.Balance) {
+                            kendoAlert("Invoice amount (" + toCurrency(item.InvoiceAmount) + ") should not be greater than balance amount (" + toCurrency(item.Balance) + ")", true);
+                            item.set("InvoiceAmount", item.Balance);
+                        }
+                        var data = $('#gridSupplierInvoice').getKendoGrid().dataSource.data();
+                        var total = 0;
+                        $.each(data, function (i, x) {
+                            total += x.InvoiceAmount;
+                        });
+                        this.input.Amount = total;
+                        this.calculateGST();
+                    }
+                },
+                gridData: function () {
+                    return { supplierId: this.input.SupplierId, supplierInvoiceId: app.InvoiceId, currency: this.input.Currency };
+                },
+                gridWOPData: function () {
+                    return { Id: this.input.Id, GroupReferenceNo: this.input.GroupReferenceNo == null ? 0 : this.input.GroupReferenceNo };
+                },
+                gridWOPCellClose: function (e) {
+                    var fieldName = e.sender.columns[e.container.index()].field;
+                    if (fieldName == "Amount")
+                        this.calculateAmount();
+                },
+                gridWOPDataBound: function (e) {
+                    this.calculateAmount();
+                },
+                calculateAmount: function () {
+                    var items = $('#gridWOP').getKendoGrid().dataSource.data();
+                    var totalDebit = 0;
+                    $.each(items, function (i, x) {
+                        totalDebit += x.Amount;
+                    });
+                    this.input.Amount = totalDebit;
+                },
+                refreshPOGrid: function () {
+                    $('#gridSupplierInvoice').getKendoGrid().dataSource.data([]);
+                    $("#gridPO").getKendoGrid().dataSource.data([]);
+                },
+                supplierChange: function (e) {
+                    if (app.IsPOVisible) {
+                        this.refreshPOGrid();
+                    }
+
+                    $.getData("@Url.Action("ReadInvoiceNo", "Procurements")", null, function (res) {
+                        app.input.InvoiceNo = res.Value;
+                    });
+                },
+                currencyChange: function (e) {
+                    $('#gridSupplierInvoice').getKendoGrid().dataSource.data([]);
+                }
+            }
+        });
+    </script>
+    <script type="text/javascript">
+        $(function () {
+            $('.btn-cntrls').hide();
+            $('#grid.grid-edit').on('dblclick', 'tbody tr', function () {
+                app.editItem($(this).attr('data-uid'));
+            });
+        });
+        function onPOChange(e) {
+            app.IsPOVisible = e.value == '1' ? true : false;
+            app.IsShipment = e.value == '2';
+            if (!app.IsShipment) {
+                app.input.ShipmentId = null;
+                app.input.ExpenseCategory = null;
+            }
+            else
+                app.input.ExpenseCategory = 'Freight';
+
+            if (!app.IsPOVisible && !app.IsShipment)
+                $("#gridWOP").getKendoGrid().dataSource.read();
+        }
+        function toggle_Change(isOpened) {
+            app.input = @(jsonData);
+        @*if (@(_appUser.IsHeadShop.ToString().ToLower()))
+            app.input.ShopId =@(_appUser.ShopId);*@
+
+                app.PORefNo =[];
+            app.InvoiceId = 0;
+            $('#rdoWithPO').prop('checked', true);
+            app.IsPOVisible = true;
+            app.IsShipment = false;
+            app.refreshPOGrid();
+            $("input:radio[name=rdoPO]").attr("disabled", false);
+            if (isOpened) {
+                $('.btn-cntrls').show();
+                $("#Attachment .k-upload-selected").length = 0;
+                $('#gridSupplierInvoice').getKendoGrid().dataSource.read();
+            }
+            else
+                $('.btn-cntrls').hide();
+        }
+        function printItem(uid) {
+            var dataItem = $('#grid').getKendoGrid().dataSource.getByUid(uid);
+            $('#frmDoc [name=RPT_Id]').val(dataItem.Id);
+            $('#frmDoc').submit();
+        }
+
+    </script>
+}

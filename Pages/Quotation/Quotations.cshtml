@@ -1,0 +1,247 @@
+﻿@page
+@inject AppUser _appUser
+@using BSOL.Core.Entities
+@{
+    ViewData["Title"] = "Quotations";
+    Layout = "~/Pages/Shared/_Layout.cshtml";
+}
+@if (!await Html.HasAccess(Forms.Retail.Quotation))
+{
+    return;
+}
+@section BreadCrumb{
+    @await Html.PartialAsync("BreadCrumb", "Retail")
+}
+@{
+    string statusFilter = Request.Query["q"] == "2" ? "Closed" : Request.Query["q"] == "1" ? "Verified" : "Pending";
+}
+@section Head
+{
+    @{
+        var list = new[] { "Edit", "Delete", "Print", "Quotation No", "Quotation Date", "Customer Name", "Currency", "Quotation Type", "Total Amount", "Notes", "Contact Name", "Contact No", "Created By", "Created On" }.ToList();
+        if (statusFilter == "Pending")
+            list.Insert(1, "Verify");
+        if (statusFilter == "Verified")
+        {
+            list.Insert(3, "Close Quotation");
+            list.Insert(4, "Call Log");
+            if (!_appUser.IsAdmin)
+                list.Insert(5, "Follow Up");
+        }
+        if (statusFilter == "Closed")
+        {
+            list.Insert(3, "Undo Close");
+            list.Insert(13, "Closed By");
+            list.Insert(14, "Closed Date");
+            list.Insert(15, "Closed Reason");
+        }
+    <style type="text/css">
+         @Html.MobileHeader(list)
+    </style>
+    }
+}
+<div class="g-title">
+    <div class="g-left">
+        @Html.AddUrlButton("/Quotation/EditQuotation")
+        <ul class="tg-btn tg-fixed" style="float: right; margin-left: 15px; margin-top: 1px;">
+            <li @(statusFilter == "Pending" ? "class=tg-active" : "")>
+                <a href="@Url.Page("/Quotation/Quotations")?q=0">Pending</a>
+            </li>
+            <li @(statusFilter == "Verified" ? "class=tg-active" : "")>
+                <a href="@Url.Page("/Quotation/Quotations")?q=1">Verified</a>
+            </li>
+            <li @(statusFilter == "Closed" ? "class=tg-active" : "")>
+                <a href="@Url.Page("/Quotation/Quotations")?q=2">Closed</a>
+            </li>
+        </ul>
+    </div>
+    <span class="g-text">Quotations</span>
+    
+        @Html.ExcelButton()
+    </div>
+
+@*@await Html.PartialAsync("Search")*@
+@(Html.Kendo().Grid<Quotation>()
+            .Name("grid")
+            .Columns(x =>
+            {
+                x.EditUrlColumn(Url.Page("/Quotation/EditQuotation") + "?id=#:Id#");
+                x.VerifyColumn(c => c.ApprovedDate1).Title(statusFilter == "Pending" ? "Verify" : "Revert");
+                x.DeleteColumn();
+                @*x.PrintColumn();*@
+                if (statusFilter == "Verified") {
+                    x.Bound("").ClientTemplate(@"<a class='btn-grid btn-grid-close fa fa-bolt' title='Mark as Closed' href='javascript:app.closeItem(""#:uid#"")'></a>").Title('\0'.ToString()).HtmlAttributes(new { style = "text-align:center;" }).Width(41).Sortable(false).Filterable(false);
+                    //x.Bound("").ClientTemplate(@"<a class='btn-grid btn-grid-call fa fa-phone' title='Follow Up' href='javascript:app.addFollowUp(""#:uid#"")'></a>").Title('\0'.ToString()).HtmlAttributes(new { style = "text-align:center;" }).Width(41).Sortable(false).Filterable(false);
+                    //if (!_appUser.IsAdmin)
+                    //    x.Bound("").ClientTemplate(@"#if(AllowNotification){#<a class='btn-grid btn-grid-follow fa fa-bell' title='Undo Follow Up' href='javascript:app.addOrRemoveNotification(""#:uid#"")'></a>#}else{#<a class='btn-grid btn-grid-follow fa fa-bell-o' title='Follow Up this quotation' href='javascript:app.addOrRemoveNotification(""#:uid#"")'></a>#}#").Title('\0'.ToString()).HtmlAttributes(new { style = "text-align:center;" }).Width(41).Sortable(false).Filterable(false);
+                }
+                if (statusFilter == "Closed")
+                    x.Bound("").ClientTemplate(@"<a class='btn-grid btn-grid-undo fa fa-undo' title='Mark as Open' href='javascript:app.openItem(""#:uid#"")'></a>").Title('\0'.ToString()).HtmlAttributes(new { style = "text-align:center;" }).Width(41).Sortable(false).Filterable(false);
+                x.Bound(c => c.RefNoFormatted).Title("Quotation No").Width(140);
+                x.DateColumn(c => c.QuotationDate).Width(130);
+                x.Bound(c => c.CustomerName).Width(240);
+                x.Bound(c => c.Currency).Width(100);
+                x.Bound(c => c.QuotationType).Width(130);
+                x.MoneyColumn(c => c.TotalAmount).Width(130);
+                x.Bound(c => c.Notes).Width(200);
+                x.TelColumn(c => c.ContactName).Width(130);
+                x.TelColumn(c => c.ContactNo).Width(110);
+                if (statusFilter == "Closed")
+                {
+                    x.Bound(c => c.ClosedBy).Width(160);
+                    x.DateColumn(c => c.ClosedDate).Width(150);
+                    x.Bound(c => c.ClosedReason).Width(160);
+                }
+                x.Bound(c => c.CreatedBy).Width(160);
+                x.DateColumn(c => c.CreatedOn).Width(150);
+            })
+                .Scrollable()
+                .Sortable()
+                .EnableEdit(Html)
+                .EnableFilter()
+                .Resizable(x => x.Columns(true))
+                .Pageable(x => x.Refresh(true))
+                .Excel(x => x.AllPages(true))
+                .Selectable()
+                .HtmlAttributes(new { @class = "h-grid v-grid r-table" })
+                .DataSource(dataSource => dataSource
+                .Ajax().ServerOperation(true).PageSize(50)
+                    .Read(read => read.Action("ReadQuotations", "Quotation", new { StatusFilter = statusFilter == "Closed" ? 2 : statusFilter == "Verified" ? 1 : 0 }))
+                    .Model(m => m.Field("Id", typeof(string)))
+                    .Sort(s => s.Add(x => x.Id).Descending())
+            )
+)
+<form asp-page="@Url.Page("/General/DocumentViewer")" method="POST" target="_blank" id="frmDoc" style="display:none;">
+    <input type="hidden" name="RPT_R" />
+    <input type="hidden" name="RPT_ReportTitle" value="Quotation" />
+    <input type="hidden" name="RPT_ENC_ID" />
+    <input type="submit" value="Submit">
+</form>
+@section Scripts{
+ @*   @await Html.PartialAsync("FollowUpDialog", new FollowUp())*@
+
+    @(Html.Kendo().Window()
+        .Name("wndQuotationStatus")
+        .Title("Change Quotation Status")
+        .Content(@<text>
+                <div class="form-group">
+                    <label for="ClosedReason">Reason</label>
+                    @Html.Kendo().ComboBox().Name("ddClosedReason").DataSource(d => d.Read(r => r.Action("ReadClosedReasons", "Quotation").Type(HttpVerbs.Post))).Filter(FilterType.Contains).HtmlAttributes(new { style = "width:100%"})
+                </div>
+                <div style="text-align: center;padding-top: 5px;">
+                    @Html.SaveButton("app.closeItem()", "Mark as Closed", "Mark as Closed")
+                </div>
+        </text>)
+        .Draggable()
+        .Resizable()
+        .Visible(false)
+        .MaxWidth(300)
+        .Modal(true)
+    )
+
+    <script type="text/javascript">
+        var app = new Vue({
+            data: {
+                Id: 0,
+                RefNoFormatted: ""
+            },
+            methods: {
+                verifyItem: function (uid) {
+                    var dataItem = $('#grid').getKendoGrid().dataSource.getByUid(uid);
+                    $.postData("@Url.Action("VerifyQuotation", "Quotation")", { Id: dataItem.Id, RefNoFormatted: dataItem.RefNoFormatted }, function (res) { app.onSuccess(res); lapp.refreshNotification(); });
+                },
+                revertItem: function (uid) {
+                    var dataItem = $('#grid').getKendoGrid().dataSource.getByUid(uid);
+                    kendoConfirm("Do you want to un-verify this Quotation?", function () {
+                        $.postData("@Url.Action("RevertQuotation", "Quotation")", { Id: dataItem.Id, RefNoFormatted: dataItem.RefNoFormatted }, function (res) { app.onSuccess(res); lapp.refreshNotification(); });
+                    });
+                },
+                deleteItem: function (uid) {
+                    var dataItem = $('#grid').getKendoGrid().dataSource.getByUid(uid);
+                    kendoConfirm("Do you want to delete this Quotation?", function () {
+                        $.postData("@Url.Action("DeleteQuotation", "Quotation")", { Id: dataItem.Id, RefNoFormatted: dataItem.RefNoFormatted }, function (res) { app.onSuccess(res); lapp.refreshNotification(); });
+                    });
+                },
+                closeItem: function (uid) {
+                    if (uid) {
+                        var dataItem = $('#grid').getKendoGrid().dataSource.getByUid(uid);
+                        this.Id = dataItem.Id;
+                        this.RefNoFormatted = dataItem.RefNoFormatted;
+                        $('#wndQuotationStatus').getKendoWindow().open().center();
+                    }
+                    else {/* Called from Popup */
+                        var reason = $('#ddClosedReason').getKendoComboBox().text();
+                        removeError();
+                        if (!reason || !reason.trim().length) {
+                            showError("ClosedReason");
+                            return;
+                        }
+                        kendoConfirm("Do you want to mark this Quotation as Closed?", function () {
+                            $.postData("@Url.Action("CloseQuotation", "Quotation")", { Id: app.Id, RefNoFormatted: app.RefNoFormatted, ClosedReason: reason }, function (res) {app.onSuccess(res); lapp.refreshNotification(); });
+                                if (res.HasError) {
+                                    kendoAlert(res.Message, res.HasError);
+                                    return;
+                                }
+                                kendoAlert(res.Message, res.HasError, "BSOL", function () {
+                                    $('#grid').getKendoGrid().dataSource.read();
+                                    $('#wndQuotationStatus').getKendoWindow().close();
+                                    lapp.refreshNotification();
+                                });
+                            });
+                    }
+                },
+                openItem: function (uid) {
+                    var dataItem = $('#grid').getKendoGrid().dataSource.getByUid(uid);
+                    kendoConfirm("Do you want to mark this Quotation as Open?", function () {
+                        $.postData("@Url.Action("OpenQuotation", "Quotation")", { Id: dataItem.Id, RefNoFormatted: dataItem.RefNoFormatted }, function (res) { app.onSuccess(res); lapp.refreshNotification(); });
+                    });
+                },
+               
+                onSuccess: function (res) {
+                    kendoAlert(res.Message, res.HasError);
+                    if (res.HasError)
+                        return;
+                    $('#grid').getKendoGrid().dataSource.read();
+                }
+               
+            }
+        });
+    </script>
+
+    <script type="text/javascript">
+        $(function () {
+            $("#grid").on("dblclick", ".k-grid-content tr", function () {
+                var dataItem = $("#grid").getKendoGrid().dataItem($(this));
+                window.open("@Url.Page("/Quotation/EditQuotation")?id=" + dataItem.Id);
+            });
+        });
+
+        $(function () {
+            $('#lstPrint a:not(.smenu)').click(printReport);
+            $('.dropdown-submenu a.smenu').on("click", function (e) {
+                $(this).next('ul').toggle();
+                e.stopPropagation();
+                e.preventDefault();
+            });
+        });
+
+        function printReport(e) {
+            e.preventDefault();
+            var dataItem = $("#grid").getKendoGrid().dataItem($('#grid .k-state-selected'));
+
+            if (!dataItem) {
+                kendoAlert("Please select quotation in the below list before printing Report", true);
+                return;
+            }
+
+            if($(this).attr('data-report')=="Sales/Quotation"){
+                 $('#frmDoc [name=RPT_R]').val($(this).attr('data-report'));
+                 $('#frmDoc [name=RPT_ENC_ID]').val(dataItem.Id);
+                 $('#frmDoc').submit();
+            }
+            else{
+                 app.emailQuotation();
+            }
+        }
+    </script>
+}

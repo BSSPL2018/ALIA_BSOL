@@ -1,0 +1,54 @@
+﻿@page
+@using System.Data
+@model BSOL.Pages.HirePurchase.MonthUnitStatusGridModel
+@{
+    var dtData = (DataTable)ViewData["GRID_DATA"];
+}
+
+<div style="clear:both;">
+    @(
+        Html.Kendo().Grid<dynamic>().Name("gridDetail")
+        .Columns(x =>
+        {
+            if (dtData != null)
+            {
+                foreach (DataColumn column in dtData.Columns)
+                {
+                    x.Bound(column.ColumnName).Title(column.Caption).Width(100).Filterable(false).HeaderHtmlAttributes(new { @class = "col-dynamic" });
+                }
+            }
+        })
+        .AutoBind(false)
+        .Scrollable()
+        .EnableFilter()
+        .Sortable()
+        .Pageable()
+        .Events(x => x.DataBound("gridDataBound"))
+        .HtmlAttributes(new { @class = "h-grid v-grid" })
+        .Groupable()
+        .ColumnMenu()
+        .Filterable()
+        .Selectable(selectable => selectable
+        .Mode(GridSelectionMode.Multiple)
+        .Type(GridSelectionType.Cell))
+        .DataSource(x => x.Ajax().PageSize(1000)
+        @* .Aggregates(a =>
+        {
+            a.add("",).Count();
+        }) *@
+        )
+        )
+</div>
+<script type="text/javascript">
+    $(function () {
+        $('#gridDetail').getKendoGrid().dataSource.data(@Vue.Encode(dtData));
+        ConfigureGrid();
+
+
+    });
+    function gridDataBound() {
+        for (var i = 0; i < this.columns.length; i++) {
+            this.autoFitColumn(i);
+        }
+    }
+</script>

@@ -1,0 +1,247 @@
+﻿@page
+@using Core.Entities
+@{
+    ViewData["Title"] = "Shops";
+    Layout = "~/Pages/Shared/_Layout.cshtml";
+}
+@section BreadCrumb {
+    @* @await Html.PartialAsync("Tabs", "Procurement/Shops") *@
+}
+@if (!await Html.HasAccess(Forms.Procurement.Shops))
+{
+    return;
+}
+
+
+    <div class="g-title">
+        <div class="g-left">
+            @Html.AddButton("javascript:app.addItem()")
+        </div>
+        <span class="g-text">Add Business Group</span>
+        <div class="g-right">
+            @*  <a href="javascript:app.addShopGroup()" class="c-lnk">Add Shop Group</a> *@
+            <button type="button" style="padding: 4px 10px;border-radius: 0;background: #0F9D58;" onclick="app.addShopGroup()" class="btn btn-primary">
+                <i class="fa fa-plus-circle"></i>Add Business Unit
+            </button>
+            @Html.SaveButton("javascript:app.saveItem()")
+        </div>
+    </div>
+
+    @(
+        Html.Kendo().Grid<Shop>().Name("grid")
+        .Columns(c =>
+        {
+            c.Bound(x => x.Id).ClientTemplate(@"#if(Active || id == 0 ){#<a class='btn-grid btn-grid-delete fa fa-trash-o' onclick='javascript:deleteShops(""#:uid#"")' title='Verify' ></a> #}"
+            + @"else if(!Active && Id>0){#<a class='btn-grid btn-save fa fa-undo' onclick='javascript:undoShops(""#:uid#"")' title='Revert' ></a> #}#"
+            ).Title("<i class='' title=''></i>").HtmlAttributes(new { style = "text-align:center;" }).HeaderHtmlAttributes(new { style = "text-align:center;" }).Filterable(false).Sortable(false).Width(50);
+            @*c.DeleteColumn(x => x.Id, "deleteShops('#:uid#')");*@
+            c.VerifyColumn(x => x.VerifiedOn);
+            c.Bound(x => x.ShopGroupID).Title("Business Group").ClientTemplate("#: Name ? Name : '' #").EditorTemplateName("ComboBoxEditor").EditorViewData(new { Data = new EditorData(Url.Action("ReadShopGroup", "Common"), "Name", "Text") }).Width(150).Editable("disableVerified");
+            c.Bound(x => x.ShopCode).Width(220).Editable("disableVerified").Title("Business Group Code");
+            c.Bound(x => x.ShopName).Width(220).Editable("disableVerified").Title("Business Unit Name");
+            c.NumberColumn(x => x.NoOfCounter).Width(110).Editable("disableVerified");
+            c.MoneyColumn(x => x.MovingAmount).Width(120).Editable("disableVerified");
+            c.MoneyColumn(x => x.FloatAmountMVR).Width(140).Editable("disableVerified");
+            c.MoneyColumn(x => x.OpeningFloatMVR).Width(140).Editable("disableVerified");
+            c.MoneyColumn(x => x.OpeningFloatUSD).Width(140).Editable("disableVerified");
+            @*c.Bound(x => x.GSTSettingId).ClientTemplate("#: GSTSettingName ? GSTSettingName : '' #").EditorTemplateName("ComboBoxEditor").EditorViewData(new { Data = new EditorData(Url.Action("ReadGSTSettings", "Common"), "GSTSettingName", "Name") }).Title("GST (%)").Width(130).Editable("disableVerified");*@
+            c.MoneyColumn(x => x.ServiceCharge).Title("Serv.Charge(%)").Width(120).Editable("disableVerified");
+            c.Bound(p => p.Verified).Width(130);
+            c.DateColumn(p => p.VerifiedOn).Width(120);
+            c.Bound(x => x.Status).Hidden();
+        })
+        .DataSource(d => d.Ajax()
+        .Batch(true)
+        .ServerOperation(false)
+        .Events(events => events.Error("grid_ErrorHandler").RequestEnd("gridShops_RequestEnd"))
+        .Read("ReadShops", "Procurements")
+        .Model(model =>
+        {
+            model.Id(p => p.Id);
+            model.Field("Id", typeof(long)).Editable(false);
+            model.Field(p => p.Verified).Editable(false);
+            model.Field(p => p.VerifiedOn).Editable(false);
+            model.Field(p => p.Active).Editable(false);
+        })
+        .Create("UpdateShopDetails", "Procurements")
+        .Update("UpdateShopDetails", "Procurements")
+        )
+        .HtmlAttributes(new { @class = "h-grid v-grid" })
+        .Events(x => x.SaveChanges("gridShops_SaveChanges").DataBound("grid_DataBound"))
+        .AutoBind(true)
+        .Resizable(x => x.Columns(true))
+        .Sortable()
+        .Scrollable()
+        .Filterable()
+        .Navigatable()
+        .Selectable()
+        .Editable(editable => editable.Mode(GridEditMode.InCell))
+        )
+
+
+@{
+    var jsonData = Vue.Encode(new Shop());
+}
+
+@section Scripts {
+    @await Html.PartialAsync("ShopGroup")
+    <script type="text/javascript">
+        var app = new Vue({
+            el: '#app',
+            data: {
+                input: @(jsonData),
+            },
+            methods: {
+                selectItem: function (uid) {
+                    var dataItem = $('#grid').getKendoGrid().dataSource.getByUid(uid);
+                    this.input = cloneAndDecode(dataItem);
+                },
+                verifyItem: function (uid) {
+                    if (uid)
+                        this.selectItem(uid);
+                    var dataItem = $('#grid').getKendoGrid().dataSource.getByUid(uid);
+                    if (!dataItem.Active) {
+                        kendoAlert("Shop deactivated", true);
+                        return;
+                    }
+                    $.post("@Url.Action("VerifyShop", "Procurements")", { Id: app.input.Id }, this.onSuccess);
+                },
+
+                revertItem: function (uid) {
+                    if (uid)
+                        this.selectItem(uid);
+                    kendoConfirm("Do you want to revert verified Shop?", function () {
+                        $.post("@Url.Action("RevertShop", "Procurements")", { Id: app.input.Id }, app.onSuccess);
+                    });
+                },
+                onSuccess: function (res) {
+                    kendoAlert(res.Message, res.HasError);
+                    if (res.HasError)
+                        return;
+                    $('#grid').getKendoGrid().dataSource.read();
+                },
+                addItem: function () {
+                    $('#grid').getKendoGrid().addRow();
+                },
+                saveItem: function () {
+                    $('#grid').getKendoGrid().saveChanges();
+                },
+                addShopGroup: function () {
+                    onWindowOpen(); //For Opacity
+                    $('#wndAddShopGroup').getKendoWindow().open().center()
+                }
+            }
+        })
+    </script>
+
+
+    <script type="text/javascript">
+        function gridShops_SaveChanges(e) {
+            var data = $(e.sender.element).getKendoGrid().dataSource.data();
+            var dirty = $.grep(data, function (item) {
+                return item.dirty || item.Id === 0;
+            });
+            var shopDetails = $.grep(dirty, function (item) {
+                return !item.shopDetails;
+            });
+
+            var errors = [];
+            var emptyShopName = 0; var emptyShopCode = 0; var emptyShopDetails = 0; var emptyShopMovingAmount = 0;
+            if (shopDetails && shopDetails.length == 0)
+                errors.push("Shop details should not be empty");
+
+            if (shopDetails && shopDetails.length > 0) {
+                $.each(shopDetails, function (i) {
+                    if (shopDetails[i].ShopName == "" && shopDetails[i].ShopCode == "") {
+                        emptyShopDetails++;
+                        return;
+                    }
+                    else if (shopDetails[i].ShopName == "") {
+                        emptyShopName++;
+                        return;
+                    }
+                    else if (shopDetails[i].ShopCode == "") {
+                        emptyShopCode++;
+                        return;
+                    }
+                    else if (shopDetails[i].MovingAmount == 0 || shopDetails[i].MovingAmount == null) {
+                        emptyShopMovingAmount++;
+                        return;
+                    }
+                });
+            }
+            if (emptyShopName > 0)
+                errors.push("Please enter shop name");
+            if (emptyShopCode > 0)
+                errors.push("Please enter shop code");
+            if (emptyShopDetails > 0)
+                errors.push("Please enter shop name and shop code");
+            if (emptyShopMovingAmount > 0)
+                errors.push("Please enter shop moving amount");
+
+            if (errors.length) {
+                e.preventDefault();
+                kendoAlert(errors.join("\n"), true);
+            }
+        }
+
+        function gridShops_RequestEnd(e) {
+            if ((e.type == "create" || e.type == "update") && !e.response.Errors)
+                kendoAlert("Shop details Saved.");
+        }
+
+        function deleteShops(uid) {
+            var dataItem = $('#grid').getKendoGrid().dataSource.getByUid(uid);
+            if (dataItem.Id == 0) {
+                $('#grid').getKendoGrid().dataSource.cancelChanges(dataItem);
+                return;
+            }
+            if (!dataItem.Active) {
+                kendoAlert("Shop deactivated", true);
+                return;
+            }
+            if (dataItem.Status == 1) {
+                kendoAlert("Cannot delete verified shop.", true);
+                return;
+            }
+            kendoConfirm("Do you want to delete this shop details?", function () {
+                $.postData("@Url.Action("DeleteShopDetails", "Procurements")", { Id: dataItem.Id, Category: dataItem.Category, Description: dataItem.Description, ShopCode: dataItem.ShopCode, ShopName: dataItem.ShopName, Active: dataItem.Active },
+                    function (data) {
+                        kendoAlert(data.Message, data.HasError);
+                        if (!data.HasError)
+                            $('#grid').getKendoGrid().dataSource.read();
+                    });
+            });
+        }
+        function undoShops(uid) {
+            var dataItem = $('#grid').getKendoGrid().dataSource.getByUid(uid);
+
+            kendoConfirm("Do you want to undo this shop details?", function () {
+                $.postData("@Url.Action("UndoShopDetails", "Procurements")", { Id: dataItem.Id, Category: dataItem.Category, Description: dataItem.Description, ShopCode: dataItem.ShopCode, ShopName: dataItem.ShopName, Active: dataItem.Active },
+                    function (data) {
+                        kendoAlert(data.Message, data.HasError);
+                        if (!data.HasError)
+                            $('#grid').getKendoGrid().dataSource.read();
+                    });
+            });
+        }
+        function grid_DataBound() {
+            var grid = $("#grid").data("kendoGrid");
+            var data = grid.dataSource.data();
+            grid.tbody.find('>tr').each(function () {
+                var dataItem = grid.dataItem(this);
+                if (dataItem.Status == 0 && dataItem.Active) {
+                    $(this).css('color', 'blue');
+                }
+                if (!dataItem.Active) {
+                    $(this).css('color', 'red');
+                }
+            });
+        }
+    </script>
+}
+
+
+
+
+

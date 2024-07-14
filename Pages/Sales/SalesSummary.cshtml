@@ -1,0 +1,94 @@
+﻿@page
+@{
+    ViewData["Title"] = "Sales Summary";
+    Layout = "~/Pages/Shared/_Layout.cshtml";
+}
+
+
+
+<style type="text/css">
+    .col-dynamic {
+        vertical-align: middle !important;
+        text-align: center;
+    }
+
+        .col-dynamic .k-link {
+            justify-content: center;
+        }
+
+        .col-dynamic .k-column-title {
+            white-space: normal !important;
+            font-size: 10px;
+            text-align: center;
+        }
+
+    .col-main {
+        vertical-align: middle !important;
+    }
+</style>
+
+<div id="app">
+    <div class="g-title">
+        <div class="g-left">
+        </div>
+        <span class="g-text">Sales Summary</span>
+        <div class="g-right">
+            <kendo-datepicker :value="param.FromDate" width="100%" :format="'dd-MMM-yyyy'" @@change="function(e){setModel(e,param,'FromDate',fromDateChange)}"></kendo-datepicker>
+            <kendo-datepicker :value="param.ToDate" :readonly="true" :format="'dd-MMM-yyyy'" @@change="function(e){setModel(e,param,'ToDate')}"></kendo-datepicker>
+            <button @@click="load" class="btn btn-save">View</button>
+            @Html.ExcelButton("app.export()")
+        </div>
+    </div>
+    @*  <div class="components">
+    <div class="row align-items-end">
+    <div class="col-md-2 form-group" style="width: 174px;">
+    <kendo-datepicker :value="param.FromDate" width="100%" :format="'dd-MMM-yyyy'" @@change="function(e){setModel(e,param,'FromDate',fromDateChange)}"></kendo-datepicker>
+    </div>
+    <div class="col-md-2 form-group">
+    <kendo-datepicker :value="param.ToDate" :readonly="true" :format="'dd-MMM-yyyy'" @@change="function(e){setModel(e,param,'ToDate')}"></kendo-datepicker>
+    </div>
+    <div class="col-md-4 form-group">
+    <button @@click="load" class="btn btn-save">View</button>
+    @Html.ExcelButton("app.export()")
+    </div>
+    </div>
+    </div> *@
+    <div id="gridContent"></div>
+</div>
+<form action="@Url.Action("ExportSalesSummary", "Sales")" method="POST" target="_blank" id="frmExcel" style="display:none;">
+    <input type="hidden" name="FromDate" />
+    <input type="submit" value="Submit">
+</form>
+@section Scripts {
+    <script type="text/javascript">
+        var app = new Vue({
+            el: '#app',
+            data: {
+                param: {
+                    FromDate: @Vue.Encode(DateTime.Now.AddMonths(-12)),
+                    ToDate: @Vue.Encode(DateTime.Now)
+                                }
+            },
+            methods: {
+                load: function () {
+                    $.postData("@Url.Page("/Sales/SalesSummaryGrid")", this.param, function (res) {
+                        $("#gridContent").html(res);
+                    });
+                },
+                export: function () {
+                    $("#frmExcel input[name=FromDate]").val(StdDate(this.param.FromDate));
+                    $("#frmExcel").submit();
+                },
+                fromDateChange: function () {
+                    var dt = this.param.FromDate;
+
+                    var year = dt.getFullYear();
+                    var month = dt.getMonth();
+                    var day = dt.getDate();
+
+                    this.param.ToDate = new Date(year, month + 11, day)
+                }
+            }
+        });
+    </script>
+}

@@ -1,0 +1,453 @@
+﻿@page
+@using BSOL.Core.Entities
+@model AccountSetting
+@{
+    ViewData["Title"] = "Account Settings";
+    Layout = "~/Pages/Shared/_Layout.cshtml";
+    ViewBag.IsFolded = true;
+}
+@if (!await Html.HasAccess(Forms.Accounts.ChartOfAccounts))
+{
+    return;
+}
+@section BreadCrumb{
+    @await Html.PartialAsync("Tabs", "Finace/Chart of Accounts")
+}
+
+<div class="row">
+    <div class="col-md-3">
+        <div class="g-title">
+            <span class="g-text">Account Types</span>
+        </div>
+        @(Html.Kendo().Grid<AccountType>()
+            .Name("gridType")
+            .Columns(c =>
+            {
+                c.Bound(p => p.Type);
+            })
+            .Sortable()
+            .Selectable()
+            .Resizable(x => x.Columns(true))
+            .HtmlAttributes(new { @class = "h-grid v-grid" })
+            .DataSource(dataSource => dataSource
+            .Ajax()
+            .Batch(true)
+            .ServerOperation(false)
+            .Model(model =>
+            {
+                model.Id(p => p.Id);
+                model.Field(p => p.Id).Editable(false);
+            })
+                .Read(read => read.Action("ReadAccountTypes", "Accounts"))
+            ))
+    </div>
+    <div class="col-md-5">
+        <div class="g-title">
+            <div class="g-left">
+                @Html.AddButton("appType.addItem()")
+            </div>
+            <span id="title" class="g-text"></span>
+            <div class="g-right">
+                @Html.SaveButton("appType.save()")
+            </div>
+        </div>
+        @(Html.Kendo().TreeList<AccountDetailType>()
+    .Name("gridDetailType")
+    .AutoBind(false)
+    .Columns(columns =>
+    {
+        columns.Add().Field(e => e.DetailType);
+        columns.Add().Command(c =>
+        {
+            c.CreateChild().Text("Add Sub Type");
+            c.Destroy();
+        }
+        ).Width(240);
+    })
+    .Events(ev => ev.DataBound("appType.onDetailTypeDataBound").SaveChanges("appType.saveChanges"))
+    .Editable(e => e.Mode(TreeListEditMode.InCell).Move(false))
+    .DataSource(dataSource => dataSource
+        .Batch(true)
+        .Read(read => read.Action("ReadAccountDetailTypes", "Accounts").Data("appType.onDetailTypeData"))
+        .Create(create => create.Action("UpdateAccountDetailType", "Accounts").Type(HttpVerbs.Post).Data("appType.onDetailTypeData"))
+        .Update(update => update.Action("UpdateAccountDetailType", "Accounts").Type(HttpVerbs.Post).Data("appType.onDetailTypeData"))
+        .Destroy(delete => delete.Action("DeleteAccountDetailType", "Accounts").Type(HttpVerbs.Post))
+        .Events(x=>x.Error("grid_ErrorHandler").RequestEnd("appType.gridDetailTypeRequestEnd"))
+        .Model(m =>
+        {
+            m.Id(f => f.Id);
+            m.ParentId(f => f.ParentId);
+            m.Expanded(true);
+            m.Field(f => f.DetailType);
+        })
+    ).HtmlAttributes(new { @class = "h-grid v-grid" })
+)
+    </div>
+    <div class="col-md-4" style="border: 1px solid #ccc">
+        <form id="app" v-on:submit.prevent="submitForm">
+            <div class="g-title" style="margin-left: -5px">
+                <span class="g-text">Account Settings</span>
+                <div class="g-right">
+                    @Html.SaveButton()
+                </div>
+            </div>
+            <div class="components">
+                <table class="tbl-frm-cntrls">
+                    <tr>
+                        <td class="tbl-label">
+                            @Html.LabelFor(x => x.BaseCurrency, "Base Currency")
+                        </td>
+                        <td class="tbl-value">
+                            <kendo-datasource ref="dsCurrency" :transport-read-url="'@Url.Action("ReadCurrencies", "Common")'" :transport-read-type="'POST'"></kendo-datasource>
+                            <kendo-dropdownlist v-model="input.BaseCurrency" :data-source-ref="'dsCurrency'" :data-text-field="'Currency'" :data-value-field="'Currency'" style="width:100%"></kendo-dropdownlist>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="tbl-label">
+                            @Html.LabelFor(x => x.FinancialYearFirstMonth, " First month of financial year")
+                        </td>
+                        <td class="tbl-value">
+                            <kendo-dropdownlist v-model="input.FinancialYearFirstMonth" :data-source="[1,2,3,4,5,6,7,8,9,10,11,12]" style="width:100%"></kendo-dropdownlist>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="tbl-label">
+                            @Html.LabelFor(x => x.ReceivableUSDAccountId, "Trade Debtor(USD)")
+                        </td>
+                        <td class="tbl-value">
+                            <kendo-datasource ref="dsReceivableUSDAccount" :transport-read-url="'@Url.Action("ReadAccountsByType", "Common")'" :transport-read-type="'POST'"></kendo-datasource>
+                            <kendo-combobox v-model="input.ReceivableUSDAccountId" :data-source-ref="'dsReceivableUSDAccount'" :data-text-field="'Text'" :data-value-field="'Id'" :filter="'contains'" style="width:100%;"></kendo-combobox>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="tbl-label">
+                            @Html.LabelFor(x => x.ReceivableMVRAccountId, "Trade Debtor(MVR)")
+                        </td>
+                        <td class="tbl-value">
+                            <kendo-datasource ref="dsReceivableMVRAccount" :transport-read-url="'@Url.Action("ReadAccountsByType", "Common")'" :transport-read-type="'POST'"></kendo-datasource>
+                            <kendo-combobox v-model="input.ReceivableMVRAccountId" :data-source-ref="'dsReceivableMVRAccount'" :data-text-field="'Text'" :data-value-field="'Id'" :filter="'contains'" style="width:100%;"></kendo-combobox>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="tbl-label">
+                            @Html.LabelFor(x => x.PayableUSDAccountId, "Trade Creditor(USD)")
+                        </td>
+                        <td class="tbl-value">
+                            <kendo-datasource ref="dsPayableUSDAccount" :transport-read-url="'@Url.Action("ReadAccountsByType", "Common")'" :transport-read-type="'POST'"></kendo-datasource>
+                            <kendo-combobox v-model="input.PayableUSDAccountId" :data-source-ref="'dsPayableUSDAccount'" :data-text-field="'Text'" :data-value-field="'Id'" :filter="'contains'" style="width:100%;"></kendo-combobox>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="tbl-label">
+                            @Html.LabelFor(x => x.PayableMVRAccountId, "Trade Creditor(MVR)")
+                        </td>
+                        <td class="tbl-value">
+                            <kendo-datasource ref="dsPayableMVRAccount" :transport-read-url="'@Url.Action("ReadAccountsByType", "Common")'" :transport-read-type="'POST'"></kendo-datasource>
+                            <kendo-combobox v-model="input.PayableMVRAccountId" :data-source-ref="'dsPayableMVRAccount'" :data-text-field="'Text'" :data-value-field="'Id'" :filter="'contains'" style="width:100%;"></kendo-combobox>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="tbl-label">
+                            @Html.LabelFor(x => x.GSTPayableAccountId, "GST Payable")
+                        </td>
+                        <td class="tbl-value">
+                            <kendo-datasource ref="dsGSTPayableAccount" :transport-read-url="'@Url.Action("ReadAccountsByType", "Common")'" :transport-read-type="'POST'"></kendo-datasource>
+                            <kendo-combobox ref="ddGSTPayableAccount" v-model="input.GSTPayableAccountId" :data-source-ref="'dsGSTPayableAccount'" :data-text-field="'Text'" :data-value-field="'Id'" :filter="'contains'" style="width:100%;"></kendo-combobox>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="tbl-label">
+                            @Html.LabelFor(x => x.IncomeAccountId, "Sales Income Account")
+                        </td>
+                        <td class="tbl-value">
+                            <kendo-datasource ref="dsIncomeAccount" :transport-read-url="'@Url.Action("ReadAccountsByType", "Common")'" :transport-read-type="'POST'"></kendo-datasource>
+                            <kendo-combobox ref="ddIncomeAccount" v-model="input.IncomeAccountId" :data-source-ref="'dsIncomeAccount'" :data-text-field="'Text'" :data-value-field="'Id'" :filter="'contains'" style="width:100%;"></kendo-combobox>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="tbl-label">
+                            @Html.LabelFor(x => x.ExpenseAccountId, "Purchase Expense Account")
+                        </td>
+                        <td class="tbl-value">
+                            <kendo-datasource ref="dsExpenseAccount" :transport-read-url="'@Url.Action("ReadAccountsByType", "Common")'" :transport-read-type="'POST'"></kendo-datasource>
+                            <kendo-combobox ref="ddExpenseAccount" v-model="input.ExpenseAccountId" :data-source-ref="'dsExpenseAccount'" :data-text-field="'Text'" :data-value-field="'Id'" :filter="'contains'" style="width:100%;"></kendo-combobox>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="tbl-label">
+                            @Html.LabelFor(x => x.InventoryAccountId, "Inventory Account")
+                        </td>
+                        <td class="tbl-value">
+                            <kendo-datasource ref="dsInventoryAccount" :transport-read-url="'@Url.Action("ReadAccountsByType", "Common")'" :transport-read-type="'POST'"></kendo-datasource>
+                            <kendo-combobox ref="ddInventoryAccount" v-model="input.InventoryAccountId" :data-source-ref="'dsInventoryAccount'" :data-text-field="'Text'" :data-value-field="'Id'" :filter="'contains'" style="width:100%;"></kendo-combobox>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="tbl-label">
+                            @Html.LabelFor(x => x.DiscountAccountId, "Discount Account")
+                        </td>
+                        <td class="tbl-value">
+                            <kendo-datasource ref="dsDiscountAccount" :transport-read-url="'@Url.Action("ReadAccountsByType", "Common")'" :transport-read-type="'POST'"></kendo-datasource>
+                            <kendo-combobox ref="ddDiscountAccount" v-model="input.DiscountAccountId" :data-source-ref="'dsDiscountAccount'" :data-text-field="'Text'" :data-value-field="'Id'" :filter="'contains'" style="width:100%;"></kendo-combobox>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="tbl-label">
+                            @Html.LabelFor(x => x.ServiceChargeAccountId, "Service Charge Account")
+                        </td>
+                        <td class="tbl-value">
+                            <kendo-datasource ref="dsServiceChargeAccount" :transport-read-url="'@Url.Action("ReadAccountsByType", "Common")'" :transport-read-type="'POST'"></kendo-datasource>
+                            <kendo-combobox ref="ddServiceChargeAccount" v-model="input.ServiceChargeAccountId" :data-source-ref="'dsServiceChargeAccount'" :data-text-field="'Text'" :data-value-field="'Id'" :filter="'contains'" style="width:100%;"></kendo-combobox>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="tbl-label">
+                            @Html.LabelFor(x => x.UnDepositedCashAccountId, "UnDeposited Cash Account")
+                        </td>
+                        <td class="tbl-value">
+                            <kendo-datasource ref="dsUnDepositedCashAccount" :transport-read-url="'@Url.Action("ReadAccountsByType", "Common")'" :transport-read-type="'POST'"></kendo-datasource>
+                            <kendo-combobox ref="ddUnDepositedCashAccount" v-model="input.UnDepositedCashAccountId" :data-source-ref="'dsUnDepositedCashAccount'" :data-text-field="'Text'" :data-value-field="'Id'" :filter="'contains'" style="width:100%;"></kendo-combobox>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="tbl-label">
+                            @Html.LabelFor(x => x.UnDepositedChequeAccountId, "UnDeposited Cheque Account")
+                        </td>
+                        <td class="tbl-value">
+                            <kendo-datasource ref="dsUnDepositedChequeAccount" :transport-read-url="'@Url.Action("ReadAccountsByType", "Common")'" :transport-read-type="'POST'"></kendo-datasource>
+                            <kendo-combobox ref="ddUnDepositedChequeAccount" v-model="input.UnDepositedChequeAccountId" :data-source-ref="'dsUnDepositedChequeAccount'" :data-text-field="'Text'" :data-value-field="'Id'" :filter="'contains'" style="width:100%;"></kendo-combobox>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="tbl-label">
+                            @Html.LabelFor(x => x.InventoryAccountSupplierId, "Inventory Account - Supplier")
+                        </td>
+                        <td class="tbl-value">
+                            <kendo-datasource ref="dsInventoryAccountSupplier" :transport-read-url="'@Url.Action("ReadAccountsByType", "Common")'" :transport-read-type="'POST'"></kendo-datasource>
+                            <kendo-combobox ref="ddInventoryAccountSupplier" v-model="input.InventoryAccountSupplierId" :data-source-ref="'dsInventoryAccountSupplier'" :data-text-field="'Text'" :data-value-field="'Id'" :filter="'contains'" style="width:100%;"></kendo-combobox>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="tbl-label">
+                            @Html.LabelFor(x => x.InventoryAccountFreightId, "Inventory Account - Freight")
+                        </td>
+                        <td class="tbl-value">
+                            <kendo-datasource ref="dsInventoryAccountFreight" :transport-read-url="'@Url.Action("ReadAccountsByType", "Common")'" :transport-read-type="'POST'"></kendo-datasource>
+                            <kendo-combobox ref="ddInventoryAccountFreight" v-model="input.InventoryAccountFreightId" :data-source-ref="'dsInventoryAccountFreight'" :data-text-field="'Text'" :data-value-field="'Id'" :filter="'contains'" style="width:100%;"></kendo-combobox>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="tbl-label">
+                            @Html.LabelFor(x => x.InventoryAccountDutyId, "Inventory Account - Duty")
+                        </td>
+                        <td class="tbl-value">
+                            <kendo-datasource ref="dsInventoryAccountDuty" :transport-read-url="'@Url.Action("ReadAccountsByType", "Common")'" :transport-read-type="'POST'"></kendo-datasource>
+                            <kendo-combobox ref="ddInventoryAccountDuty" v-model="input.InventoryAccountDutyId" :data-source-ref="'dsInventoryAccountDuty'" :data-text-field="'Text'" :data-value-field="'Id'" :filter="'contains'" style="width:100%;"></kendo-combobox>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="tbl-label">
+                            @Html.LabelFor(x => x.InventoryAccountOthersId, "Inventory Account - Others")
+                        </td>
+                        <td class="tbl-value">
+                            <kendo-datasource ref="dsInventoryAccountOthers" :transport-read-url="'@Url.Action("ReadAccountsByType", "Common")'" :transport-read-type="'POST'"></kendo-datasource>
+                            <kendo-combobox ref="ddInventoryAccountOthers" v-model="input.InventoryAccountOthersId" :data-source-ref="'dsInventoryAccountOthers'" :data-text-field="'Text'" :data-value-field="'Id'" :filter="'contains'" style="width:100%;"></kendo-combobox>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="tbl-label">
+                            @Html.LabelFor(x => x.ConsignmentInventoryAccountId, "Consignment Inventory Account")
+                        </td>
+                        <td class="tbl-value">
+                            <kendo-datasource ref="dsConsignmentInventoryAccount" :transport-read-url="'@Url.Action("ReadAccountsByType", "Common",new { Type = AccountTypes.Assets })'" :transport-read-type="'POST'"></kendo-datasource>
+                            <kendo-combobox ref="ddConsignmentInventoryAccount" v-model="input.ConsignmentInventoryAccountId" :data-source-ref="'dsConsignmentInventoryAccount'" :data-text-field="'Text'" :data-value-field="'Id'" :filter="'contains'" style="width:100%;"></kendo-combobox>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="tbl-label">
+                            @Html.LabelFor(x => x.ConsignmentCreditorUSDAccountId, "Consignment Creditor(USD)")
+                        </td>
+                        <td class="tbl-value">
+                            <kendo-datasource ref="dsConsignmentCreditorUSDAccount" :transport-read-url="'@Url.Action("ReadAccountsByType", "Common")'" :transport-read-type="'POST'"></kendo-datasource>
+                            <kendo-combobox v-model="input.ConsignmentCreditorUSDAccountId" :data-source-ref="'dsConsignmentCreditorUSDAccount'" :data-text-field="'Text'" :data-value-field="'Id'" :filter="'contains'" style="width:100%;"></kendo-combobox>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="tbl-label">
+                            @Html.LabelFor(x => x.ConsignmentCreditorMVRAccountId, "Consignment Creditor(MVR)")
+                        </td>
+                        <td class="tbl-value">
+                            <kendo-datasource ref="dsConsignmentCreditorMVRAccount" :transport-read-url="'@Url.Action("ReadAccountsByType", "Common")'" :transport-read-type="'POST'"></kendo-datasource>
+                            <kendo-combobox v-model="input.ConsignmentCreditorMVRAccountId" :data-source-ref="'dsConsignmentCreditorMVRAccount'" :data-text-field="'Text'" :data-value-field="'Id'" :filter="'contains'" style="width:100%;"></kendo-combobox>
+                        </td>
+                    </tr>
+                    @*<tr>
+                        <td class="tbl-label">
+                            @Html.LabelFor(x => x.MasterShopId, "Master Shop")
+                        </td>
+                        <td class="tbl-value">
+                            <kendo-datasource ref="dsMasterShops" :transport-read-url="'@Url.Action("ReadShops", "Common")'" :transport-read-type="'POST'"></kendo-datasource>
+                            <kendo-combobox ref="ddMasterShops" v-model="input.MasterShopId" :data-source-ref="'dsMasterShops'" :data-text-field="'Text'" :data-value-field="'Id'" :filter="'contains'" style="width:100%;"></kendo-combobox>
+                        </td>
+                    </tr>*@
+                </table>
+            </div>
+        </form>
+    </div>
+</div>
+@{
+    var jsonData = Vue.Encode(new AccountSetting());
+}
+@section Scripts{
+    <script type="text/javascript">
+        $(function () {
+            $("#gridType").on("dblclick", "tbody tr", function () {
+                var dataItem = $("#gridType").getKendoGrid().dataItem($(this));
+                appType.AccountTypeId = dataItem.Id;
+                appType.AccountType = dataItem.Type;
+                $('#title').html("Detail Types of " + dataItem.Type);
+                $('#gridDetailType').data("kendoTreeList").dataSource.read();
+            });
+        });
+
+        var appType = new Vue({
+            data: {
+                AccountTypeId: null,
+                AccountType: null
+            },
+            methods: {
+                addItem: function () {
+                    if (!appType.AccountType) {
+                        kendoAlert("Please select Account Type", true);
+                        return;
+                    }
+                    $('#gridDetailType').data("kendoTreeList").addRow();
+                },
+                saveChanges: function (e) {
+                    var data = $(e.sender.element).data("kendoTreeList").dataSource.data();
+                    var dirty = $.grep(data, function (item) {
+                        return item.dirty || item.Id === 0;
+                    });
+                    var detailTypes = $.grep(dirty, function (item) {
+                        return !item.DetailType;
+                    });
+
+                    if (detailTypes && detailTypes.length > 0) {
+                        e.preventDefault();
+                        kendoAlert("Detail type should not be empty", true);
+                    }
+                },
+                save: function () {
+                    $('#gridDetailType').data("kendoTreeList").saveChanges();
+                },
+                onDetailTypeData: function () {
+                    return { AccountTypeId: this.AccountTypeId, AccountType: this.AccountType };
+                },
+                onDetailTypeDataBound: function (e) {
+                    var items = e.sender.items();
+                    for (var i = 0; i < items.length; i++) {
+                        var row = $(items[i]);
+                        var dataItem = e.sender.dataItem(row);
+                        if (dataItem.isNew()) {
+                            row.find("[data-command='createchild']").hide();
+                        }
+                        else {
+                            row.find("[data-command='createchild']").show();
+                        }
+                    }
+                },
+                gridDetailTypeRequestEnd: function (e) {
+                    if ((e.type == "create" || e.type == "update" || e.type == "destroy") && !e.response.Errors) {
+                        kendoAlert("Account Detail Type saved.");
+                    }
+                }
+            }
+        });
+
+        function gridDetailType_SaveChanges(e) {
+            var data = $(e.sender.element).getKendoGrid().dataSource.data();
+            var editedRows = $.grep(data, function (item) {
+                return item.dirty || !item.Id;
+            });
+
+            var typeEmpty = $.grep(editedRows, function (item) {
+                return !item.AccountTypeId;
+            });
+
+            var subTypeEmpty = $.grep(editedRows, function (item) {
+                return !item.AccountSubTypeId;
+            });
+
+            var detailTypeEmpty = $.grep(editedRows, function (item) {
+                return !item.DetailType;
+            });
+
+            var errors = [];
+            if (typeEmpty && typeEmpty.length)
+                errors.push("Account Type should not be empty");
+
+            if (subTypeEmpty && subTypeEmpty.length)
+                errors.push("Account Sub type should not be empty");
+
+            if (detailTypeEmpty && detailTypeEmpty.length)
+                errors.push("Account Detail Type should not be empty");
+
+            if (errors.length) {
+                e.preventDefault();
+                kendoAlert(errors.join("\n"), true);
+            }
+        }
+
+        function deleteDetailType(uid) {
+            var dataItem = $('#gridDetailType').getKendoGrid().dataSource.getByUid(uid);
+            if (!dataItem.Id) {
+                $('#gridDetailType').getKendoGrid().dataSource.cancelChanges(dataItem);
+                return;
+            }
+            kendoConfirm("Do you want to delete this Detail Type?", function () {
+                $.postData("@Url.Action("DeleteAccountDetailType", "Accounts")", { Id: dataItem.Id }, function (res) {
+                    kendoAlert(res.Message, res.HasError);
+                    if (res.HasError)
+                        return;
+                    $('#gridDetailType').getKendoGrid().dataSource.read();
+                });
+            });
+        }
+
+        
+    </script>
+
+    <script type="text/javascript">
+    var app = new Vue({
+        el: '#app',
+        data: {
+            input: @(jsonData)
+        },
+        created: function() {
+            $.postData("@Url.Action("GetAccountSetting", "Accounts")", null, function (res) {
+                app.input = res;
+            });
+        },
+        methods: {
+            validateForm: function () {
+                removeError();
+                var isValid = true;
+                var setError = function (cntrl, msg) {
+                    isValid = false;
+                    showError(cntrl, msg);
+                };
+
+                return isValid;
+            },
+            submitForm: function () {
+                if (!this.validateForm())
+                    return;
+
+                $.postData("@Url.Action("UpdateAccountSetting", "Accounts")", this.input, function (res) {
+                    kendoAlert(res.Message, res.HasError);
+                });
+            }
+        }
+    });
+    </script>
+}

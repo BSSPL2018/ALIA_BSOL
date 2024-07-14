@@ -1,0 +1,462 @@
+﻿@page
+@using BSOL.Core.Models.HirePurchase
+@using BSOL.Helpers
+@using Kendo.Mvc.UI
+@using BSOL.Core.Entities
+@model ChequeLockerDetail
+
+@{
+    ViewBag.Title = "Cheque Safety Locker List";
+    Layout = "~/Pages/Shared/_Layout.cshtml";
+}
+
+<div id="app">
+    <div class="g-title">
+        <div class="g-left">
+            <ul class="tg-btn tg-fixed" style="display: inline-flex;">
+                <li :class="{'tg-active': TabIndex == 0}">
+                    <a href="javascript:app.tabChange(0)">Un Binned</a>
+                </li>
+                <li :class="{'tg-active': TabIndex == 1}">
+                    <a href="javascript:app.tabChange(1)">Binned</a>
+                </li>
+                <li :class="{'tg-active': TabIndex == 2}">
+                    <a href="javascript:app.tabChange(2)">Picked</a>
+                </li>
+            </ul>
+        </div>
+
+        <div class="g-right">
+            <a href="javascript:appChequeLocker.addLocker()" class="K-lnk">Add Locker</a>
+
+            <div v-show="TabIndex==0||TabIndex==1" class="cntrl-inline">
+                @Html.SaveButton("app.updateChequeLocker()","Update Locker","Update Locker")
+            </div>
+            <div v-show="TabIndex==1" class="cntrl-inline">
+                @Html.DeleteButton()
+            </div>
+            <div v-show="TabIndex==2" class="cntrl-inline">
+                @Html.VerifyButton(false,"app.undoPickedCheques()","Un-Pick")
+            </div>
+        </div>
+    </div>
+</div>
+
+<div>
+    @(Html.Kendo().Grid<ChequeLockerDetailModel>().Name("grid")
+        .Columns(c =>
+        {
+            c.SelectColumn(p => p.ChequeLockerID);
+            c.DeleteColumn(p => p.ChequeLockerID, "app.deleteChequeLocker('#:uid#')").Hidden(true);
+            c.Bound(p => p.CustomerName).Width(400).Title("Customer Name");
+            c.Bound(p => p.AgrementRef).Width(160);
+            c.Bound(p => p.ChequeNo).Width(120);
+            c.Bound(p => p.ChequeStatus).Width(160);
+            c.Bound(p => p.LockerName).Width(130);
+            c.NumberColumn(p => p.RackNo).Width(100);
+            c.NumberColumn(p => p.BinNo).Width(90);
+            c.NumberColumn(p => p.LevelNo).Width(120);
+            c.Bound(p => p.OldLockerName).Width(170);
+            c.NumberColumn(p => p.OldRackNo).Width(150);
+            c.NumberColumn(p => p.OldBinNo).Width(150);
+            c.NumberColumn(p => p.OldLevelNo).Width(150);
+            c.Bound(p => p.ReceivedBy).Width(150);
+            c.DateColumn(p => p.ReceivedOn).Width(150);
+            c.Bound(p => p.PickedBy).Width(150);
+            c.DateColumn(p => p.StatusUpdatedOn).Title("Picked On").Width(150);
+            c.Bound(p => p.EntryBy).Width(130);
+            c.DateColumn(p => p.EntryDate).Width(130);
+        })
+        .DataSource(dataSource => dataSource
+        .Ajax()
+        .Batch(true)
+        .ServerOperation(true)
+        .PageSize(50)
+        .Read(read => read.Action("ReadChequeSafetyLockerList", "HirePurchase").Data("app.grid_Data")))
+        .EnableFilter()
+        .Excel(x => x.AllPages(true))
+        .Resizable(x => x.Columns(true))
+        .Pageable(x => x.Refresh(true))
+        .Sortable()
+        .Scrollable()
+        .Selectable()
+        .HtmlAttributes(new { @class = "h-grid v-grid" })
+        )
+</div>
+
+@Html.Kendo().Window().Name("wndChequeLockerSetting").Content(@<text>
+        @(
+    Html.Kendo().Grid<LockerSetting>().Name("gridLockerSetting")
+    .Columns(c =>
+    {
+    c.DeleteColumn(x => x.ID, "deleteLockerSetting('#:uid#')");
+    c.Bound(p => p.LockerName).Width(150);
+    c.NumberColumn(p => p.RackNo).Width(100);
+    c.NumberColumn(p => p.NoofBin).Width(100);
+    c.NumberColumn(p => p.NoofLevel).Width(100);
+    c.Bound(p => p.EntryBy).Width(150);
+    c.DateColumn(p => p.EntryDate).Width(150);
+    })
+    .DataSource(d => d.Ajax()
+    .Batch(true)
+    .ServerOperation(false)
+    .Events(events => events.Error("grid_ErrorHandler"))
+    .Create("UpdateLockerSetting", "HirePurchase")
+    .Read("ReadLockerList", "HirePurchase")
+    .Model(model =>
+    {
+    model.Id(p => p.ID);
+    model.Field(p => p.EntryBy).Editable(false);
+    model.Field(p => p.EntryDate).Editable(false);
+    model.Field(p => p.ID).Editable(false);
+    })
+    .Update("UpdateLockerSetting", "HirePurchase")
+    )
+    .Events(x => x.SaveChanges("gridLockerSetting_SaveChanges"))
+    .HtmlAttributes(new { @class = "h-grid v-grid" })
+    .Editable(Html, "Banks")
+    .Sortable()
+    .Scrollable()
+    .Navigatable()
+        )
+    </text>).Visible(false).Title("Locker Settings").Draggable().MaxWidth(700).MaxHeight(300).Events(events => events.Close("onWindowClose"))
+
+@Html.Kendo().Window().Name("wndUpdateChequeLocker").Content(@<text>
+        <form id="appChequeLocker" v-on:submit.prevent="submitForm">
+            <div class="g-content" style="background-color: white;">
+                <div class="row">
+                    <div class="form-group col-md-6">
+                        @Html.LabelFor(x => x.LockerID, "Locker Name")
+                        <kendo-datasource ref="dsLockerName" :transport-read-url="'@Url.Action("GetLockerName", "HirePurchase")'" :transport-read-type="'POST'"></kendo-datasource>
+                        <kendo-combobox v-model="input.LockerID" :data-source-ref="'dsLockerName'" :data-text-field="'Text'" :data-value-field="'Id'" :auto-bind="false" @@change="function(e){setModel(e,input,'LockerID',onLockerChange)}" style="width:100%"></kendo-combobox>
+                    </div>
+                    <div class="form-group col-md-2">
+                        @Html.LabelFor(x => x.RackNo, "Rack No")
+                        <kendo-datasource ref="dsRackNo" :transport-read-url="'@Url.Action("GetRackNo", "HirePurchase")'" :transport-read-type="'POST'"></kendo-datasource>
+                        <kendo-combobox v-model="input.RackNo" :data-source-ref="'dsRackNo'" style="width:100%" :auto-bind="false"></kendo-combobox>
+                    </div>
+                    <div class="form-group col-md-2">
+                        @Html.LabelFor(x => x.BinNo, "Bin No")
+                        <kendo-datasource ref="dsBinNo" :transport-read-url="'@Url.Action("GetBinNo", "HirePurchase")'" :transport-read-type="'POST'"></kendo-datasource>
+                        <kendo-combobox v-model="input.BinNo" :data-source-ref="'dsBinNo'" style="width:100%" :auto-bind="false"></kendo-combobox>
+                    </div>
+                    <div class="form-group col-md-2">
+                        @Html.LabelFor(x => x.LevelNo, "Level No")
+                        <kendo-datasource ref="dsLevelNo" :transport-read-url="'@Url.Action("GetLevel", "HirePurchase")'" :transport-read-type="'POST'"></kendo-datasource>
+                        <kendo-combobox v-model="input.LevelNo" :data-source-ref="'dsLevelNo'" style="width:100%" :auto-bind="false"></kendo-combobox>
+                    </div>
+
+                    <div class="form-group col-md-3">
+                        @Html.LabelFor(x => x.ChequeStatus, "Cheque Status")
+                        <kendo-dropdownlist :value="input.ChequeStatus" :data-source="['BIN','PICK']" @@change="function(e){setModel(e,input,'ChequeStatus')}" style="width:100%"></kendo-dropdownlist>
+                    </div>
+                    <div class="form-group col-md-5">
+                        @Html.LabelFor(x => x.ReceivedBy, "Received By")
+                        <kendo-datasource ref="dsReceivedBy" :transport-read-url="'@Url.Action("ReadAccountsStaff", "Common")'" :transport-read-type="'POST'"></kendo-datasource>
+                        <kendo-combobox v-model="input.ReceivedBy" :data-source-ref="'dsReceivedBy'" style="width:100%" :auto-bind="false"></kendo-combobox>
+                    </div>
+                    <div class="form-group col-md-4">
+                        @Html.LabelFor(x => x.ReceivedOn, "Received On")
+                        <kendo-datepicker :value="input.ReceivedOn" style="width:100%" :max="maxDate" :format="'dd-MMM-yyyy'" @@change="function(e){setModel(e,input,'ReceivedOn')}"></kendo-datepicker>
+                    </div>
+
+
+                    <div class="form-group col-md-6">
+                        @Html.LabelFor(x => x.PickedBy, "Picked By")
+                        <kendo-datasource ref="dsPickedBy" :transport-read-url="'@Url.Action("ReadCommonName", "Common")'" :transport-read-type="'POST'"></kendo-datasource>
+                        <kendo-combobox v-model="input.PickedBy" :data-source-ref="'dsPickedBy'" style="width:100%" :disabled="input.ChequeStatus=='BIN'" :auto-bind="false"></kendo-combobox>
+                    </div>
+                    <div class="form-group col-md-6">
+                        @Html.LabelFor(x => x.StatusUpdatedOn, "Picked On")
+                        <kendo-datepicker :value="input.StatusUpdatedOn" style="width:100%" :max="maxDate" :format="'dd-MMM-yyyy'" :disabled="input.ChequeStatus=='BIN'" @@change="function(e){setModel(e,input,'StatusUpdatedOn')}"></kendo-datepicker>
+                    </div>
+
+                    <div class="form-group">
+                        @Html.Label("Remarks")
+                        <input v-model="input.Remarks" class="k-textbox" rows="1" />
+                    </div>
+                </div>
+            </div>
+            <div class="form-group" style="text-align:right;padding-top:5px;">
+                <button type="submit" class="btn btn-approve">Update</button>
+                <button type="button" class="btn btn-cancel" @@click="closeChangeWindow">Cancel</button>
+            </div>
+        </form>
+    </text>).Visible(false).Title("Update Locker Status").Draggable().MaxWidth(500)
+
+@{
+    var jsonData = Vue.Encode(new ChequeLockerDetail() { ChequeStatus = "BIN", StatusUpdatedOn = DateTime.Now, ReceivedOn = DateTime.Now });
+}
+@section Scripts
+    {
+    <script type="text/javascript">
+        var app = new Vue({
+            el: '#app',
+            data: {
+                TabIndex: 0,
+            },
+            methods: {
+                deleteItem: function () {
+                    var dataItem = $('#grid').getKendoGrid().dataSource.data();
+                    var selectedCheques = $.grep(dataItem, function (item) {
+                        return item.dirty;
+                    });
+                    if (!selectedCheques.length) {
+                        kendoAlert("Please select some cheque to delete", true);
+                        return;
+                    }
+                    var deletedChequelst = [];
+                    $.each(selectedCheques, function (i, item) {
+                        deletedChequelst.push({ ID: item.ChequeLockerID, ChequeNo: item.ChequeNo, CustomerName: item.CustomerName });
+                    });
+                    kendoConfirm("Do you want to delete these Cheques locker (" + deletedChequelst.length + ")?", function () {
+                        $.postData("@Url.Action("DeleteAllChequeLocker", "HirePurchase")", { datas: deletedChequelst, StatusFilter: app.TabIndex }, app.onSuccess);
+                    });
+                },
+                deleteChequeLocker: function (uid) {
+                    var dataItem = $('#grid').getKendoGrid().dataSource.getByUid(uid)
+                    kendoConfirm("Do you want to delete these Cheques locker (" + dataItem.ChequeNo + ")?", function () {
+                        $.postData("@Url.Action("DeleteChequeLocker", "HirePurchase")", { ID: dataItem.ChequeLockerID, ChequeNo: dataItem.ChequeNo, StatusFilter: app.TabIndex, CustomerName: dataItem.CustomerName }, app.onSuccess);
+                    });
+                },
+                updateChequeLocker: function () {
+                    var dataItem = $('#grid').getKendoGrid().dataSource.data();
+                    var selectedCheques = $.grep(dataItem, function (item) {
+                        return item.dirty;
+                    });
+                    if (!selectedCheques.length) {
+                        kendoAlert("Please select cheque", true);
+                        return;
+                    }
+
+                    appChequeLocker.open();
+                },
+                undoPickedCheques: function () {
+                    var dataItem = $('#grid').getKendoGrid().dataSource.data();
+                    var selectedCheques = $.grep(dataItem, function (item) {
+                        return item.dirty;
+                    });
+                    if (!selectedCheques.length) {
+                        kendoAlert("Please select cheque", true);
+                        return;
+                    }
+                    var PickedChequelst = [];
+                    $.each(selectedCheques, function (i, item) {
+                        PickedChequelst.push({ ID: item.ChequeLockerID, ChequeNo: item.ChequeNo, CustomerName: item.CustomerName });
+                    });
+                    kendoConfirm("Do you want to Un picked these Cheques (" + PickedChequelst.length + ")?", function () {
+                        $.postData("@Url.Action("UpdateUnPickedCheques", "HirePurchase")", { datas: PickedChequelst }, app.onSuccess);
+                    });
+                },
+                onSuccess: function (res) {
+                    kendoAlert(res.Message, res.HasError);
+                    if (res.HasError)
+                        return;
+
+                    $('#grid').getKendoGrid().dataSource.read();
+                    $('#chkGrid').prop('checked', false);
+                },
+                tabChange: function (index) {
+                    this.TabIndex = index;
+                    $('#grid').getKendoGrid().dataSource.read();
+
+                    var $grid = $('#grid').getKendoGrid();
+                    if (this.TabIndex == 1) {
+                        $grid.showColumn(1);
+                    }
+                    else {
+                        $grid.hideColumn(1);
+                    }
+                },
+                grid_Data: function () {
+                    return { StatusFilter: this.TabIndex };
+                }
+            }
+        });
+    </script>
+    <script type="text/javascript">
+        var appChequeLocker = new Vue({
+            el: '#appChequeLocker',
+            data: {
+                input: @(jsonData),
+                maxDate: new Date(),
+            },
+            methods: {
+                open: function () {
+                    //this.input.OldLockerName = dataItem.LockerName;
+                    //this.input.OldRackNo = dataItem.RackNo;
+                    //this.input.OldBinNo = dataItem.BinNo;
+                    //this.input.OldLevelNo = dataItem.LevelNo;
+
+                    //this.input.ChequeStatus = dataItem.ChequeStatus;
+                    //this.input.StatusUpdatedOn = dataItem.StatusUpdatedOn;
+                    //this.input.ReceivedBy = dataItem.ReceivedBy;
+                    //this.input.ReceivedOn = dataItem.ReceivedOn;
+
+                    //this.input.PickedBy = dataItem.PickedBy;
+                    //this.input.Remarks = dataItem.Remarks;
+
+                    $('#wndUpdateChequeLocker').getKendoWindow().open().center();
+                },
+                validateForm: function () {
+                    removeError();
+                    var isValid = true;
+                    var setError = function (cntrl, msg) {
+                        isValid = false;
+                        showError(cntrl, msg);
+                    };
+                    var item = this.input;
+
+                    if (!item.ChequeStatus)
+                        setError('ChequeStatus');
+
+                    if (item.ChequeStatus == 'BIN') {
+                        if (!item.LockerID)
+                            setError('LockerID');
+                        if (!item.RackNo)
+                            setError('RackNo', '');
+                        if (!item.BinNo)
+                            setError('BinNo', '');
+                        if (!item.LevelNo)
+                            setError('LevelNo', '');
+                        if (!item.ReceivedBy)
+                            setError('ReceivedBy');
+                    }
+                    if (item.ChequeStatus == 'PICK') {
+                        if (!item.PickedBy)
+                            setError('PickedBy');
+                    }
+
+                    return isValid;
+                },
+                submitForm: function () {
+                    if (!this.validateForm())
+                        return;
+
+                    var dataItem = $('#grid').getKendoGrid().dataSource.data();
+                    var selectedCheques = $.grep(dataItem, function (item) {
+                        return item.dirty;
+                    });
+
+                    var editedChequelst = [];
+                    $.each(selectedCheques, function (i, item) {
+                        editedChequelst.push({ ID: item.ChequeID });
+                    });
+
+                    $.postData("@Url.Action("SaveChequeLockerDetails","HirePurchase")", {
+                        data: this.input,
+                        datas: editedChequelst,
+                        StatusFilter: app.TabIndex
+                    }, appChequeLocker.onSuccess);
+                },
+                onSuccess: function (res) {
+                    kendoAlert(res.Message, res.HasError);
+                    if (res.HasError)
+                        return;
+
+                    $('#grid').getKendoGrid().dataSource.read();
+                    $('#wndUpdateChequeLocker').getKendoWindow().close();
+                    this.input = @(jsonData);
+                    this.$refs.dsLockerName.kendoWidget().read();
+                },
+                closeChangeWindow: function () {
+                    $('#wndUpdateChequeLocker').getKendoWindow().close();
+                },
+                addLocker: function () {
+                    onWindowOpen(); //For Opacity
+                    $('#wndChequeLockerSetting').getKendoWindow().open().center();
+                },
+                onLockerChange: function (e) {
+                    if (e.sender.selectedIndex != -1) {
+                        this.$refs.dsRackNo.kendoWidget().read({ ID: e.sender.value() });
+                        this.$refs.dsBinNo.kendoWidget().read({ ID: e.sender.value() });
+                        this.$refs.dsLevelNo.kendoWidget().read({ ID: e.sender.value() });
+                    }
+                    else {
+                        this.$refs.dsRackNo.kendoWidget().data([]);
+                        this.$refs.dsBinNo.kendoWidget().data([]);
+                        this.$refs.dsLevelNo.kendoWidget().data([]);
+                    }
+                }
+            }
+        });
+    </script>
+    <script type="text/javascript">
+        function deleteLockerSetting(uid) {
+            var dataItem = $('#gridLockerSetting').getKendoGrid().dataSource.getByUid(uid);
+            if (dataItem.ID == 0) {
+                $('#gridLockerSetting').getKendoGrid().dataSource.cancelChanges(dataItem);
+                return;
+            }
+            kendoConfirm("Do you want to Delete this Locker ?", function () {
+                $.post("@Url.Action("DeleteLocker", "HirePurchase")", { ID: dataItem.ID, LockerName: dataItem.LockerName },
+                    function (data) {
+                        kendoAlert(data.Message, data.HasError);
+                        if (!data.HasError)
+                            $('#gridLockerSetting').getKendoGrid().dataSource.read();
+                    });
+            });
+        }
+
+        function gridLockerSetting_SaveChanges(e) {
+            var data = $(e.sender.element).getKendoGrid().dataSource.data();
+            var dirty = $.grep(data, function (item) {
+                return item.dirty || item.ID === 0;
+            });
+
+            var lockerEmpty = $.grep(dirty, function (item) {
+                return !item.LockerName;
+            });
+
+            var rackEmpty = $.grep(dirty, function (item) {
+                return !item.RackNo;
+            });
+
+            var binEmpty = $.grep(dirty, function (item) {
+                return !item.NoofBin;
+            });
+
+            var levelEmpty = $.grep(dirty, function (item) {
+                return !item.NoofLevel;
+            });
+
+            var errors = [];
+
+            if (lockerEmpty && lockerEmpty.length)
+                errors.push("Locker Name Should not be empty");
+
+            if (rackEmpty && rackEmpty.length)
+                errors.push("Rack No Should not be empty");
+
+            if (binEmpty && binEmpty.length)
+                errors.push("Bin No Should not be empty");
+
+            if (levelEmpty && levelEmpty.length)
+                errors.push("Level No Should not be empty");
+
+            if (errors.length) {
+                e.preventDefault();
+                kendoAlert(errors.join("\n"), true);
+            }
+        }
+    </script>
+    <script type="text/javascript">
+        $(function () {
+            $("#grid").on("change", ".chkcol", function () {
+                var dataItem = $("#grid").getKendoGrid().dataItem($(this).parent().parent());
+                dataItem.dirty = $(this).prop("checked");
+            });
+        });
+
+        function onSelectAll() {
+            var checked = $('#chkGrid').prop('checked');
+            $('#grid .k-grid-content .chkcol').prop('checked', checked);
+            $('#grid .k-grid-content .chkcol').each(function () {
+                var uid = $(this).parent().parent().attr("data-uid");
+                var dataItem = $('#grid').getKendoGrid().dataSource.getByUid(uid);
+                dataItem.dirty = checked;
+            });
+        }
+    </script>
+        }
+

@@ -1,0 +1,43 @@
+﻿@page
+@using BSOL.Core.Models.Marketting
+
+@{
+    ViewBag.Title = "Ramadan Promotion List";
+    Layout = "~/Pages/Shared/_Layout.cshtml";
+}
+<form>
+    <div class="g-title">
+        <span class="g-text">Ramadan Promotion List</span>
+        <div style="float:right">
+
+            @Html.ExcelButtonWithTooltip(flow:"left", toolTipText:"Export")
+            
+        </div>
+
+    </div>
+</form>
+@(Html.Kendo().Grid<RamadanPromotionModel>()
+    .Name("grid")
+    .Columns(x =>
+    {
+    x.Bound(c => c.CustomerName ).Width(230);
+    x.TelColumn(c=> c.CustomerMobileNo).Title("Mobile No").Width(130);
+    x.Bound(c => c.NicNo).Width(90);
+    x.MoneyColumn(c => c.PaidAmount).Width(130);
+    x.DateColumn(c => c.PaidDate).Width(130);
+    x.Bound(c => c.SeriolNo).Width(130);
+    x.Bound(c => c.CouponCode).Width(130);
+    })
+    .Scrollable(sc => sc.Endless(true))
+    .Selectable()
+    .Sortable()
+    .EnableFilter()
+    .Resizable(x=>x.Columns(true))
+    @*.Pageable()*@
+    .EnableEdit(Html)
+    .DataSource(dataSource=>dataSource
+    .Ajax().ServerOperation(true)
+    .Read(read=>read.Action("ReadPromotionList", "Marketting"))
+    )
+
+    )

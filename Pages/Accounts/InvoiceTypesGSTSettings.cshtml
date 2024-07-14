@@ -1,0 +1,246 @@
+﻿@page
+@using BSOL
+@using BSOL.Core.Entities
+@using BSOL.Web.Helpers
+@{
+    ViewBag.Title = "Invoice Types / GST Settings";
+    Layout = "~/Pages/Shared/_Layout.cshtml";
+}
+@if (!await Html.HasAccess(Forms.Accounts.ChartOfAccounts))
+{
+    return;
+}
+@section BreadCrumb{
+    @await Html.PartialAsync("Tabs", "Finance/Chart of Accounts")
+}
+
+<div class="components">
+    @(Html.Kendo().Grid<GSTSetting>().Name("gridGST")
+        .Editable(Html, "GST Settings")
+        .Columns(c =>
+        {
+            c.DeleteColumn(x => x.Id, "deleteGST('#:uid#')");
+            c.Bound(x => x.Name).Width(100);
+            c.MoneyColumn(x => x.Percentage).EditorTemplateName("MoneyEditor").Title("GST (%)").Width(80);
+            c.Bound(x => x.GSTInAccountId).ClientTemplate("#: GSTInAccount ? GSTInAccount : '' #").EditorTemplateName("ComboBoxEditor").EditorViewData(new { Data = new EditorData(Url.Action("ReadAccountsByType", "Common", new { Type = AccountTypes.Liabilities }), "GSTInAccount") }).Title("GST In");
+            c.Bound(x => x.GSTOutAccountId).ClientTemplate("#: GSTOutAccount ? GSTOutAccount : '' #").EditorTemplateName("ComboBoxEditor").EditorViewData(new { Data = new EditorData(Url.Action("ReadAccountsByType", "Common", new { Type = AccountTypes.Liabilities }), "GSTOutAccount") }).Title("GST Out");
+        })
+        .Events(x => x.SaveChanges("gridGST_SaveChanges"))
+        .DataSource(d => d.Ajax()
+            .Batch(true)
+            .ServerOperation(false)
+            .Events(events => events.Error("grid_ErrorHandler").RequestEnd("gridGST_RequestEnd"))
+            .Read("ReadGSTSettings", "Accounts")
+            .Model(m =>
+            {
+                m.Id(f => f.Id);
+                m.Field("Id", typeof(long)).Editable(false);
+            })
+            .Create("UpdateGSTSettings", "Accounts")
+            .Update("UpdateGSTSettings", "Accounts")
+        )
+        .HtmlAttributes(new { @class = "h-grid cb-grid" })
+        .EnableFilter()
+        .Sortable()
+        .Navigatable()
+    )
+</div>
+<div class="components">
+    @(Html.Kendo().Grid<Core.Entities.InvoiceType>().Name("grid")
+        .Editable(Html, "Invoice Types")
+        .Columns(c =>
+            {
+                c.DeleteColumn(x => x.Id, "deleteInvoiceType('#:uid#')");
+                c.Bound(x => x.Type).Width(120);
+                //c.Bound(x => x.Type).EditorTemplateName("DropDownEditor").EditorViewData(new { Data = Utilities.EnumToList<Helpers.InvoiceType>().Select(y => y.Description()) }).Title("Invoice Type").Width(120);
+                c.Bound(x => x.IncomeAccountId).ClientTemplate("#: IncomeAccountName ? IncomeAccountName : '' #").EditorTemplateName("ComboBoxEditor").EditorViewData(new { Data = new EditorData(Url.Action("ReadAccountsByType", "Common", new { Type = AccountTypes.Income }), "IncomeAccountName") }).Title("Income Account");
+                c.Bound(x => x.ExpenseAccountId).ClientTemplate("#: ExpenseAccountName ? ExpenseAccountName : '' #").EditorTemplateName("ComboBoxEditor").EditorViewData(new { Data = new EditorData(Url.Action("ReadAccountsByType", "Common", new { Type = AccountTypes.Expenses }), "ExpenseAccountName") }).Title("Expense Account");
+                c.Bound(x => x.DiscountAccountId).ClientTemplate("#: DiscountAccountName ? DiscountAccountName : '' #").EditorTemplateName("ComboBoxEditor").EditorViewData(new { Data = new EditorData(Url.Action("ReadAccountsByType", "Common", new { Type = AccountTypes.Income }), "DiscountAccountName") }).Title("Discount Account");
+                c.Bound(x => x.ReturnAccountId).ClientTemplate("#: ReturnAccountName ? ReturnAccountName : '' #").EditorTemplateName("ComboBoxEditor").EditorViewData(new { Data = new EditorData(Url.Action("ReadAccountsByType", "Common", new { Type = AccountTypes.Income }), "ReturnAccountName") }).Title("Return Account");
+            })
+        .Events(x => x.SaveChanges("grid_SaveChanges"))
+        .DataSource(d => d.Ajax()
+            .Batch(true)
+            .ServerOperation(false)
+            .Events(events => events.Error("grid_ErrorHandler").RequestEnd("grid_RequestEnd"))
+            .Read("ReadInvoiceTypes", "Accounts")
+            .Model(m =>
+            {
+                m.Id(f => f.Id);
+                m.Field("Id", typeof(long)).Editable(false);
+            })
+            .Create("UpdateInvoiceTypes", "Accounts")
+            .Update("UpdateInvoiceTypes", "Accounts")
+        )
+        .HtmlAttributes(new { @class = "h-grid cb-grid" })
+        .EnableFilter()
+        .Sortable()
+        .Navigatable()
+    )
+</div>
+@section Scripts
+{
+
+    <script type="text/javascript">
+
+        function grid_SaveChanges(e) {
+            var data = $(e.sender.element).getKendoGrid().dataSource.data();
+            var dirty = $.grep(data, function (item) {
+                return item.dirty || item.Id === 0;
+            });
+            var invoiceTypes = $.grep(dirty, function (item) {
+                return !item.type;
+            });
+
+            var errors = [];
+            var emptyType = 0, emptyIncome = 0, emptyExpense = 0, emptyDiscount = 0, emptyReturn = 0;
+            if (invoiceTypes && invoiceTypes.length > 0) {
+                $.each(invoiceTypes, function (i,x) {
+                    var setRowError = function () {
+                        $('#grid').find("[data-uid=" + x.uid + "]:not('.rw-err')").addClass("rw-err");
+                    };
+                    if (!x.Type || !x.Type.trim().length) {
+                        emptyType++;
+                        setRowError();
+                    }
+                    if (!x.IncomeAccountId) {
+                        emptyIncome++;
+                        setRowError();
+                    }
+                    if (!x.ExpenseAccountId) {
+                        emptyExpense++;
+                        setRowError();
+                    }
+                    if (!x.DiscountAccountId) {
+                        emptyDiscount++;
+                        setRowError();
+                    }
+                    if (!x.ReturnAccountId) {
+                        emptyReturn++;
+                        setRowError();
+                    }
+                });
+            }
+            if (emptyType > 0)
+                errors.push("Invoice type should not be empty");
+
+            if (emptyIncome > 0)
+                errors.push("Income Account should not be empty");
+
+            if (emptyExpense > 0)
+                errors.push("Expense Account should not be empty");
+
+            if (emptyDiscount > 0)
+                errors.push("Discount Account should not be empty");
+
+            if (emptyReturn > 0)
+                errors.push("Return Account should not be empty");
+
+            if (errors.length) {
+                e.preventDefault();
+                kendoAlert(errors.join("\n"), true);
+            }
+        }
+
+        function grid_RequestEnd(e) {
+            if ((e.type == "create" || e.type == "update") && !e.response.Errors)
+                kendoAlert("Invoice Type saved.");
+        }
+
+        function deleteInvoiceType(uid) {
+            var dataItem = $('#grid').getKendoGrid().dataSource.getByUid(uid);
+            if (dataItem.Id == 0) {
+                $('#grid').getKendoGrid().dataSource.cancelChanges(dataItem);
+                return;
+            }
+            kendoConfirm("Do you want to delete this Invoice Type?", function () {
+                $.postData("@Url.Action("DeleteInvoiceType", "Accounts")", { Id: dataItem.Id, Type: dataItem.Type },
+                    function (data) {
+                        kendoAlert(data.Message, data.HasError);
+                        if (!data.HasError)
+                            $('#grid').getKendoGrid().dataSource.read();
+                    });
+            });
+        }
+
+    </script>
+
+    <script type="text/javascript">
+
+        function gridGST_SaveChanges(e) {
+            var data = $(e.sender.element).getKendoGrid().dataSource.data();
+            var dirty = $.grep(data, function (item) {
+                return item.dirty || item.Id === 0;
+            });
+            var gstSettings = $.grep(dirty, function (item) {
+                return !item.Name || !item.Percentage || !item.GSTInAccountId || !item.GSTOutAccountId;
+            });
+
+            var errors = [];
+            var emptyName = 0, emptyPercentage = 0, emptyGSTIn = 0, emptyGSTOut = 0;
+            if (gstSettings && gstSettings.length > 0) {
+                $.each(gstSettings, function (i,x) {
+                    var setRowError = function () {
+                        $('#gridGST').find("[data-uid=" + x.uid + "]:not('.rw-err')").addClass("rw-err");
+                    };
+                    if (!x.Name || !x.Name.trim().length) {
+                        emptyName++;
+                        setRowError();
+                    }
+                    if (!x.Percentage) {
+                        emptyPercentage++;
+                        setRowError();
+                    }
+                    if (!x.GSTInAccountId) {
+                        emptyGSTIn++;
+                        setRowError();
+                    }
+                    if (!x.GSTOutAccountId) {
+                        emptyGSTOut++;
+                        setRowError();
+                    }
+                });
+            }
+            if (emptyName > 0)
+                errors.push("Name should not be empty");
+
+            if (emptyPercentage > 0)
+                errors.push("GST % should not be empty");
+
+            if (emptyGSTIn > 0)
+                errors.push("GST IN Account should not be empty");
+
+            if (emptyGSTOut > 0)
+                errors.push("GST OUT Account should not be empty");
+
+            if (errors.length) {
+                e.preventDefault();
+                kendoAlert(errors.join("\n"), true);
+            }
+        }
+
+        function gridGST_RequestEnd(e) {
+            if ((e.type == "create" || e.type == "update") && !e.response.Errors)
+                kendoAlert("GST Setting saved.");
+        }
+
+        function deleteGST(uid) {
+            var dataItem = $('#gridGST').getKendoGrid().dataSource.getByUid(uid);
+            if (dataItem.Id == 0) {
+                $('#gridGST').getKendoGrid().dataSource.cancelChanges(dataItem);
+                return;
+            }
+            kendoConfirm("Do you want to delete this GST Setting?", function () {
+                $.postData("@Url.Action("DeleteGSTSetting", "Accounts")", { Id: dataItem.Id, Name: dataItem.Name, Percentage: dataItem.Percentage },
+                    function (data) {
+                        kendoAlert(data.Message, data.HasError);
+                        if (!data.HasError)
+                            $('#gridGST').getKendoGrid().dataSource.read();
+                    });
+            });
+        }
+
+    </script>
+
+}
+
